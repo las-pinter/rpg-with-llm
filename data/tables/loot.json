@@ -1,0 +1,13 @@
+{
+  "name": "loot",
+  "die": "1d100",
+  "entries": [
+    {"range": [1, 40], "result": "A handful of rusty copper coins and a chipped dagger. Barely worth the pocket lint."},
+    {"range": [41, 60], "result": "A small leather pouch containing a few silver coins and a tarnished silver locket."},
+    {"range": [61, 75], "result": "A semi-precious gemstone (garnet or turquoise) wrapped in stained cloth."},
+    {"range": [76, 85], "result": "A scroll case containing a spell scroll (single-use, random minor spell)."},
+    {"range": [86, 93], "result": "A finely crafted elven shortsword with faintly glowing runes along the blade."},
+    {"range": [94, 98], "result": "A potion of healing in a crystal vial, shimmering with a soft golden light."},
+    {"range": [99, 100], "result": "A legendary amulet of the lost dwarf-king, pulsing with ancient power."}
+  ]
+}

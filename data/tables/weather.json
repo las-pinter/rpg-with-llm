@@ -1,0 +1,12 @@
+{
+  "name": "weather",
+  "die": "1d20",
+  "entries": [
+    {"range": [1, 3], "result": "Blazing sun scorches the landscape. Heat shimmers dance on the horizon. Drink water or suffer."},
+    {"range": [4, 7], "result": "Overcast sky with a cool breeze. Comfortable travel weather — almost pleasant."},
+    {"range": [8, 12], "result": "Light drizzle and drifting fog. Visibility is poor; sounds are muffled and strange."},
+    {"range": [13, 16], "result": "Heavy downpour! Thunder crashes and lightning splits the sky. Seek shelter or get soaked."},
+    {"range": [17, 19], "result": "Howling blizzard whips snow and ice across the land. Frozen winds cut through any cloak."},
+    {"range": [20, 20], "result": "An arcane storm! Purple lightning arcs between clouds, strange symbols flicker in the sky, and the air hums with wild magic."}
+  ]
+}
