@@ -1,0 +1,18 @@
+{
+  "name": "npc_traits",
+  "die": "1d12",
+  "entries": [
+    {"range": [1, 1], "result": "Greedy and miserly — this NPC hoards every coin and values gold above friendship."},
+    {"range": [2, 2], "result": "Kind-hearted and generous — quick to offer aid, slow to judge."},
+    {"range": [3, 3], "result": "Mysterious and secretive — speaks in riddles and knows more than they let on."},
+    {"range": [4, 4], "result": "Boastful and loud — every story involves their heroic deeds (real or imagined)."},
+    {"range": [5, 5], "result": "Cautious and paranoid — trusts no one, checks every shadow, sleeps with a weapon."},
+    {"range": [6, 6], "result": "Curious and inquisitive — asks endless questions, touches things they shouldn't."},
+    {"range": [7, 7], "result": "Grumpy and pessimistic — everything is terrible and will only get worse."},
+    {"range": [8, 8], "result": "Cheerful and optimistic — sees the bright side of even the darkest dungeon."},
+    {"range": [9, 9], "result": "Stoic and reserved — speaks little but observes everything patiently."},
+    {"range": [10, 10], "result": "Scheming and manipulative — every kindness has a hidden price."},
+    {"range": [11, 11], "result": "Honorable and just — lives by a strict code and expects others to do the same."},
+    {"range": [12, 12], "result": "Chaotic and unpredictable — flip-flops moods wildly, keeps everyone guessing."}
+  ]
+}

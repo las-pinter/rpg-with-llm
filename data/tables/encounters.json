@@ -1,0 +1,12 @@
+{
+  "name": "encounters",
+  "die": "1d20",
+  "entries": [
+    {"range": [1, 3], "result": "A pack of slavering wolves encircles the party, hackles raised and eyes glowing in the dark.", "table": "weather"},
+    {"range": [4, 7], "result": "A grizzled traveling merchant hawks exotic wares from a creaking wagon."},
+    {"range": [8, 11], "result": "An abandoned campsite smolders with dying embers; torn maps and scattered coins hint at a struggle."},
+    {"range": [12, 15], "result": "A hooded figure stands motionless on the road ahead, staff glowing with faint blue light."},
+    {"range": [16, 18], "result": "A dragon soars overhead, its massive shadow sweeping across the land — it pays the party no mind."},
+    {"range": [19, 20], "result": "The ground trembles as a colossal earth elemental lumbers past, oblivious to the tiny creatures below."}
+  ]
+}
