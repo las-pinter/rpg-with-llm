@@ -29,3 +29,9 @@ data/saves/
 # Runtime
 *.tmp
 *.temp
+
+# Test artifacts
+.coverage
+coverage.xml
+htmlcov/
+junit/
