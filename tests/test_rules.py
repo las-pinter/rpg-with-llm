@@ -28,6 +28,17 @@ from app.rules.status import (
 )
 from app.rules.xp import XP_THRESHOLDS, calculate_xp, check_level_up, xp_to_next_level
 
+
+def _mock_roll(total: int = 10, sides: int = 20, formula: str = "1d20") -> dict:
+    """Return a standardised roll result dict for use across tests."""
+    return {
+        "total": total,
+        "rolls": [total],
+        "sides": sides,
+        "formula": formula,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Shared fixture: character stats used across multiple test classes
 # ---------------------------------------------------------------------------
@@ -94,7 +105,7 @@ class TestSkillCheck:
     def test_trained_skill_adds_proficiency(self, mock_parse, mock_roll):
         """A trained skill should include proficiency bonus in the modifier."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         # perception is trained, wisdom=8 -> -1 mod, prof=2 -> total mod = 1
         result = skill_check(BASE_STATS, "perception", 10)
@@ -108,7 +119,7 @@ class TestSkillCheck:
     def test_untrained_skill_no_proficiency(self, mock_parse, mock_roll):
         """An untrained skill should NOT include proficiency bonus."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         # arcana is not trained, intelligence=10 -> 0 mod, no prof
         result = skill_check(BASE_STATS, "arcana", 10)
@@ -121,7 +132,7 @@ class TestSkillCheck:
     def test_skill_check_default_ability_lookup(self, mock_parse, mock_roll):
         """When ability is None, it should be inferred from SKILL_ABILITY_MAP."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         # "athletics" maps to "strength" (14 -> +2)
         result = skill_check(BASE_STATS, "athletics", 10)
@@ -133,7 +144,7 @@ class TestSkillCheck:
     def test_skill_check_failure(self, mock_parse, mock_roll):
         """When total < DC, success should be False."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 5, "rolls": [5], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=5)
 
         result = skill_check(BASE_STATS, "arcana", 20, ability="intelligence")
         assert result["success"] is False
@@ -142,11 +153,24 @@ class TestSkillCheck:
     def test_skill_ability_map_completeness(self):
         """All standard skills should be in the map."""
         expected_skills = {
-            "acrobatics", "animal_handling", "arcana", "athletics",
-            "deception", "history", "insight", "intimidation",
-            "investigation", "medicine", "nature", "perception",
-            "performance", "persuasion", "religion", "sleight_of_hand",
-            "stealth", "survival",
+            "acrobatics",
+            "animal_handling",
+            "arcana",
+            "athletics",
+            "deception",
+            "history",
+            "insight",
+            "intimidation",
+            "investigation",
+            "medicine",
+            "nature",
+            "perception",
+            "performance",
+            "persuasion",
+            "religion",
+            "sleight_of_hand",
+            "stealth",
+            "survival",
         }
         assert set(SKILL_ABILITY_MAP.keys()) == expected_skills
 
@@ -159,7 +183,7 @@ class TestSavingThrow:
     def test_with_proficiency(self, mock_parse, mock_roll):
         """Proficient save should include proficiency bonus."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         # strength save is proficient, strength=14 -> +2, prof=2 -> total mod = 4
         result = saving_throw(BASE_STATS, "strength", 14)
@@ -172,7 +196,7 @@ class TestSavingThrow:
     def test_without_proficiency(self, mock_parse, mock_roll):
         """Non-proficient save should NOT include proficiency bonus."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         # dexterity save is NOT proficient, dex=12 -> +1, no prof
         result = saving_throw(BASE_STATS, "dexterity", 11)
@@ -185,7 +209,7 @@ class TestSavingThrow:
     def test_saving_throw_failure(self, mock_parse, mock_roll):
         """When total < DC, success should be False."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 5, "rolls": [5], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=5)
 
         result = saving_throw(BASE_STATS, "strength", 20)
         assert result["success"] is False
@@ -199,7 +223,7 @@ class TestAbilityCheck:
     def test_correct_modifier(self, mock_parse, mock_roll):
         """Ability check should only use ability modifier, no proficiency."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         # strength=14 -> +2
         result = ability_check(BASE_STATS, "strength", 12)
@@ -212,7 +236,7 @@ class TestAbilityCheck:
     def test_ability_check_failure(self, mock_parse, mock_roll):
         """When total < DC, success should be False."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 3, "rolls": [3], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=3)
 
         result = ability_check(BASE_STATS, "charisma", 20)
         assert result["success"] is False
@@ -227,7 +251,7 @@ class TestChecksEdgeCases:
         """If DC exceeds max possible roll + modifier, result should always fail."""
         # Max roll is 20, modifier for arcana (int=10) is 0, so max is 20
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 20, "rolls": [20], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=20)
 
         # DC 21 > max possible 20
         result = ability_check(BASE_STATS, "intelligence", 21)
@@ -239,7 +263,7 @@ class TestChecksEdgeCases:
         """If DC is at or below min possible roll + modifier, always succeed."""
         # Min roll is 1, modifier for strength is 2, so min is 3
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 1, "rolls": [1], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=1)
 
         # DC 3 <= min possible 3
         result = ability_check(BASE_STATS, "strength", 3)
@@ -259,7 +283,7 @@ class TestAttackRoll:
     def test_hit_when_roll_plus_modifier_meets_ac(self, mock_parse, mock_roll):
         """Roll + modifier >= AC should be a hit."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 12, "rolls": [12], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=12)
 
         # strength=14 (+2), prof=2 -> total mod = 4, roll=12 -> total=16, AC=15
         result = attack_roll(BASE_STATS, 15)
@@ -273,7 +297,7 @@ class TestAttackRoll:
     def test_miss_when_total_below_ac(self, mock_parse, mock_roll):
         """Roll + modifier < AC should be a miss (non-natural-1)."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 5, "rolls": [5], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=5)
 
         # total=5+4=9, AC=15
         result = attack_roll(BASE_STATS, 15)
@@ -284,7 +308,7 @@ class TestAttackRoll:
     def test_natural_20_always_hits(self, mock_parse, mock_roll):
         """Natural 20 should always hit, even if total < AC."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 20, "rolls": [20], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=20)
 
         # AC 99 is impossible to beat normally
         result = attack_roll({"strength": 10, "proficiency_bonus": 0}, 99)
@@ -296,7 +320,7 @@ class TestAttackRoll:
     def test_natural_1_always_misses(self, mock_parse, mock_roll):
         """Natural 1 should always miss, even if total would meet AC."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 1, "rolls": [1], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=1)
 
         # AC 2 is trivially easy, but nat 1 misses
         result = attack_roll({"strength": 20, "proficiency_bonus": 10}, 2)
@@ -308,9 +332,17 @@ class TestAttackRoll:
     def test_advantage_parses_correctly(self, mock_parse, mock_roll):
         """Advantage should use 'd20 advantage' notation."""
         mock_parse.return_value = DiceExpression(
-            count=2, sides=20, keep_mode=KeepMode.HIGHEST, keep_count=1,
+            count=2,
+            sides=20,
+            keep_mode=KeepMode.HIGHEST,
+            keep_count=1,
         )
-        mock_roll.return_value = {"total": 18, "rolls": [12, 18], "sides": 20, "formula": "d20 advantage"}
+        mock_roll.return_value = {
+            "total": 18,
+            "rolls": [12, 18],
+            "sides": 20,
+            "formula": "d20 advantage",
+        }
 
         attack_roll(BASE_STATS, 15, advantage=True)
         mock_parse.assert_called_with("d20 advantage")
@@ -320,9 +352,17 @@ class TestAttackRoll:
     def test_disadvantage_parses_correctly(self, mock_parse, mock_roll):
         """Disadvantage should use 'd20 disadvantage' notation."""
         mock_parse.return_value = DiceExpression(
-            count=2, sides=20, keep_mode=KeepMode.LOWEST, keep_count=1,
+            count=2,
+            sides=20,
+            keep_mode=KeepMode.LOWEST,
+            keep_count=1,
         )
-        mock_roll.return_value = {"total": 5, "rolls": [5, 12], "sides": 20, "formula": "d20 disadvantage"}
+        mock_roll.return_value = {
+            "total": 5,
+            "rolls": [5, 12],
+            "sides": 20,
+            "formula": "d20 disadvantage",
+        }
 
         attack_roll(BASE_STATS, 15, disadvantage=True)
         mock_parse.assert_called_with("d20 disadvantage")
@@ -332,7 +372,7 @@ class TestAttackRoll:
     def test_advantage_and_disadvantage_cancel(self, mock_parse, mock_roll):
         """Both advantage+disadvantage should cancel to a normal roll."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=10)
 
         attack_roll(BASE_STATS, 15, advantage=True, disadvantage=True)
         mock_parse.assert_called_with("1d20")
@@ -391,7 +431,7 @@ class TestCalculateDamage:
     def test_damage_roll_with_modifier(self, mock_parse, mock_roll):
         """Damage should include ability modifier (strength)."""
         mock_parse.return_value = DiceExpression(count=1, sides=8)
-        mock_roll.return_value = {"total": 5, "rolls": [5], "sides": 8, "formula": "1d8"}
+        mock_roll.return_value = _mock_roll(total=5, sides=8, formula="1d8")
 
         # strength=14 -> +2, roll=5 -> total=7
         result = calculate_damage("1d8", BASE_STATS)
@@ -403,7 +443,7 @@ class TestCalculateDamage:
     def test_damage_minimum_zero(self, mock_parse, mock_roll):
         """Damage should be floored at 0 (negative modifiers shouldn't go below 0)."""
         mock_parse.return_value = DiceExpression(count=1, sides=4)
-        mock_roll.return_value = {"total": 1, "rolls": [1], "sides": 4, "formula": "1d4"}
+        mock_roll.return_value = _mock_roll(total=1, sides=4, formula="1d4")
 
         # strength=3 -> -3 mod, roll=1 -> would be -2, floored to 0
         weak_stats = {"strength": 3}
@@ -415,7 +455,7 @@ class TestCalculateDamage:
     def test_damage_custom_type(self, mock_parse, mock_roll):
         """Custom damage type should be reflected in the result."""
         mock_parse.return_value = DiceExpression(count=1, sides=6)
-        mock_roll.return_value = {"total": 4, "rolls": [4], "sides": 6, "formula": "1d6"}
+        mock_roll.return_value = _mock_roll(total=4, sides=6, formula="1d6")
 
         result = calculate_damage("1d6", BASE_STATS, damage_type="fire")
         assert result["damage_type"] == "fire"
@@ -458,7 +498,8 @@ class TestCalculateXP:
         solo = calculate_xp("medium", 1, party_size=1)
         party = calculate_xp("medium", 1, party_size=4)
         assert party["base_xp"] == solo["base_xp"] * 4
-        assert solo["per_character"] == party["per_character"]  # per_character unchanged
+        # per_character unchanged by party size
+        assert solo["per_character"] == party["per_character"]
 
     def test_higher_level_gives_more_xp(self):
         """Higher level encounters should give more XP."""
@@ -591,7 +632,11 @@ class TestApplyRemoveEffect:
     def test_apply_effect_modifies_stats(self):
         """Apply should add modifier values to stats."""
         stats = {"attack_bonus": 5, "ac": 14}
-        effect = StatusEffect(name="Test", duration=1, modifiers={"attack_bonus": -2, "ac_bonus": -2})
+        effect = StatusEffect(
+            name="Test",
+            duration=1,
+            modifiers={"attack_bonus": -2, "ac_bonus": -2},
+        )
         modified = apply_effect(stats, effect)
 
         assert modified["attack_bonus"] == 3  # 5 + (-2)
@@ -602,7 +647,11 @@ class TestApplyRemoveEffect:
     def test_remove_effect_restores_stats(self):
         """Remove should reverse modifier values."""
         applied_stats = {"attack_bonus": 3, "ac": 14, "ac_bonus": -2}
-        effect = StatusEffect(name="Test", duration=1, modifiers={"attack_bonus": -2, "ac_bonus": -2})
+        effect = StatusEffect(
+            name="Test",
+            duration=1,
+            modifiers={"attack_bonus": -2, "ac_bonus": -2},
+        )
         restored = remove_effect(applied_stats, effect)
 
         assert restored["attack_bonus"] == 5  # 3 - (-2) = 5
@@ -611,7 +660,11 @@ class TestApplyRemoveEffect:
     def test_apply_then_remove_roundtrip(self):
         """Apply then remove should return to original stats."""
         original = {"strength": 14, "dexterity": 12, "speed": 30}
-        effect = StatusEffect(name="Slow", duration=3, modifiers={"speed": -10, "dexterity": -2})
+        effect = StatusEffect(
+            name="Slow",
+            duration=3,
+            modifiers={"speed": -10, "dexterity": -2},
+        )
 
         applied = apply_effect(original, effect)
         assert applied["speed"] == 20
@@ -755,7 +808,8 @@ class TestRemoveEffectBugs:
         """remove_effect should not add modifier keys that are absent from stats."""
         stats = {"attack_bonus": 10, "ac": 14}
         effect = StatusEffect(
-            name="Test", duration=1,
+            name="Test",
+            duration=1,
             modifiers={"attack_bonus": -2, "ac_bonus": -2, "speed": 999},
         )
         result = remove_effect(stats, effect)
@@ -854,7 +908,7 @@ class TestChecksMarginField:
     def test_saving_throw_returns_margin(self, mock_parse, mock_roll):
         """saving_throw should include a margin field (total - dc)."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 15, "rolls": [15], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=15)
 
         result = saving_throw(BASE_STATS, "strength", 14)
         assert "margin" in result
@@ -866,7 +920,7 @@ class TestChecksMarginField:
     def test_saving_throw_margin_negative_on_failure(self, mock_parse, mock_roll):
         """saving_throw margin should be negative when total < dc."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 5, "rolls": [5], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=5)
 
         result = saving_throw(BASE_STATS, "dexterity", 20)
         assert "margin" in result
@@ -877,7 +931,7 @@ class TestChecksMarginField:
     def test_ability_check_returns_margin(self, mock_parse, mock_roll):
         """ability_check should include a margin field (total - dc)."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 12, "rolls": [12], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=12)
 
         result = ability_check(BASE_STATS, "strength", 10)
         assert "margin" in result
@@ -889,7 +943,7 @@ class TestChecksMarginField:
     def test_ability_check_margin_negative_on_failure(self, mock_parse, mock_roll):
         """ability_check margin should be negative when total < dc."""
         mock_parse.return_value = DiceExpression(count=1, sides=20)
-        mock_roll.return_value = {"total": 3, "rolls": [3], "sides": 20, "formula": "1d20"}
+        mock_roll.return_value = _mock_roll(total=3)
 
         result = ability_check(BASE_STATS, "charisma", 20)
         assert "margin" in result

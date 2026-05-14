@@ -19,6 +19,7 @@ from app.llm.base import ProviderConfig
 # Exceptions
 # ---------------------------------------------------------------------------
 
+
 class ConfigError(Exception):
     """Raised when a configuration operation fails."""
 
@@ -26,6 +27,7 @@ class ConfigError(Exception):
 # ---------------------------------------------------------------------------
 # ConfigManager
 # ---------------------------------------------------------------------------
+
 
 class ConfigManager:
     """Manages named provider configurations stored as JSON files.
@@ -90,9 +92,7 @@ class ConfigManager:
         self._validate_name(name)
         path = self._providers_dir / f"{name}.json"
         if not path.exists():
-            raise ConfigError(
-                f"Provider config '{name}' not found at {path}"
-            )
+            raise ConfigError(f"Provider config '{name}' not found at {path}")
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -106,9 +106,7 @@ class ConfigManager:
         self._validate(config)
         return config
 
-    def save_config(
-        self, config: ProviderConfig, name: str = "default"
-    ) -> None:
+    def save_config(self, config: ProviderConfig, name: str = "default") -> None:
         """Save (create or update) a named provider configuration.
 
         Writes atomically: the JSON is first written to a temporary file
@@ -127,9 +125,7 @@ class ConfigManager:
             If validation fails or the file cannot be written.
         """
         if not isinstance(config, ProviderConfig):
-            raise ConfigError(
-                f"Expected ProviderConfig, got {type(config).__name__}"
-            )
+            raise ConfigError(f"Expected ProviderConfig, got {type(config).__name__}")
         self._validate_name(name)
         self._validate(config)
         path = self._providers_dir / f"{name}.json"
@@ -147,9 +143,7 @@ class ConfigManager:
         if not self._providers_dir.exists():
             return []
         return sorted(
-            p.stem
-            for p in self._providers_dir.iterdir()
-            if p.suffix == ".json"
+            p.stem for p in self._providers_dir.iterdir() if p.suffix == ".json"
         )
 
     def delete_config(self, name: str) -> None:
@@ -168,9 +162,7 @@ class ConfigManager:
         self._validate_name(name)
         path = self._providers_dir / f"{name}.json"
         if not path.exists():
-            raise ConfigError(
-                f"Provider config '{name}' not found at {path}"
-            )
+            raise ConfigError(f"Provider config '{name}' not found at {path}")
         try:
             path.unlink()
         except OSError as exc:
@@ -218,9 +210,7 @@ class ConfigManager:
             )
 
         if not isinstance(config.timeout, int) or config.timeout < 1:
-            raise ConfigError(
-                "timeout must be a positive integer"
-            )
+            raise ConfigError("timeout must be a positive integer")
 
     @staticmethod
     def _atomic_write(path: Path, content: str) -> None:
@@ -231,9 +221,7 @@ class ConfigManager:
         partial/corrupt files on crash.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp_path = tempfile.mkstemp(
-            dir=path.parent, suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)

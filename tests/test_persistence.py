@@ -22,6 +22,7 @@ from app.world.persistence import WorldStorage
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def storage() -> WorldStorage:
     """Create a WorldStorage backed by a temporary directory."""
@@ -71,6 +72,7 @@ def sample_world() -> WorldState:
 # ---------------------------------------------------------------------------
 # TestWorldStorage
 # ---------------------------------------------------------------------------
+
 
 class TestWorldStorage:
     """Test suite for WorldStorage."""
@@ -149,9 +151,7 @@ class TestWorldStorage:
             "Retrieve the orb",
         ]
         assert restored.faction_standings["adventurers"].standing == 50
-        assert restored.dm_notes.plot_threads == [
-            "The mayor is a shapeshifter"
-        ]
+        assert restored.dm_notes.plot_threads == ["The mayor is a shapeshifter"]
         assert restored.dm_notes.secrets == ["Trapdoor behind the throne"]
 
         # Different object identity
@@ -241,9 +241,7 @@ class TestWorldStorage:
         storage.delete("gone_soon")
         assert len(storage.list_saves()) == 0
 
-    def test_delete_non_existent_raises_error(
-        self, storage: WorldStorage
-    ) -> None:
+    def test_delete_non_existent_raises_error(self, storage: WorldStorage) -> None:
         """Deleting a save that doesn't exist must raise FileNotFoundError."""
         with pytest.raises(FileNotFoundError, match="not found"):
             storage.delete("does_not_exist")
@@ -269,16 +267,12 @@ class TestWorldStorage:
     # Load errors
     # ------------------------------------------------------------------
 
-    def test_load_non_existent_raises_error(
-        self, storage: WorldStorage
-    ) -> None:
+    def test_load_non_existent_raises_error(self, storage: WorldStorage) -> None:
         """Loading a non-existent save must raise FileNotFoundError."""
         with pytest.raises(FileNotFoundError, match="not found"):
             storage.load("ghost_save")
 
-    def test_load_corrupt_file_raises_error(
-        self, storage: WorldStorage
-    ) -> None:
+    def test_load_corrupt_file_raises_error(self, storage: WorldStorage) -> None:
         """Loading a corrupt (invalid JSON) file must raise ValueError."""
         bad_file = storage.saves_dir / "corrupt.json"
         bad_file.write_text("this is not json", encoding="utf-8")
@@ -293,9 +287,7 @@ class TestWorldStorage:
         bad_file = storage.saves_dir / "not_a_dict.json"
         bad_file.write_text('"just a string"', encoding="utf-8")
 
-        with pytest.raises(
-            ValueError, match="corrupt|expected a JSON object"
-        ):
+        with pytest.raises(ValueError, match="corrupt|expected a JSON object"):
             storage.load("not_a_dict")
 
     # ------------------------------------------------------------------
@@ -321,9 +313,7 @@ class TestWorldStorage:
         try:
             os.rename = tracking_rename  # type: ignore[assignment]
             storage.save(sample_world, name="atomic_test")
-            assert len(tmp_paths) >= 1, (
-                "No tmp file was used during save"
-            )
+            assert len(tmp_paths) >= 1, "No tmp file was used during save"
         finally:
             os.rename = original_rename
 
@@ -366,9 +356,7 @@ class TestWorldStorage:
         store.save(sample_world, name="first")
         assert store.should_auto_save(8) is False
 
-    def test_should_auto_save_exact_boundary(
-        self, sample_world: WorldState
-    ) -> None:
+    def test_should_auto_save_exact_boundary(self, sample_world: WorldState) -> None:
         """At exact interval boundary, should_auto_save returns True."""
         store = WorldStorage(tempfile.mkdtemp(), auto_save_interval=3)
         store.save(sample_world, name="first")
@@ -425,9 +413,7 @@ class TestWorldStorage:
             storage.saves_dir.chmod(original_mode)
 
         tmp_files = list(storage.saves_dir.glob("*.tmp"))
-        assert len(tmp_files) == 0, (
-            f"Temp files left behind: {tmp_files}"
-        )
+        assert len(tmp_files) == 0, f"Temp files left behind: {tmp_files}"
 
     # ------------------------------------------------------------------
     # Name validation — path traversal prevention (Bug 1)
@@ -498,6 +484,7 @@ class TestWorldStorage:
     ) -> None:
         """If saves/ directory is deleted, save() must recreate it."""
         import shutil
+
         shutil.rmtree(storage.saves_dir)
         assert not storage.saves_dir.exists()
 
@@ -556,4 +543,3 @@ class TestWorldStorage:
         saves = storage.list_saves()
         assert len(saves) == 1
         assert saves[0]["level"] == 7
-

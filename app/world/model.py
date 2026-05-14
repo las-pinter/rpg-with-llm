@@ -18,6 +18,7 @@ from typing import Any
 # Location
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Location:
     """A single location (room, area, region) in the game world.
@@ -39,6 +40,7 @@ class Location:
 # ---------------------------------------------------------------------------
 # Quest
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Quest:
@@ -62,14 +64,13 @@ class Quest:
 def _validate_quest_status(status: str) -> None:
     valid = {"active", "completed", "failed"}
     if status not in valid:
-        raise ValueError(
-            f"Invalid quest status {status!r}. Must be one of {valid}."
-        )
+        raise ValueError(f"Invalid quest status {status!r}. Must be one of {valid}.")
 
 
 # ---------------------------------------------------------------------------
 # FactionStanding
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class FactionStanding:
@@ -90,14 +91,13 @@ class FactionStanding:
 
 def _validate_standing(value: int) -> None:
     if value < -100 or value > 100:
-        raise ValueError(
-            f"Faction standing {value} is out of range [-100, 100]."
-        )
+        raise ValueError(f"Faction standing {value} is out of range [-100, 100].")
 
 
 # ---------------------------------------------------------------------------
 # DMNotes
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class DMNotes:
@@ -115,6 +115,7 @@ class DMNotes:
 # ---------------------------------------------------------------------------
 # WorldState
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class WorldState:
@@ -197,7 +198,9 @@ class WorldState:
             dm_notes = DMNotes()
         else:
             dm_fields = {f.name for f in dataclasses.fields(DMNotes)}
-            dm_notes = DMNotes(**{k: v for k, v in data["dm_notes"].items() if k in dm_fields})
+            dm_notes = DMNotes(
+                **{k: v for k, v in data["dm_notes"].items() if k in dm_fields}
+            )
 
         # --- active_npcs ---
         if not isinstance(data.get("active_npcs"), dict):

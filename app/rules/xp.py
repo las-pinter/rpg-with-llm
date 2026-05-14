@@ -74,7 +74,7 @@ def calculate_xp(
     character_level: int,
     party_size: int = 1,
 ) -> dict:
-    """Calculate the XP awarded for an encounter using the DMG encounter budget (not monster XP).
+    """Calculate the XP awarded for an encounter using the DMG encounter budget
 
     Args:
         encounter_difficulty: One of ``"easy"``, ``"medium"``, ``"hard"``,
@@ -91,7 +91,10 @@ def calculate_xp(
         - **difficulty** (``str``): The difficulty label.
     """
     if encounter_difficulty not in _VALID_DIFFICULTIES:
-        msg = f"Invalid difficulty '{encounter_difficulty}'. Must be one of {sorted(_VALID_DIFFICULTIES)}"
+        msg = (
+            f"Invalid difficulty '{encounter_difficulty}'. Must be one of "
+            f"{sorted(_VALID_DIFFICULTIES)}"
+        )
         raise ValueError(msg)
 
     if not isinstance(character_level, int):
@@ -100,14 +103,10 @@ def calculate_xp(
         )
 
     if character_level < 1 or character_level > 20:
-        raise ValueError(
-            f"Invalid level '{character_level}'. Must be 1-20."
-        )
+        raise ValueError(f"Invalid level '{character_level}'. Must be 1-20.")
 
     if party_size < 1:
-        raise ValueError(
-            f"Invalid party_size '{party_size}'. Must be >= 1."
-        )
+        raise ValueError(f"Invalid party_size '{party_size}'. Must be >= 1.")
 
     per_char = _XP_PER_CHAR[character_level][encounter_difficulty]
     base_xp = per_char * party_size
@@ -133,9 +132,7 @@ def xp_to_next_level(current_level: int) -> int:
         ValueError: If *current_level* is less than 1.
     """
     if current_level < 1:
-        raise ValueError(
-            f"Invalid level '{current_level}'. Must be 1-20."
-        )
+        raise ValueError(f"Invalid level '{current_level}'. Must be 1-20.")
     if current_level >= 20:
         return 0
     return XP_THRESHOLDS[current_level + 1] - XP_THRESHOLDS[current_level]
@@ -158,9 +155,7 @@ def check_level_up(total_xp: int, current_level: int) -> dict:
           level (for multi-level jumps).
     """
     if current_level < 1 or current_level > 20:
-        raise ValueError(
-            f"Invalid level '{current_level}'. Must be 1-20."
-        )
+        raise ValueError(f"Invalid level '{current_level}'. Must be 1-20.")
 
     # Treat negative XP as 0 to avoid odd behaviour
     total_xp = max(0, total_xp)

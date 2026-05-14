@@ -15,6 +15,7 @@ from dataclasses import dataclass
 # Error hierarchy
 # ---------------------------------------------------------------------------
 
+
 class LLMError(Exception):
     """Base exception for all LLM-related errors."""
 
@@ -35,6 +36,7 @@ class LLMConnectionError(LLMError):
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HealthResult:
     """Result of a provider health check.
@@ -45,6 +47,7 @@ class HealthResult:
         model:     The model identifier that was checked.
         error:     Error message if the check failed, otherwise None.
     """
+
     ok: bool
     latency_ms: float
     model: str
@@ -61,6 +64,7 @@ class ProviderConfig:
         api_key:  Optional API key for authentication.
         timeout:  Request timeout in seconds (default 30).
     """
+
     base_url: str
     model: str
     api_key: str | None = None
@@ -111,6 +115,7 @@ class ProviderConfig:
 # ---------------------------------------------------------------------------
 # Abstract provider interface
 # ---------------------------------------------------------------------------
+
 
 class LLMProvider(abc.ABC):
     """Abstract base class for all LLM providers.

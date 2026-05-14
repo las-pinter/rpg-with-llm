@@ -2,6 +2,7 @@
 Frettnik's Paranoid Edge Case Tests for the Dice Module.
 Trust nothing. Test everything.
 """
+
 from __future__ import annotations
 
 import json
@@ -99,7 +100,7 @@ class TestParserWhitespace:
         assert expr.modifier == 3
 
     def test_leading_spaces_stripped(self):
-        """  2d6 should be stripped and parsed OK."""
+        """2d6 should be stripped and parsed OK."""
         expr = parse("  2d6")
         assert expr.count == 2
         assert expr.sides == 6
@@ -361,7 +362,12 @@ class TestRollerDirectConstruction:
 
     def test_none_keep_count_with_high_keep_mode(self):
         """HIGHEST with keep_count=None keeps ALL (Python slice [:None])."""
-        expr = DiceExpression(count=4, sides=6, keep_mode=KeepMode.HIGHEST, keep_count=None)
+        expr = DiceExpression(
+            count=4,
+            sides=6,
+            keep_mode=KeepMode.HIGHEST,
+            keep_count=None,
+        )
         result = roll(expr)
         assert len(result["rolls"]) == 4
         assert result["total"] == sum(result["rolls"])
@@ -373,11 +379,18 @@ class TestTableEntryValidation:
     def test_entry_missing_range_raises_on_load(self, tmp_path):
         """Entry lacking 'range' raises ValueError on load."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad", "die": "1d6",
-            "entries": [{"result": "no range!"}],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [{"result": "no range!"}],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="missing.*'range'"):
             rt.load_table("bad")
@@ -385,11 +398,18 @@ class TestTableEntryValidation:
     def test_entry_missing_result_raises_on_load(self, tmp_path):
         """Entry lacking 'result' raises ValueError on load."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad", "die": "1d6",
-            "entries": [{"range": [1, 6]}],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [{"range": [1, 6]}],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="missing.*'result'"):
             rt.load_table("bad")
@@ -397,14 +417,21 @@ class TestTableEntryValidation:
     def test_reversed_range_raises_on_load(self, tmp_path):
         """Range [3, 1] raises ValueError on load (reversed)."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad", "die": "1d6",
-            "entries": [
-                {"range": [3, 1], "result": "reversed!"},
-                {"range": [1, 6], "result": "normal"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [3, 1], "result": "reversed!"},
+                        {"range": [1, 6], "result": "normal"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="reversed"):
             rt.load_table("bad")
@@ -412,14 +439,21 @@ class TestTableEntryValidation:
     def test_overlapping_ranges_first_wins(self, tmp_path):
         """When ranges overlap, the first matching entry wins."""
         table_file = tmp_path / "priority.json"
-        table_file.write_text(json.dumps({
-            "name": "priority", "die": "1d6",
-            "entries": [
-                {"range": [1, 6], "result": "first"},
-                {"range": [1, 6], "result": "second"},
-            ],
-        }), encoding="utf-8")
+        table_file.write_text(
+            json.dumps(
+                {
+                    "name": "priority",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [1, 6], "result": "first"},
+                        {"range": [1, 6], "result": "second"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         for _ in range(100):
             result = rt.lookup("priority")
@@ -428,18 +462,28 @@ class TestTableEntryValidation:
     def test_gap_in_ranges_raises(self, tmp_path):
         """If no range matches the roll, ValueError is raised."""
         gap_file = tmp_path / "gap.json"
-        gap_file.write_text(json.dumps({
-            "name": "gap", "die": "1d10",
-            "entries": [
-                {"range": [1, 3], "result": "low"},
-                {"range": [7, 10], "result": "high"},
-            ],
-        }), encoding="utf-8")
+        gap_file.write_text(
+            json.dumps(
+                {
+                    "name": "gap",
+                    "die": "1d10",
+                    "entries": [
+                        {"range": [1, 3], "result": "low"},
+                        {"range": [7, 10], "result": "high"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         with patch("app.dice.tables.roll") as mock_roll:
             mock_roll.return_value = {
-                "total": 5, "rolls": [5], "sides": 10, "formula": "1d10"
+                "total": 5,
+                "rolls": [5],
+                "sides": 10,
+                "formula": "1d10",
             }
             with pytest.raises(ValueError, match="did not match"):
                 rt.lookup("gap")
@@ -447,11 +491,18 @@ class TestTableEntryValidation:
     def test_range_not_a_list_raises_on_load(self, tmp_path):
         """Range set to a string raises ValueError on load."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad", "die": "1d6",
-            "entries": [{"range": "1-6", "result": "string range!"}],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [{"range": "1-6", "result": "string range!"}],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="range"):
             rt.load_table("bad")
@@ -459,12 +510,19 @@ class TestTableEntryValidation:
     def test_invalid_die_expression_crashes(self, tmp_path):
         """Table with invalid 'die' raises ParseError on lookup."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad", "die": "not a valid die",
-            "entries": [{"range": [1, 6], "result": "oops"}],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "not a valid die",
+                    "entries": [{"range": [1, 6], "result": "oops"}],
+                }
+            ),
+            encoding="utf-8",
+        )
         from app.dice.parser import ParseError
         from app.dice.tables import RandomTable
+
         rt = RandomTable(tmp_path)
         with pytest.raises(ParseError):
             rt.lookup("bad")
@@ -476,8 +534,9 @@ class TestTableDeepNesting:
     def test_deep_nesting_within_limits(self, tmp_path):
         """Valid nesting at depth 5 should work (well under max_depth=10)."""
         from app.dice.tables import RandomTable
+
         for i in range(6):
-            next_table = f"table_{i+1}" if i < 5 else None
+            next_table = f"table_{i + 1}" if i < 5 else None
             entry = {"range": [1, 6], "result": f"level_{i}"}
             if next_table:
                 entry["table"] = next_table
@@ -496,12 +555,13 @@ class TestTableDeepNesting:
     def test_nesting_at_max_depth_raises(self, tmp_path):
         """Nesting deeper than max_depth=10 should raise ValueError."""
         from app.dice.tables import RandomTable
+
         # Create tables 0 through 12, each pointing to the next.
-        # lookup(0) at depth=0, lookup(1) at depth=1, ..., lookup(10) at depth=10 -> OK (10 > 10? No)
+        # lookup(0) at depth=0, lookup(1) at depth=1, ..., lookup(10) at depth=10
         # Then lookup(11) at depth=11 -> 11 > 10? YES -> raises
         n = 12
         for i in range(n):
-            next_table = f"deep_{i+1}" if i < n - 1 else None
+            next_table = f"deep_{i + 1}" if i < n - 1 else None
             entry = {"range": [1, 6], "result": f"level_{i}"}
             if next_table:
                 entry["table"] = next_table

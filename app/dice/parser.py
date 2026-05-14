@@ -113,7 +113,9 @@ def parse(notation: str) -> DiceExpression:
             semantically invalid values (e.g. zero sides).
     """
     if not isinstance(notation, str):
-        raise ParseError(f"Dice notation must be a string, got {type(notation).__name__}")
+        raise ParseError(
+            f"Dice notation must be a string, got {type(notation).__name__}"
+        )
 
     stripped = notation.strip()
     if not stripped:
@@ -132,11 +134,17 @@ def parse(notation: str) -> DiceExpression:
         _validate_positive(count, "Number of dice")
         if mode.lower() == "advantage":
             return DiceExpression(
-                count=count, sides=20, keep_mode=KeepMode.HIGHEST, keep_count=1,
+                count=count,
+                sides=20,
+                keep_mode=KeepMode.HIGHEST,
+                keep_count=1,
                 modifier=modifier,
             )
         return DiceExpression(
-            count=count, sides=20, keep_mode=KeepMode.LOWEST, keep_count=1,
+            count=count,
+            sides=20,
+            keep_mode=KeepMode.LOWEST,
+            keep_count=1,
             modifier=modifier,
         )
 
@@ -160,14 +168,18 @@ def parse(notation: str) -> DiceExpression:
 
         if operator.lower() == "l":
             return DiceExpression(
-                count=count, sides=sides,
-                keep_mode=KeepMode.LOWEST, keep_count=keep_n,
+                count=count,
+                sides=sides,
+                keep_mode=KeepMode.LOWEST,
+                keep_count=keep_n,
                 modifier=modifier,
             )
         # k, K, h, H  all mean keep-highest
         return DiceExpression(
-            count=count, sides=sides,
-            keep_mode=KeepMode.HIGHEST, keep_count=keep_n,
+            count=count,
+            sides=sides,
+            keep_mode=KeepMode.HIGHEST,
+            keep_count=keep_n,
             modifier=modifier,
         )
 
