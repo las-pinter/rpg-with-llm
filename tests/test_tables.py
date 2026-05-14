@@ -28,13 +28,16 @@ def table() -> RandomTable:
 def temp_table(tmp_path: Path) -> Path:
     """Create a temporary tables directory with a single-entry table."""
     table_file = tmp_path / "always_42.json"
-    table_file.write_text(json.dumps({
-        "name": "always_42",
-        "die": "1d6",
-        "entries": [
-            {"range": [1, 6], "result": "You always get this result."}
-        ],
-    }), encoding="utf-8")
+    table_file.write_text(
+        json.dumps(
+            {
+                "name": "always_42",
+                "die": "1d6",
+                "entries": [{"range": [1, 6], "result": "You always get this result."}],
+            }
+        ),
+        encoding="utf-8",
+    )
     return tmp_path
 
 
@@ -75,10 +78,15 @@ class TestLoadTable:
     def test_table_missing_name_raises(self, tmp_path: Path):
         """A JSON file without a 'name' field should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "die": "1d6",
-            "entries": [{"range": [1, 6], "result": "oops"}],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "die": "1d6",
+                    "entries": [{"range": [1, 6], "result": "oops"}],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="missing required 'name'"):
             rt.load_table("bad")
@@ -86,10 +94,15 @@ class TestLoadTable:
     def test_table_missing_die_raises(self, tmp_path: Path):
         """A JSON file without a 'die' field should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "entries": [{"range": [1, 6], "result": "oops"}],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "entries": [{"range": [1, 6], "result": "oops"}],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="missing required 'die'"):
             rt.load_table("bad")
@@ -97,11 +110,16 @@ class TestLoadTable:
     def test_empty_entries_raises(self, tmp_path: Path):
         """A table with an empty entries list should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="empty 'entries'"):
             rt.load_table("bad")
@@ -257,9 +275,10 @@ class TestNestedTables:
         # Mock roll to return a value in that range.
         with patch("app.dice.tables.roll") as mock_roll:
             # First call for encounters table, second for the nested weather table
+            # encounters roll, then nested weather sub-roll
             mock_roll.side_effect = [
-                {"total": 2, "rolls": [2], "sides": 20, "formula": "1d20"},   # encounters → range 1-3
-                {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"},  # weather sub-roll
+                {"total": 2, "rolls": [2], "sides": 20, "formula": "1d20"},
+                {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"},
             ]
             result = table.lookup("encounters")
 
@@ -278,6 +297,7 @@ class TestNestedTables:
     def test_sub_roll_has_correct_shape(self, table: RandomTable):
         """Sub-rolls should have the same shape as top-level results."""
         with patch("app.dice.tables.roll") as mock_roll:
+            # encounters roll, then nested weather sub-roll
             mock_roll.side_effect = [
                 {"total": 2, "rolls": [2], "sides": 20, "formula": "1d20"},
                 {"total": 10, "rolls": [10], "sides": 20, "formula": "1d20"},
@@ -306,20 +326,38 @@ class TestErrorHandling:
         # Create two tables that point to each other
         table_a = tmp_path / "table_a.json"
         table_b = tmp_path / "table_b.json"
-        table_a.write_text(json.dumps({
-            "name": "table_a",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, 6], "result": "Pointing to B", "table": "table_b"},
-            ],
-        }), encoding="utf-8")
-        table_b.write_text(json.dumps({
-            "name": "table_b",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, 6], "result": "Pointing to A", "table": "table_a"},
-            ],
-        }), encoding="utf-8")
+        table_a.write_text(
+            json.dumps(
+                {
+                    "name": "table_a",
+                    "die": "1d6",
+                    "entries": [
+                        {
+                            "range": [1, 6],
+                            "result": "Pointing to B",
+                            "table": "table_b",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        table_b.write_text(
+            json.dumps(
+                {
+                    "name": "table_b",
+                    "die": "1d6",
+                    "entries": [
+                        {
+                            "range": [1, 6],
+                            "result": "Pointing to A",
+                            "table": "table_a",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="recursion depth"):
             rt.lookup("table_a")
@@ -360,13 +398,18 @@ class TestEntryValidation:
     def test_missing_range_in_entry_raises(self, tmp_path: Path):
         """Entry without 'range' field should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"result": "no range here"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"result": "no range here"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="missing.*'range'"):
             rt.load_table("bad")
@@ -374,13 +417,18 @@ class TestEntryValidation:
     def test_missing_result_in_entry_raises(self, tmp_path: Path):
         """Entry without 'result' field should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, 6]},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [1, 6]},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="missing.*'result'"):
             rt.load_table("bad")
@@ -388,13 +436,18 @@ class TestEntryValidation:
     def test_range_not_a_list_raises(self, tmp_path: Path):
         """Entry with non-list range should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": "1-6", "result": "oops"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": "1-6", "result": "oops"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="range"):
             rt.load_table("bad")
@@ -402,13 +455,18 @@ class TestEntryValidation:
     def test_range_wrong_length_raises(self, tmp_path: Path):
         """Entry with range of wrong length should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, 2, 3], "result": "oops"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [1, 2, 3], "result": "oops"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="range"):
             rt.load_table("bad")
@@ -416,13 +474,18 @@ class TestEntryValidation:
     def test_reversed_range_raises(self, tmp_path: Path):
         """Entry with reversed range [3, 1] should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": [3, 1], "result": "reversed range never matches"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [3, 1], "result": "reversed range never matches"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="reversed"):
             rt.load_table("bad")
@@ -430,13 +493,18 @@ class TestEntryValidation:
     def test_range_with_non_int_raises(self, tmp_path: Path):
         """Entry with non-integer range values should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, "six"], "result": "bad range values"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [1, "six"], "result": "bad range values"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="range"):
             rt.load_table("bad")
@@ -444,13 +512,18 @@ class TestEntryValidation:
     def test_result_not_a_string_raises(self, tmp_path: Path):
         """Entry with non-string result should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, 6], "result": 42},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [1, 6], "result": 42},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="result.*string"):
             rt.load_table("bad")
@@ -458,11 +531,16 @@ class TestEntryValidation:
     def test_entry_not_a_dict_raises(self, tmp_path: Path):
         """Entry that is not an object should raise ValueError."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": ["just a string"],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": ["just a string"],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="entry 0"):
             rt.load_table("bad")
@@ -470,14 +548,19 @@ class TestEntryValidation:
     def test_multiple_entries_second_bad_is_reported(self, tmp_path: Path):
         """The correct index should be reported when later entry is bad."""
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text(json.dumps({
-            "name": "bad",
-            "die": "1d6",
-            "entries": [
-                {"range": [1, 3], "result": "good entry"},
-                {"range": [3, 1], "result": "reversed range"},
-            ],
-        }), encoding="utf-8")
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "name": "bad",
+                    "die": "1d6",
+                    "entries": [
+                        {"range": [1, 3], "result": "good entry"},
+                        {"range": [3, 1], "result": "reversed range"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         rt = RandomTable(tmp_path)
         with pytest.raises(ValueError, match="entry 1"):
             rt.load_table("bad")

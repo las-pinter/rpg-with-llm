@@ -1,3 +1,4 @@
+# ruff: noqa: F401
 from app.llm.base import (
     HealthResult,
     LLMConnectionError,

@@ -39,7 +39,12 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
         "hp": 9,
         "ac": 14,
         "skills": ["Stealth", "Sleight of Hand", "Perception"],
-        "inventory": ["Shortsword", "Leather Armor", "Thieves' Tools", "Burglar's Pack"],
+        "inventory": [
+            "Shortsword",
+            "Leather Armor",
+            "Thieves' Tools",
+            "Burglar's Pack",
+        ],
     },
     "Mage": {
         "abilities": {"STR": 8, "DEX": 13, "CON": 14, "INT": 15, "WIS": 12, "CHA": 10},
@@ -61,6 +66,7 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 # Character
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Character:
@@ -208,6 +214,7 @@ class Character:
 # Private validation helpers
 # ---------------------------------------------------------------------------
 
+
 def _validate_name(name: str) -> None:
     if not isinstance(name, str) or not name.strip():
         raise ValueError("Character name must be a non-empty string.")
@@ -268,6 +275,7 @@ def _validate_ac(ac: int) -> None:
 # ---------------------------------------------------------------------------
 # Private coercion helpers
 # ---------------------------------------------------------------------------
+
 
 def _coerce_int(value: Any, default: int) -> int:
     """Try to coerce *value* to an int; return *default* on failure."""

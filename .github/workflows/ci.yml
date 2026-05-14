@@ -34,7 +34,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Install lint tools
-        run: pip install ruff mypy pytest pytest-cov pytest-xdist
+        run: pip install ruff mypy
 
       - name: Ruff lint check
         run: ruff check app/ tests/
@@ -71,26 +71,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Install test tools
-        run: pip install pytest pytest-cov pytest-xdist
+        run: pip install pytest pytest-cov
 
       - name: Run tests with coverage
-        run: |
-          python -m pytest tests/ -v -n auto \
-            --cov=app --cov-report=xml --cov-report=term \
-            --cov-fail-under=60 \
-            --junitxml=junit/test-results.xml
-
-      - name: Upload coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.python-version }}
-          path: coverage.xml
-
-      - name: Publish test results
-        if: success() || failure()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Test Results (${{ matrix.python-version }})
-          path: junit/test-results.xml
-          reporter: java-junit
+        run: python -m pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=60

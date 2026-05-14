@@ -174,14 +174,10 @@ class TestConfigManager:
 
     def test_save_overwrites_existing(self, manager: ConfigManager):
         """Saving with the same name should overwrite the old config."""
-        original = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        original = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(original, name="default")
 
-        updated = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.1"
-        )
+        updated = ProviderConfig(base_url="http://localhost:11434", model="llama3.1")
         manager.save_config(updated, name="default")
 
         loaded = manager.get_config("default")
@@ -315,9 +311,7 @@ class TestConfigManager:
 
     def test_save_config_with_empty_name(self, manager: ConfigManager):
         """save_config() with empty name should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         with pytest.raises(ConfigError, match="Config name must be non-empty"):
             manager.save_config(cfg, name="")
 
@@ -333,33 +327,25 @@ class TestConfigManager:
 
     def test_config_name_with_path_traversal(self, manager: ConfigManager):
         """Config name with '../' should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         with pytest.raises(ConfigError, match="Invalid config name"):
             manager.save_config(cfg, name="../../evil")
 
     def test_config_name_with_slash(self, manager: ConfigManager):
         """Config name with '/' should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         with pytest.raises(ConfigError, match="Invalid config name"):
             manager.save_config(cfg, name="foo/bar")
 
     def test_config_name_with_dotdot(self, manager: ConfigManager):
         """Config name with '..' should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         with pytest.raises(ConfigError, match="Invalid config name"):
             manager.save_config(cfg, name="..")
 
     def test_config_name_too_long(self, manager: ConfigManager):
         """Config name over 200 chars should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         with pytest.raises(ConfigError, match="Config name too long"):
             manager.save_config(cfg, name="a" * 201)
 
@@ -369,9 +355,7 @@ class TestConfigManager:
 
     def test_save_config_non_providerconfig(self, manager: ConfigManager):
         """save_config() with non-ProviderConfig should raise ConfigError."""
-        with pytest.raises(
-            ConfigError, match="Expected ProviderConfig, got dict"
-        ):
+        with pytest.raises(ConfigError, match="Expected ProviderConfig, got dict"):
             manager.save_config({"base_url": "http://localhost:11434"})  # type: ignore
 
     # ------------------------------------------------------------------
@@ -382,14 +366,13 @@ class TestConfigManager:
         self, manager: ConfigManager, tmp_config_dir: Path
     ):
         """get_config() with missing model in JSON should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(cfg, name="test")
 
         # Manually corrupt the JSON file to remove model
         json_path = tmp_config_dir / "providers" / "test.json"
         import json as _json
+
         data = _json.loads(json_path.read_text(encoding="utf-8"))
         del data["model"]
         json_path.write_text(_json.dumps(data), encoding="utf-8")
@@ -401,14 +384,13 @@ class TestConfigManager:
         self, manager: ConfigManager, tmp_config_dir: Path
     ):
         """get_config() with empty model in JSON should raise ConfigError."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(cfg, name="test2")
 
         # Manually corrupt the JSON to have empty model
         json_path = tmp_config_dir / "providers" / "test2.json"
         import json as _json
+
         data = _json.loads(json_path.read_text(encoding="utf-8"))
         data["model"] = ""
         json_path.write_text(_json.dumps(data), encoding="utf-8")
@@ -424,9 +406,7 @@ class TestConfigManager:
         self, manager: ConfigManager, tmp_config_dir: Path
     ):
         """After saving, no .tmp files should remain in the directory."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(cfg, name="atomic-test")
 
         provider_dir = tmp_config_dir / "providers"
@@ -457,28 +437,20 @@ class TestConfigManager:
     # Directory creation on first save
     # ------------------------------------------------------------------
 
-    def test_directory_created_on_first_save(
-        self, tmp_config_dir: Path
-    ):
+    def test_directory_created_on_first_save(self, tmp_config_dir: Path):
         """The providers directory should be created automatically on save."""
         manager = ConfigManager(tmp_config_dir)
         assert not (tmp_config_dir / "providers").exists()
 
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(cfg, name="first")
 
         assert (tmp_config_dir / "providers").is_dir()
 
-    def test_directory_persists_across_saves(
-        self, tmp_config_dir: Path
-    ):
+    def test_directory_persists_across_saves(self, tmp_config_dir: Path):
         """The providers directory should survive multiple saves."""
         manager = ConfigManager(tmp_config_dir)
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(cfg, name="first")
         manager.save_config(cfg, name="second")
         manager.save_config(cfg, name="third")
@@ -495,9 +467,7 @@ class TestConfigManager:
         self, manager: ConfigManager, tmp_config_dir: Path
     ):
         """Config should be stored at {config_dir}/providers/{name}.json."""
-        cfg = ProviderConfig(
-            base_url="http://localhost:11434", model="llama3.2"
-        )
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
         manager.save_config(cfg, name="ollama")
 
         expected = tmp_config_dir / "providers" / "ollama.json"
@@ -509,9 +479,7 @@ class TestConfigManager:
         """Multiple configs should each get their own JSON file."""
         for name in ("alpha", "beta", "gamma"):
             manager.save_config(
-                ProviderConfig(
-                    base_url="http://localhost:11434", model=name
-                ),
+                ProviderConfig(base_url="http://localhost:11434", model=name),
                 name=name,
             )
 
@@ -523,9 +491,7 @@ class TestConfigManager:
     # Error messages do not leak api_key
     # ------------------------------------------------------------------
 
-    def test_error_message_does_not_contain_api_key(
-        self, manager: ConfigManager
-    ):
+    def test_error_message_does_not_contain_api_key(self, manager: ConfigManager):
         """Validation errors should never include the api_key value."""
         cfg = ProviderConfig(
             base_url="not-a-valid-url",

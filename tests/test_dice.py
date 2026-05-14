@@ -408,6 +408,7 @@ class TestRollSystemRandom:
             assert result["rolls"] == [5, 15]
             assert result["total"] == 5  # keeps lowest
 
+
 # ===========================================================================
 # Tests for keep notation + modifier
 # ===========================================================================
@@ -486,7 +487,9 @@ class TestRollKeepModifier:
 
 
 class TestParseAdvantageDisadvantageModifier:
-    """Advantage/disadvantage with modifier: ``d20 advantage +2``, ``d20 disadvantage -1``."""
+    """Advantage/disadvantage with modifier:
+    ``d20 advantage +2``, ``d20 disadvantage -1``.
+    """
 
     def test_advantage_with_positive_modifier(self):
         """``d20 advantage +2`` should parse with advantage and positive modifier."""
@@ -498,7 +501,9 @@ class TestParseAdvantageDisadvantageModifier:
         assert expr.modifier == 2
 
     def test_disadvantage_with_negative_modifier(self):
-        """``d20 disadvantage -1`` should parse with disadvantage and negative modifier."""
+        """``d20 disadvantage -1`` should parse
+        with disadvantage and negative modifier.
+        """
         expr = parse("d20 disadvantage -1")
         assert expr.count == 2
         assert expr.sides == 20
@@ -794,6 +799,7 @@ class TestRollerValidation:
     def test_zero_sides_raises_value_error(self):
         """``DiceExpression(count=1, sides=0)`` should raise ValueError."""
         from app.dice.parser import DiceExpression
+
         expr = DiceExpression(count=1, sides=0)
         with pytest.raises(ValueError, match="sides"):
             roll(expr)
@@ -801,6 +807,7 @@ class TestRollerValidation:
     def test_negative_sides_raises_value_error(self):
         """``DiceExpression(count=1, sides=-5)`` should raise ValueError."""
         from app.dice.parser import DiceExpression
+
         expr = DiceExpression(count=1, sides=-5)
         with pytest.raises(ValueError, match="sides"):
             roll(expr)
@@ -808,6 +815,7 @@ class TestRollerValidation:
     def test_zero_count_raises_value_error(self):
         """``DiceExpression(count=0, sides=6)`` should raise ValueError."""
         from app.dice.parser import DiceExpression
+
         expr = DiceExpression(count=0, sides=6)
         with pytest.raises(ValueError, match="dice"):
             roll(expr)
@@ -815,8 +823,12 @@ class TestRollerValidation:
     def test_keep_count_exceeds_count_raises_value_error(self):
         """``DiceExpression(count=2, sides=6, keep_count=5)`` should raise."""
         from app.dice.parser import DiceExpression, KeepMode
+
         expr = DiceExpression(
-            count=2, sides=6, keep_mode=KeepMode.HIGHEST, keep_count=5,
+            count=2,
+            sides=6,
+            keep_mode=KeepMode.HIGHEST,
+            keep_count=5,
         )
         with pytest.raises(ValueError, match="exceed"):
             roll(expr)
@@ -824,6 +836,7 @@ class TestRollerValidation:
     def test_valid_expression_passes_validation(self):
         """A valid DiceExpression should roll normally."""
         from app.dice.parser import DiceExpression
+
         expr = DiceExpression(count=1, sides=6)
         result = roll(expr)
         assert 1 <= result["total"] <= 6

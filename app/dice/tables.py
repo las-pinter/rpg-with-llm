@@ -71,21 +71,13 @@ class RandomTable:
 
         # --- Validate required fields ---------------------------------
         if "name" not in table:
-            raise ValueError(
-                f"Table '{table_name}' is missing required 'name' field"
-            )
+            raise ValueError(f"Table '{table_name}' is missing required 'name' field")
         if "die" not in table:
-            raise ValueError(
-                f"Table '{table_name}' is missing required 'die' field"
-            )
+            raise ValueError(f"Table '{table_name}' is missing required 'die' field")
         if "entries" not in table or not isinstance(table["entries"], list):
-            raise ValueError(
-                f"Table '{table_name}' is missing required 'entries' list"
-            )
+            raise ValueError(f"Table '{table_name}' is missing required 'entries' list")
         if not table["entries"]:
-            raise ValueError(
-                f"Table '{table_name}' has an empty 'entries' list"
-            )
+            raise ValueError(f"Table '{table_name}' has an empty 'entries' list")
 
         # --- Validate each entry (Bugs 1 & 2) -------------------------
         for i, entry in enumerate(table["entries"]):
@@ -96,13 +88,11 @@ class RandomTable:
                 )
             if "range" not in entry:
                 raise ValueError(
-                    f"Table '{table_name}' entry {i} is missing "
-                    f"required 'range' field"
+                    f"Table '{table_name}' entry {i} is missing required 'range' field"
                 )
             if "result" not in entry:
                 raise ValueError(
-                    f"Table '{table_name}' entry {i} is missing "
-                    f"required 'result' field"
+                    f"Table '{table_name}' entry {i} is missing required 'result' field"
                 )
 
             r = entry["range"]
@@ -168,8 +158,7 @@ class RandomTable:
         """
         if _depth > _max_depth:
             raise ValueError(
-                f"Max recursion depth ({_max_depth}) exceeded for "
-                f"table '{table_name}'"
+                f"Max recursion depth ({_max_depth}) exceeded for table '{table_name}'"
             )
 
         table = self.load_table(table_name)
@@ -204,7 +193,9 @@ class RandomTable:
                 sub_rolls: list[dict[str, Any]] = []
                 if "table" in entry and entry["table"]:
                     sub_result = self.lookup(
-                        entry["table"], _depth + 1, _max_depth,
+                        entry["table"],
+                        _depth + 1,
+                        _max_depth,
                     )
                     sub_rolls.append(sub_result)
 

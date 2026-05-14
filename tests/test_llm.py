@@ -20,6 +20,7 @@ from app.llm.base import (
 # Concrete mock provider used across several tests
 # ---------------------------------------------------------------------------
 
+
 class MockProvider(LLMProvider):
     """A minimal concrete provider for testing the abstract interface."""
 
@@ -101,7 +102,12 @@ class TestHealthResult:
 
     def test_error_field_with_message(self):
         """The error field should store the provided message."""
-        h = HealthResult(ok=False, latency_ms=0.0, model="gpt-4", error="Connection refused")
+        h = HealthResult(
+            ok=False,
+            latency_ms=0.0,
+            model="gpt-4",
+            error="Connection refused",
+        )
         assert h.error == "Connection refused"
 
 
@@ -308,7 +314,10 @@ class TestOllamaProvider:
 
         messages = [{"role": "user", "content": "Hi"}]
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response) as mock_post:
+        with patch(
+            "app.llm.ollama.requests.post",
+            return_value=mock_response,
+        ) as mock_post:
             result = provider.call(messages)
 
         # Verify the request was made correctly
@@ -395,14 +404,26 @@ class TestOllamaProvider:
         mock_response.ok = True
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
-            b'data: {"choices":[{"index":0,"delta":{"content":"Hello "},"finish_reason":null}]}',
-            b'data: {"choices":[{"index":0,"delta":{"content":"world"},"finish_reason":null}]}',
-            b'data: {"choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}',
-            b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
-            b'data: [DONE]',
+            (
+                b'data: {"choices":[{"index":0,"delta":{"content":"Hello "},'
+                b'"finish_reason":null}]}'
+            ),
+            (
+                b'data: {"choices":[{"index":0,"delta":{"content":"world"},'
+                b'"finish_reason":null}]}'
+            ),
+            (
+                b'data: {"choices":[{"index":0,"delta":{"content":"!"},'
+                b'"finish_reason":null}]}'
+            ),
+            (b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'),
+            b"data: [DONE]",
         ]
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response) as mock_post:
+        with patch(
+            "app.llm.ollama.requests.post",
+            return_value=mock_response,
+        ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         mock_post.assert_called_once()
@@ -432,7 +453,7 @@ class TestOllamaProvider:
             b'data: {"choices":[{"index":0,"delta":{"content":"Hi"}}]}',
             b":comment",
             b'data: {"choices":[{"index":0,"delta":{"content":" there"}}]}',
-            b'data: [DONE]',
+            b"data: [DONE]",
         ]
 
         with patch("app.llm.ollama.requests.post", return_value=mock_response):
@@ -660,7 +681,7 @@ class TestOllamaProvider:
         mock_response.ok = True
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
-            b'data: {invalid json here}',
+            b"data: {invalid json here}",
         ]
 
         with patch("app.llm.ollama.requests.post", return_value=mock_response):
@@ -734,13 +755,11 @@ class TestOllamaProvider:
         mock_response.ok = True
         mock_response.status_code = 200
         # Simulate connection dropping mid-stream
-        mock_response.iter_lines.side_effect = (
-            requests.exceptions.ChunkedEncodingError("Connection broken")
+        mock_response.iter_lines.side_effect = requests.exceptions.ChunkedEncodingError(
+            "Connection broken"
         )
 
-        with patch(
-            "app.llm.ollama.requests.post", return_value=mock_response
-        ):
+        with patch("app.llm.ollama.requests.post", return_value=mock_response):
             with pytest.raises(LLMConnectionError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -764,13 +783,11 @@ class TestOllamaProvider:
         mock_response = MagicMock(spec=requests.Response)
         mock_response.ok = True
         mock_response.status_code = 200
-        mock_response.iter_lines.side_effect = (
-            requests.exceptions.RequestException("Something went wrong")
+        mock_response.iter_lines.side_effect = requests.exceptions.RequestException(
+            "Something went wrong"
         )
 
-        with patch(
-            "app.llm.ollama.requests.post", return_value=mock_response
-        ):
+        with patch("app.llm.ollama.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass

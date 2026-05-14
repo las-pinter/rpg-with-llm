@@ -107,9 +107,7 @@ class WorldStorage:
         self._validate_name(name)
         final_path = self.saves_dir / f"{name}.json"
         if not final_path.exists():
-            raise FileNotFoundError(
-                f"Save '{name}' not found at {final_path}"
-            )
+            raise FileNotFoundError(f"Save '{name}' not found at {final_path}")
         try:
             with open(final_path, encoding="utf-8") as f:
                 data: Any = json.load(f)
@@ -152,9 +150,7 @@ class WorldStorage:
 
         # Check if the save exists in index or on disk
         if not save_path.exists() and not self._index_has(name):
-            raise FileNotFoundError(
-                f"Save '{name}' not found at {save_path}"
-            )
+            raise FileNotFoundError(f"Save '{name}' not found at {save_path}")
 
         # Remove from index FIRST so orphan metadata can't linger (Bug 5)
         self._remove_from_index(name)

@@ -121,9 +121,7 @@ class CharacterStorage:
         self._validate_name(name)
         final_path = self.characters_dir / f"{name}.json"
         if not final_path.exists():
-            raise FileNotFoundError(
-                f"Character '{name}' not found at {final_path}"
-            )
+            raise FileNotFoundError(f"Character '{name}' not found at {final_path}")
         try:
             with open(final_path, encoding="utf-8") as f:
                 data: Any = json.load(f)
@@ -166,9 +164,7 @@ class CharacterStorage:
 
         # Check if the character exists in index or on disk
         if not char_path.exists() and not self._index_has(name):
-            raise FileNotFoundError(
-                f"Character '{name}' not found at {char_path}"
-            )
+            raise FileNotFoundError(f"Character '{name}' not found at {char_path}")
 
         # Remove from index FIRST so orphan metadata can't linger
         self._remove_from_index(name)

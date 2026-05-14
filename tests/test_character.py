@@ -23,6 +23,17 @@ def _make_minimal_character(**overrides: object) -> Character:
     return Character(**defaults)  # type: ignore[arg-type]
 
 
+def _make_char(**overrides: object) -> Character:
+    """Build a Character with defaults (name=Test, Fighter, all-10 abilities)."""
+    defaults: dict[str, object] = {
+        "name": "Test",
+        "character_class": "Fighter",
+        "abilities": VALID_ABILITIES,
+    }
+    defaults.update(overrides)
+    return Character(**defaults)  # type: ignore[arg-type]
+
+
 VALID_ABILITIES = {a: 10 for a in STANDARD_ABILITIES}
 
 
@@ -92,17 +103,17 @@ class TestCharacterModel:
     def test_whitespace_only_name_raises_value_error(self) -> None:
         """A name composed only of whitespace must raise ValueError."""
         with pytest.raises(ValueError, match="non-empty"):
-            Character(name="   \t  ", character_class="Fighter", abilities=VALID_ABILITIES)
+            _make_char(name="   \t  ")
 
     def test_invalid_class_raises_value_error(self) -> None:
         """An unrecognised character_class must raise ValueError."""
         with pytest.raises(ValueError, match="Invalid character class"):
-            Character(name="Test", character_class="Paladin", abilities=VALID_ABILITIES)
+            _make_char(character_class="Paladin")
 
     @pytest.mark.parametrize("valid_class", sorted(VALID_CLASSES))
     def test_valid_classes_accepted(self, valid_class: str) -> None:
         """Each class in VALID_CLASSES must be accepted by the constructor."""
-        char = Character(name="Test", character_class=valid_class, abilities=VALID_ABILITIES)
+        char = _make_char(character_class=valid_class)
         assert char.character_class == valid_class
 
     def test_missing_ability_score_raises_value_error(self) -> None:
@@ -153,42 +164,42 @@ class TestCharacterModel:
     def test_level_zero_raises_value_error(self) -> None:
         """Level 0 must raise ValueError."""
         with pytest.raises(ValueError, match="Level must be >= 1"):
-            Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, level=0)
+            _make_char(level=0)
 
     def test_level_negative_raises_value_error(self) -> None:
         """A negative level must raise ValueError."""
         with pytest.raises(ValueError, match="Level must be >= 1"):
-            Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, level=-5)
+            _make_char(level=-5)
 
     def test_negative_xp_raises_value_error(self) -> None:
         """Negative XP must raise ValueError."""
         with pytest.raises(ValueError, match="XP must be >= 0"):
-            Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, xp=-1)
+            _make_char(xp=-1)
 
     def test_xp_zero_is_valid(self) -> None:
         """XP == 0 is the standard starting value and must be accepted."""
-        char = Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, xp=0)
+        char = _make_char(xp=0)
         assert char.xp == 0
 
     def test_negative_hp_raises_value_error(self) -> None:
         """Negative HP must raise ValueError."""
         with pytest.raises(ValueError, match="HP must be >= 0"):
-            Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, hp=-1, max_hp=10)
+            _make_char(hp=-1, max_hp=10)
 
     def test_zero_hp_is_valid(self) -> None:
         """HP == 0 (unconscious) must be accepted."""
-        char = Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, hp=0, max_hp=10)
+        char = _make_char(hp=0, max_hp=10)
         assert char.hp == 0
 
     def test_zero_max_hp_raises_value_error(self) -> None:
         """max_hp of 0 must raise ValueError."""
         with pytest.raises(ValueError, match="max_hp must be > 0"):
-            Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, hp=10, max_hp=0)
+            _make_char(hp=10, max_hp=0)
 
     def test_negative_max_hp_raises_value_error(self) -> None:
         """Negative max_hp must raise ValueError."""
         with pytest.raises(ValueError, match="max_hp must be > 0"):
-            Character(name="Test", character_class="Fighter", abilities=VALID_ABILITIES, hp=10, max_hp=-5)
+            _make_char(hp=10, max_hp=-5)
 
     def test_create_default_creates_with_correct_name(self) -> None:
         """create_default must set the name exactly as given."""
@@ -198,13 +209,57 @@ class TestCharacterModel:
     @pytest.mark.parametrize(
         "class_name, expected_abilities",
         [
-            ("Fighter", {"STR": 15, "DEX": 13, "CON": 14, "WIS": 12, "INT": 10, "CHA": 8}),
-            ("Rogue", {"STR": 8, "DEX": 15, "CON": 13, "INT": 14, "WIS": 12, "CHA": 10}),
-            ("Mage", {"STR": 8, "DEX": 13, "CON": 14, "INT": 15, "WIS": 12, "CHA": 10}),
-            ("Cleric", {"STR": 13, "DEX": 8, "CON": 14, "INT": 10, "WIS": 15, "CHA": 12}),
+            (
+                "Fighter",
+                {
+                    "STR": 15,
+                    "DEX": 13,
+                    "CON": 14,
+                    "WIS": 12,
+                    "INT": 10,
+                    "CHA": 8,
+                },
+            ),
+            (
+                "Rogue",
+                {
+                    "STR": 8,
+                    "DEX": 15,
+                    "CON": 13,
+                    "INT": 14,
+                    "WIS": 12,
+                    "CHA": 10,
+                },
+            ),
+            (
+                "Mage",
+                {
+                    "STR": 8,
+                    "DEX": 13,
+                    "CON": 14,
+                    "INT": 15,
+                    "WIS": 12,
+                    "CHA": 10,
+                },
+            ),
+            (
+                "Cleric",
+                {
+                    "STR": 13,
+                    "DEX": 8,
+                    "CON": 14,
+                    "INT": 10,
+                    "WIS": 15,
+                    "CHA": 12,
+                },
+            ),
         ],
     )
-    def test_create_default_abilities_match_expected(self, class_name: str, expected_abilities: dict[str, int]) -> None:
+    def test_create_default_abilities_match_expected(
+        self,
+        class_name: str,
+        expected_abilities: dict[str, int],
+    ) -> None:
         """Each class must produce the correct ability score array."""
         char = Character.create_default("Test", class_name)
         assert char.abilities == expected_abilities
@@ -218,7 +273,12 @@ class TestCharacterModel:
             ("Cleric", 10, 16),
         ],
     )
-    def test_create_default_hp_and_ac(self, class_name: str, expected_hp: int, expected_ac: int) -> None:
+    def test_create_default_hp_and_ac(
+        self,
+        class_name: str,
+        expected_hp: int,
+        expected_ac: int,
+    ) -> None:
         """Each class must produce the correct HP and AC values."""
         char = Character.create_default("Test", class_name)
         assert char.hp == expected_hp
@@ -234,7 +294,11 @@ class TestCharacterModel:
             ("Cleric", ["Religion", "Medicine"]),
         ],
     )
-    def test_create_default_skills(self, class_name: str, expected_skills: list[str]) -> None:
+    def test_create_default_skills(
+        self,
+        class_name: str,
+        expected_skills: list[str],
+    ) -> None:
         """Each class must produce the correct skill proficiencies."""
         char = Character.create_default("Test", class_name)
         assert char.skills == expected_skills
@@ -243,12 +307,24 @@ class TestCharacterModel:
         "class_name, expected_inventory",
         [
             ("Fighter", ["Longsword", "Chain Mail", "Shield", "Explorer's Pack"]),
-            ("Rogue", ["Shortsword", "Leather Armor", "Thieves' Tools", "Burglar's Pack"]),
+            (
+                "Rogue",
+                [
+                    "Shortsword",
+                    "Leather Armor",
+                    "Thieves' Tools",
+                    "Burglar's Pack",
+                ],
+            ),
             ("Mage", ["Spellbook", "Arcane Focus", "Scholar's Pack"]),
             ("Cleric", ["Mace", "Chain Mail", "Shield", "Priest's Pack"]),
         ],
     )
-    def test_create_default_inventory(self, class_name: str, expected_inventory: list[str]) -> None:
+    def test_create_default_inventory(
+        self,
+        class_name: str,
+        expected_inventory: list[str],
+    ) -> None:
         """Each class must start with the correct equipment."""
         char = Character.create_default("Test", class_name)
         assert char.inventory == expected_inventory
@@ -271,9 +347,20 @@ class TestCharacterModel:
         data = char.to_dict()
         assert isinstance(data, dict)
         for field_name in (
-            "name", "appearance", "personality", "backstory", "hooks",
-            "character_class", "level", "xp", "abilities", "skills",
-            "hp", "max_hp", "ac", "inventory",
+            "name",
+            "appearance",
+            "personality",
+            "backstory",
+            "hooks",
+            "character_class",
+            "level",
+            "xp",
+            "abilities",
+            "skills",
+            "hp",
+            "max_hp",
+            "ac",
+            "inventory",
         ):
             assert field_name in data, f"Field {field_name!r} missing from to_dict()"
 
@@ -289,9 +376,19 @@ class TestCharacterModel:
         original = Character.create_default("Elara", "Rogue")
         restored = Character.from_dict(original.to_dict())
         for field_name in (
-            "name", "appearance", "personality", "backstory",
-            "character_class", "level", "xp", "abilities", "skills",
-            "hp", "max_hp", "ac", "inventory",
+            "name",
+            "appearance",
+            "personality",
+            "backstory",
+            "character_class",
+            "level",
+            "xp",
+            "abilities",
+            "skills",
+            "hp",
+            "max_hp",
+            "ac",
+            "inventory",
         ):
             assert getattr(restored, field_name) == getattr(original, field_name), (
                 f"Field {field_name!r} differs after round-trip"
@@ -544,7 +641,10 @@ class TestCharacterPersistence:
         store = CharacterStorage(tmp_path)
         assert store.character_exists("phantom") is False
 
-    def test_loading_nonexistent_file_raises_file_not_found(self, tmp_path: Path) -> None:
+    def test_loading_nonexistent_file_raises_file_not_found(
+        self,
+        tmp_path: Path,
+    ) -> None:
         """Loading a non-existent character must raise FileNotFoundError."""
         store = CharacterStorage(tmp_path)
         with pytest.raises(FileNotFoundError, match="not found"):
@@ -595,7 +695,12 @@ class TestCharacterPersistence:
             ("foo/../bar", "path separator"),
         ],
     )
-    def test_save_with_path_traversal_name_raises(self, tmp_path: Path, bad_name: str, match_pattern: str) -> None:
+    def test_save_with_path_traversal_name_raises(
+        self,
+        tmp_path: Path,
+        bad_name: str,
+        match_pattern: str,
+    ) -> None:
         """Saving with path separators or parent refs must raise ValueError."""
         store = CharacterStorage(tmp_path)
         char = Character.create_default("Glimli", "Fighter")
@@ -634,7 +739,12 @@ class TestCharacterPersistence:
             ("character_exists", "../escape"),
         ],
     )
-    def test_other_operations_validate_name(self, tmp_path: Path, operation: str, bad_name: str) -> None:
+    def test_other_operations_validate_name(
+        self,
+        tmp_path: Path,
+        operation: str,
+        bad_name: str,
+    ) -> None:
         """load, delete, and character_exists must also validate names."""
         store = CharacterStorage(tmp_path)
         with pytest.raises(ValueError):
@@ -659,6 +769,7 @@ class TestCharacterPersistence:
     def test_characters_dir_auto_recreated_when_deleted(self, tmp_path: Path) -> None:
         """If characters/ directory is deleted, save() must recreate it."""
         import shutil
+
         store = CharacterStorage(tmp_path)
         char = Character.create_default("Glimli", "Fighter")
         shutil.rmtree(store.characters_dir)
@@ -667,7 +778,10 @@ class TestCharacterPersistence:
         assert store.characters_dir.is_dir()
         assert store.character_exists("after_deletion")
 
-    def test_delete_with_manually_deleted_file_cleans_index(self, tmp_path: Path) -> None:
+    def test_delete_with_manually_deleted_file_cleans_index(
+        self,
+        tmp_path: Path,
+    ) -> None:
         """If JSON file is deleted manually, delete() must still clean index."""
         store = CharacterStorage(tmp_path)
         char = Character.create_default("Glimli", "Fighter")
@@ -698,12 +812,16 @@ class TestCharacterPersistence:
         char = Character.create_default("Glimli", "Fighter")
         original_rename = os.rename
         tmp_paths: list[Path] = []
+
         def tracking_rename(src: str, dst: str) -> None:
             src_path = Path(src)
             if src_path.suffix == ".tmp":
-                assert src_path.exists(), f"Temp file {src_path} should exist before rename"
+                assert src_path.exists(), (
+                    f"Temp file {src_path} should exist before rename"
+                )
                 tmp_paths.append(src_path)
             original_rename(src, dst)
+
         try:
             os.rename = tracking_rename  # type: ignore[assignment]
             store.save(char, name="atomic_test")

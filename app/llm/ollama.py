@@ -109,16 +109,13 @@ class OllamaProvider(LLMProvider):
 
         if not response.ok:
             raise ProviderError(
-                f"Ollama returned HTTP {response.status_code}: "
-                f"{response.text}"
+                f"Ollama returned HTTP {response.status_code}: {response.text}"
             )
 
         try:
             data = response.json()
         except (json.JSONDecodeError, ValueError) as e:
-            raise ProviderError(
-                f"Invalid JSON in Ollama response: {e}"
-            ) from e
+            raise ProviderError(f"Invalid JSON in Ollama response: {e}") from e
 
         choice = data["choices"][0]
         return {
@@ -154,8 +151,7 @@ class OllamaProvider(LLMProvider):
             )
         except requests.exceptions.Timeout as e:
             raise LLMTimeoutError(
-                f"Ollama stream request timed out after {self.timeout}s: "
-                f"{e}"
+                f"Ollama stream request timed out after {self.timeout}s: {e}"
             ) from e
         except requests.exceptions.ConnectionError as e:
             raise LLMConnectionError(
@@ -164,8 +160,7 @@ class OllamaProvider(LLMProvider):
 
         if not response.ok:
             raise ProviderError(
-                f"Ollama returned HTTP {response.status_code}: "
-                f"{response.text}"
+                f"Ollama returned HTTP {response.status_code}: {response.text}"
             )
 
         try:
@@ -175,7 +170,7 @@ class OllamaProvider(LLMProvider):
                 line_str = line.decode("utf-8").strip()
                 if not line_str.startswith("data: "):
                     continue
-                payload_str = line_str[len("data: "):]
+                payload_str = line_str[len("data: ") :]
                 if payload_str == "[DONE]":
                     break
                 try:
@@ -189,21 +184,13 @@ class OllamaProvider(LLMProvider):
                 if content:
                     yield content
         except requests.exceptions.Timeout as e:
-            raise LLMTimeoutError(
-                f"Stream timed out: {e}"
-            ) from e
+            raise LLMTimeoutError(f"Stream timed out: {e}") from e
         except requests.exceptions.ChunkedEncodingError as e:
-            raise LLMConnectionError(
-                f"Stream connection lost: {e}"
-            ) from e
+            raise LLMConnectionError(f"Stream connection lost: {e}") from e
         except requests.exceptions.ConnectionError as e:
-            raise LLMConnectionError(
-                f"Stream connection lost: {e}"
-            ) from e
+            raise LLMConnectionError(f"Stream connection lost: {e}") from e
         except requests.exceptions.RequestException as e:
-            raise ProviderError(
-                f"Stream error: {e}"
-            ) from e
+            raise ProviderError(f"Stream error: {e}") from e
 
     def health(self) -> HealthResult:
         """Check if the Ollama server is reachable.

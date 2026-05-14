@@ -49,13 +49,9 @@ def roll(expression: DiceExpression) -> dict:
     """
     # --- Defensive validation (Bug 4) ------------------------------------
     if expression.sides < 1:
-        raise ValueError(
-            f"Number of sides must be at least 1, got {expression.sides}"
-        )
+        raise ValueError(f"Number of sides must be at least 1, got {expression.sides}")
     if expression.count < 1:
-        raise ValueError(
-            f"Number of dice must be at least 1, got {expression.count}"
-        )
+        raise ValueError(f"Number of dice must be at least 1, got {expression.count}")
     if expression.keep_count is not None and expression.keep_count > expression.count:
         raise ValueError(
             f"Keep count ({expression.keep_count}) cannot exceed "

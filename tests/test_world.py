@@ -16,6 +16,7 @@ from app.world.model import (
 # Location
 # ---------------------------------------------------------------------------
 
+
 class TestLocation:
     def test_create_with_minimal_fields(self) -> None:
         loc = Location(id="room_1", name="Damp Cellar", description="A dark cellar.")
@@ -40,6 +41,7 @@ class TestLocation:
 # ---------------------------------------------------------------------------
 # Quest
 # ---------------------------------------------------------------------------
+
 
 class TestQuest:
     def test_default_status_is_active(self) -> None:
@@ -83,6 +85,7 @@ class TestQuest:
 # FactionStanding
 # ---------------------------------------------------------------------------
 
+
 class TestFactionStanding:
     def test_default_standing_is_zero(self) -> None:
         fs = FactionStanding(faction_id="guild_01", name="Thieves Guild")
@@ -111,6 +114,7 @@ class TestFactionStanding:
 # DMNotes
 # ---------------------------------------------------------------------------
 
+
 class TestDMNotes:
     def test_defaults_are_empty(self) -> None:
         notes = DMNotes()
@@ -133,6 +137,7 @@ class TestDMNotes:
 # ---------------------------------------------------------------------------
 # WorldState
 # ---------------------------------------------------------------------------
+
 
 class TestWorldState:
     def test_default_values(self) -> None:
@@ -303,10 +308,9 @@ class TestWorldState:
         assert restored.turn_count == 42
         assert restored.version == "1.0"
 
-
-# ---------------------------------------------------------------------------
-# Active NPCs (dict of dicts)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    # Active NPCs (dict of dicts)
+    # ---------------------------------------------------------------------------
 
     # ------------------------------------------------------------------
     # from_dict robustness — extra fields (Bug 2)
@@ -438,7 +442,6 @@ class TestWorldState:
         ws = WorldState.from_dict({"version": 2})
         assert ws.version == "2"
         assert isinstance(ws.version, str)
-
 
 
 class TestActiveNPCs:
