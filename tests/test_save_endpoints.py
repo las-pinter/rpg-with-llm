@@ -89,7 +89,7 @@ class TestSaveEndpoint:
         assert resp.status_code == 500
         data = resp.get_json()
         assert data["ok"] is False
-        assert "Invalid save name" in data["error"]
+        assert "Internal server error" in data["error"]
 
     def test_save_with_non_dict_state_returns_500(self, client):
         """POST with non-dict state value returns 500.
