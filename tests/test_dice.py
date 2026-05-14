@@ -9,7 +9,6 @@ import pytest
 from app.dice.parser import KeepMode, ParseError, parse
 from app.dice.roller import roll
 
-
 # ===========================================================================
 # Parser tests
 # ===========================================================================
@@ -387,8 +386,9 @@ class TestRollSystemRandom:
 
     def test_system_random_instance(self):
         """The _rng should be a SystemRandom instance."""
-        from app.dice.roller import _rng
         from random import SystemRandom
+
+        from app.dice.roller import _rng
 
         assert isinstance(_rng, SystemRandom)
 

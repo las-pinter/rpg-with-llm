@@ -5,7 +5,6 @@ Trust nothing. Test everything.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -464,8 +463,8 @@ class TestTableEntryValidation:
             "name": "bad", "die": "not a valid die",
             "entries": [{"range": [1, 6], "result": "oops"}],
         }), encoding="utf-8")
-        from app.dice.tables import RandomTable
         from app.dice.parser import ParseError
+        from app.dice.tables import RandomTable
         rt = RandomTable(tmp_path)
         with pytest.raises(ParseError):
             rt.lookup("bad")

@@ -10,10 +10,9 @@ so the Evil Wizard can save, load, and transmit the world state at will.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
 import dataclasses
+from dataclasses import asdict, dataclass, field
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Location

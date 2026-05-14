@@ -8,9 +8,8 @@ along with shared data types and a consistent error hierarchy.
 from __future__ import annotations
 
 import abc
-from dataclasses import dataclass, field
-from typing import Generator
-
+from collections.abc import Generator
+from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
 # Error hierarchy

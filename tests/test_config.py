@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import tempfile
 from pathlib import Path
 
@@ -11,7 +10,6 @@ import pytest
 
 from app.llm.base import ProviderConfig
 from app.llm.config import ConfigError, ConfigManager
-
 
 # =========================================================================
 # ProviderConfig tests
