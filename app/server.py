@@ -7,6 +7,7 @@ endpoints for persisting and restoring game state.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -16,6 +17,7 @@ from app.world.model import WorldState
 from app.world.persistence import WorldStorage
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 _storage = WorldStorage(data_dir=Path("data"))
 
 
@@ -112,8 +114,9 @@ def save_game():
     try:
         world_state = WorldState.from_dict(state_dict)
         timestamp = _storage.save(world_state, name)
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+    except Exception:
+        logger.exception("Failed to save game '%s'", name)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
 
     return jsonify({"ok": True, "name": name, "timestamp": timestamp})
 
@@ -149,10 +152,12 @@ def load_game(name):
         world_state = _storage.load(name)
     except FileNotFoundError:
         return jsonify({"ok": False, "error": f"Save '{name}' not found"}), 404
-    except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+    except ValueError:
+        logger.warning("Invalid or corrupt save data for '%s'", name, exc_info=True)
+        return jsonify({"ok": False, "error": "Invalid or corrupt save data"}), 400
+    except Exception:
+        logger.exception("Failed to load save '%s'", name)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
 
     return jsonify({"ok": True, "state": world_state.to_dict()})
 
