@@ -1,4 +1,4 @@
-name: "CI — RPG Engine"
+name: "CI - RPG Engine"
 
 "on":
   push:
