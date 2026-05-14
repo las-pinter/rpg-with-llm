@@ -15,7 +15,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 1 | Deterministic Tools | ✅ Complete |
 | 2 | LLM Provider Abstraction | ✅ Complete |
 | 3 | World State Persistence | ✅ Complete |
-| 4 | Character Creation | ⬜ Not started |
+| 4 | Character Creation | ✅ Complete |
 | 5 | Single-Agent DM Loop | ⬜ Not started |
 | 6 | Frontend UI | ⬜ Not started |
 | 7 | NPC Subagents | ⬜ Not started |
@@ -65,49 +65,21 @@ python run.py
 
 ```
 rpg-with-llm/
-├── README.md                     # This file
-├── requirements.txt              # Python dependencies
-├── run.py                        # Main entry point (Flask app launch)
+├── README.md
+├── requirements.txt
+├── run.py                        # Flask app entry point
 ├── app/
-│   ├── __init__.py
-│   ├── dice/
-│   │   ├── __init__.py
-│   │   ├── parser.py             # Dice notation parser (2d6+3, d20 adv, 4d6k3)
-│   │   ├── roller.py             # Dice engine with audit trail
-│   │   └── tables.py             # Random encounter/loot/NPC tables
-│   ├── rules/
-│   │   ├── __init__.py
-│   │   ├── checks.py             # Skill checks, saving throws, DCs
-│   │   ├── combat.py             # Combat resolution, damage, AC
-│   │   ├── xp.py                 # XP awards and leveling
-│   │   └── status.py             # Status effects, conditions
-│   ├── world/
-│   │   ├── __init__.py
-│   │   ├── model.py              # World state data model (dataclasses)
-│   │   └── persistence.py        # JSON file save/load with atomic writes
-│   ├── llm/
-│   │   ├── __init__.py
-│   │   ├── base.py               # Abstract provider (call, stream, health)
-│   │   ├── ollama.py             # Ollama provider implementation
-│   │   └── config.py             # Provider configuration management
-│   ├── character/                # (Phase 4)
+│   ├── dice/                     # Dice parser, roller, random tables
+│   ├── rules/                    # Skill checks, combat, XP, status effects
+│   ├── world/                    # World state model, JSON persistence
+│   ├── llm/                      # LLM provider abstraction (Ollama, Groq, OpenRouter)
+│   ├── character/                # Character model, creation & persistence
 │   ├── agents/                   # (Phase 5, 7)
 │   └── static/                   # (Phase 6)
 ├── data/
-│   ├── tables/
-│   │   ├── encounters.json       # Encounter tables
-│   │   ├── loot.json             # Loot tables
-│   │   ├── weather.json          # Weather tables
-│   │   └── npc_traits.json       # NPC trait tables
-│   └── saves/                    # Saved game files (gitignored)
-└── tests/
-    ├── test_dice.py              # Dice parser + roller tests
-    ├── test_rules.py             # Rules engine tests
-    ├── test_tables.py            # Random tables tests
-    ├── test_world.py             # World state model tests
-    ├── test_persistence.py       # World state persistence tests
-    ├── test_llm.py               # LLM provider abstraction tests
-    └── test_config.py            # Provider config management tests
+│   ├── tables/                   # Encounters, loot, weather, NPC traits
+│   └── saves/                    # Saved games (gitignored)
+└── tests/                        # Test suite for all modules
 ```
 
 See the plan document for detailed task breakdown.
@@ -122,6 +94,9 @@ See the plan document for detailed task breakdown.
 | Web Server | Flask | 3.0 |
 | HTTP Client | Requests | 2.31 |
 | Testing | Pytest | 8.0 |
+| Linting | Ruff | 0.9 |
+| Type Checking | Mypy | 1.15 |
+| Coverage | pytest-cov | 6.0 |
 | LLM API | OpenAI-compatible chat completions | — |
 | Frontend | Vanilla HTML + CSS + JS | — |
 | Randomness | `random.SystemRandom` (cryptographic) | — |
@@ -174,11 +149,11 @@ Game Engine
 # Run all tests
 pytest -v
 
-# Run tests for a specific module
+# Run tests with coverage
+pytest --cov=app --cov-report=term
+
+# Run a specific test file
 pytest -v tests/test_dice.py
-pytest -v tests/test_rules.py
-pytest -v tests/test_llm.py
-pytest -v tests/test_world.py
 ```
 
 ---
