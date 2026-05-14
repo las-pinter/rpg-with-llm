@@ -32,6 +32,7 @@ data/saves/
 
 # Test artifacts
 .coverage
+*.py,cover
 coverage.xml
 htmlcov/
 junit/
