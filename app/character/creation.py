@@ -1,7 +1,7 @@
 """
-World State File Persistence Layer — Phase 3, Task 3.2.
+Character Creation and Persistence.
 
-Provides WorldStorage, which persists WorldState dataclasses to
+Provides CharacterStorage, which persists Character dataclasses to
 JSON files with atomic saves, corruption detection, and a save index
 for fast listing without re-reading every file.
 """
@@ -14,70 +14,79 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from app.world.model import WorldState
+from app.character.model import Character
 
 
-class WorldStorage:
-    """Persist and restore WorldState objects as JSON files on disk.
+class CharacterStorage:
+    """Persist and restore Character objects as JSON files on disk.
 
-    Saves are stored as {data_dir}/saves/{name}.json.  Each file
-    contains the raw WorldState.to_dict() output — no wrapping
-    envelope — so it can be handed directly to WorldState.from_dict().
+    Saves are stored as {data_dir}/characters/{name}.json.  Each file
+    contains the raw Character.to_dict() output — no wrapping envelope
+    — so it can be handed directly to Character.from_dict().
 
-    A companion index.json tracks metadata (timestamp, character
-    name, level, turn count) for every save, enabling fast listings
-    without loading each file.
+    A companion index.json tracks metadata (timestamp, class, level)
+    for every character, enabling fast listings without loading each
+    file.
 
-    All writes are **atomic**: content is first written to a .tmp
-    file on the same filesystem, then os.rename()ed to the final
-    path.  This prevents partial/corrupt files from crashes.
+    All writes are **atomic**: content is first written to a .tmp file
+    on the same filesystem, then os.rename()ed to the final path.
+    This prevents partial/corrupt files from crashes.
     """
 
-    def __init__(
-        self,
-        data_dir: str | Path,
-        auto_save_interval: int | None = None,
-    ) -> None:
+    def __init__(self, data_dir: str | Path) -> None:
         self.data_dir = Path(data_dir)
-        self.saves_dir = self.data_dir / "saves"
-        self.auto_save_interval = auto_save_interval
-        self._last_save_turn: int | None = None
-        self.saves_dir.mkdir(parents=True, exist_ok=True)
+        self.characters_dir = self.data_dir / "characters"
+        self.characters_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # Name validation (Bug 1: path traversal prevention)
+    # Name validation
     # ------------------------------------------------------------------
 
     def _validate_name(self, name: str) -> None:
-        """Validate save name to prevent path traversal."""
+        """Validate character name to prevent path traversal."""
         if not name or not name.strip():
-            raise ValueError("Save name must be non-empty")
+            raise ValueError("Character name must be non-empty")
+        # Reject control characters (null bytes, backspace, etc.)
+        for c in name:
+            if ord(c) < 32 or ord(c) == 127:
+                raise ValueError(
+                    f"Invalid character name: '{name}' "
+                    "(control characters are not allowed)"
+                )
         if "/" in name or "\\" in name:
             raise ValueError(
-                f"Invalid save name: '{name}' (no path separators allowed)"
+                f"Invalid character name: '{name}' (no path separators allowed)"
             )
         if ".." in name:
             raise ValueError(
-                f"Invalid save name: '{name}' (no parent directory references allowed)"
+                f"Invalid character name: '{name}' "
+                "(no parent directory references allowed)"
             )
         if len(name) > 200:
-            raise ValueError("Save name too long (max 200 characters)")
+            raise ValueError("Character name too long (max 200 characters)")
 
     # ------------------------------------------------------------------
     # Save
     # ------------------------------------------------------------------
 
-    def save(self, world_state: WorldState, name: str = "autosave") -> str:
-        """Atomically persist *world_state* under the given *name*."""
+    def save(self, character: Character, name: str | None = None) -> str:
+        """Atomically persist *character* under the given *name*.
+
+        If *name* is ``None``, the character's own ``.name`` field is
+        used as the filename.  Returns the timestamp string of the save.
+        """
+        if name is None:
+            name = character.name
         self._validate_name(name)
-        # Ensure directory exists — it may have been deleted at runtime (Bug 4)
-        self.saves_dir.mkdir(parents=True, exist_ok=True)
+
+        # Ensure directory still exists (may have been deleted at runtime)
+        self.characters_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = _timestamp_now()
-        data: dict[str, Any] = world_state.to_dict()
+        data: dict[str, Any] = character.to_dict()
 
-        tmp_path = self.saves_dir / f"{name}.json.tmp"
-        final_path = self.saves_dir / f"{name}.json"
+        tmp_path = self.characters_dir / f"{name}.json.tmp"
+        final_path = self.characters_dir / f"{name}.json"
 
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
@@ -87,50 +96,55 @@ class WorldStorage:
             tmp_path.unlink(missing_ok=True)
             raise
 
-        # Populate metadata from WorldState (Bug 6)
         metadata: dict[str, Any] = {
             "timestamp": timestamp,
-            "character_name": world_state.character_id or "Unknown",
-            "level": world_state.turn_count,  # Placeholder until character system
-            "turn_count": world_state.turn_count,
+            "class": character.character_class,
+            "level": character.level,
         }
         self._update_index(name, metadata)
-        self._last_save_turn = world_state.turn_count
         return timestamp
 
     # ------------------------------------------------------------------
     # Load
     # ------------------------------------------------------------------
 
-    def load(self, name: str) -> WorldState:
-        """Load and return a WorldState previously saved under *name*."""
+    def load(self, name: str) -> Character:
+        """Load and return a Character previously saved under *name*.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no character file exists for *name*.
+        ValueError
+            If the file exists but contains corrupt or invalid JSON.
+        """
         self._validate_name(name)
-        final_path = self.saves_dir / f"{name}.json"
+        final_path = self.characters_dir / f"{name}.json"
         if not final_path.exists():
             raise FileNotFoundError(
-                f"Save '{name}' not found at {final_path}"
+                f"Character '{name}' not found at {final_path}"
             )
         try:
             with open(final_path, encoding="utf-8") as f:
                 data: Any = json.load(f)
         except json.JSONDecodeError as exc:
             raise ValueError(
-                f"Save file '{name}' is corrupt -- invalid JSON: {exc}"
+                f"Character file '{name}' is corrupt -- invalid JSON: {exc}"
             ) from exc
         if not isinstance(data, dict):
             raise ValueError(
-                f"Save file '{name}' is corrupt -- expected a JSON object "
-                f"(dict) but got {type(data).__name__}"
+                f"Character file '{name}' is corrupt -- expected a JSON "
+                f"object (dict) but got {type(data).__name__}"
             )
-        return WorldState.from_dict(data)
+        return Character.from_dict(data)
 
     # ------------------------------------------------------------------
-    # List saves
+    # List characters
     # ------------------------------------------------------------------
 
-    def list_saves(self) -> list[dict[str, Any]]:
-        """Return metadata for all known saves from the index."""
-        index_path = self.saves_dir / "index.json"
+    def list_characters(self) -> list[dict[str, Any]]:
+        """Return metadata for all saved characters from the index."""
+        index_path = self.characters_dir / "index.json"
         if not index_path.exists():
             return []
         try:
@@ -138,59 +152,49 @@ class WorldStorage:
                 index: Any = json.load(f)
         except (json.JSONDecodeError, OSError):
             return []
-        saves: dict[str, Any] = index.get("saves", {})
-        return list(saves.values())
+        characters: dict[str, Any] = index.get("characters", {})
+        return list(characters.values())
 
     # ------------------------------------------------------------------
     # Delete
     # ------------------------------------------------------------------
 
     def delete(self, name: str) -> None:
-        """Delete the save with the given *name*."""
+        """Delete the character save with the given *name*."""
         self._validate_name(name)
-        save_path = self.saves_dir / f"{name}.json"
+        char_path = self.characters_dir / f"{name}.json"
 
-        # Check if the save exists in index or on disk
-        if not save_path.exists() and not self._index_has(name):
+        # Check if the character exists in index or on disk
+        if not char_path.exists() and not self._index_has(name):
             raise FileNotFoundError(
-                f"Save '{name}' not found at {save_path}"
+                f"Character '{name}' not found at {char_path}"
             )
 
-        # Remove from index FIRST so orphan metadata can't linger (Bug 5)
+        # Remove from index FIRST so orphan metadata can't linger
         self._remove_from_index(name)
 
         # Then try to delete the file (may already be gone)
         try:
-            save_path.unlink(missing_ok=True)
+            char_path.unlink(missing_ok=True)
         except Exception:
             pass  # File might already be gone
 
     # ------------------------------------------------------------------
-    # Save exists
+    # Character exists
     # ------------------------------------------------------------------
 
-    def save_exists(self, name: str) -> bool:
-        """Return True if a save with *name* exists on disk."""
+    def character_exists(self, name: str) -> bool:
+        """Return ``True`` if a character with *name* exists (on disk and in index)."""
         self._validate_name(name)
-        return (self.saves_dir / f"{name}.json").exists()
-
-    # ------------------------------------------------------------------
-    # Auto-save
-    # ------------------------------------------------------------------
-
-    def should_auto_save(self, current_turn: int) -> bool:
-        """Check whether an auto-save should be triggered."""
-        if self.auto_save_interval is None or self._last_save_turn is None:
-            return False
-        return (current_turn - self._last_save_turn) >= self.auto_save_interval
+        return (self.characters_dir / f"{name}.json").exists() and self._index_has(name)
 
     # ------------------------------------------------------------------
     # Index helpers
     # ------------------------------------------------------------------
 
     def _index_has(self, name: str) -> bool:
-        """Check if *name* exists in the save index."""
-        index_path = self.saves_dir / "index.json"
+        """Check if *name* exists in the character index."""
+        index_path = self.characters_dir / "index.json"
         if not index_path.exists():
             return False
         try:
@@ -198,14 +202,14 @@ class WorldStorage:
                 index: Any = json.load(f)
             if not isinstance(index, dict):
                 return False
-            return name in index.get("saves", {})
+            return name in index.get("characters", {})
         except (json.JSONDecodeError, OSError):
             return False
 
     def _update_index(self, name: str, metadata: dict[str, Any]) -> None:
-        """Insert or update *name* in the save index."""
-        index_path = self.saves_dir / "index.json"
-        index: dict[str, Any] = {"saves": {}}
+        """Insert or update *name* in the character index."""
+        index_path = self.characters_dir / "index.json"
+        index: dict[str, Any] = {"characters": {}}
         if index_path.exists():
             try:
                 with open(index_path, encoding="utf-8") as f:
@@ -214,12 +218,12 @@ class WorldStorage:
                     index = existing
             except (json.JSONDecodeError, OSError):
                 pass
-        index.setdefault("saves", {})[name] = metadata
+        index.setdefault("characters", {})[name] = metadata
         self._write_index_atomic(index_path, index)
 
     def _remove_from_index(self, name: str) -> None:
-        """Remove *name* from the save index."""
-        index_path = self.saves_dir / "index.json"
+        """Remove *name* from the character index."""
+        index_path = self.characters_dir / "index.json"
         if not index_path.exists():
             return
         try:
@@ -229,7 +233,7 @@ class WorldStorage:
             return
         if not isinstance(index, dict):
             return
-        index.setdefault("saves", {}).pop(name, None)
+        index.setdefault("characters", {}).pop(name, None)
         self._write_index_atomic(index_path, index)
 
     @staticmethod

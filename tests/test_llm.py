@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 
@@ -15,7 +15,6 @@ from app.llm.base import (
     ProviderConfig,
     ProviderError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Concrete mock provider used across several tests
@@ -620,12 +619,12 @@ class TestOllamaProvider:
 
     def test_invalid_json_raises_provider_error(self):
         """call() should raise ProviderError when response is not valid JSON."""
+        import json
         from unittest.mock import MagicMock, patch
 
         import requests
 
         from app.llm.ollama import OllamaProvider
-        import json
 
         provider = OllamaProvider(
             base_url="http://localhost:11434",
