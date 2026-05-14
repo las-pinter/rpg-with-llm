@@ -1,16 +1,22 @@
 """Flask server for the LLM-Powered RPG.
 
 Provides REST API endpoints for the game, starting with a health
-check endpoint for LLM provider connectivity.
+check endpoint for LLM provider connectivity, plus save/load/reset
+endpoints for persisting and restoring game state.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from flask import Flask, jsonify, request
 
 from app.llm.ollama import OllamaProvider
+from app.world.model import WorldState
+from app.world.persistence import WorldStorage
 
 app = Flask(__name__)
+_storage = WorldStorage(data_dir=Path("data"))
 
 
 @app.route("/api/health", methods=["POST"])
@@ -63,3 +69,101 @@ def health_check():
             "error": result.error,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Save / Load / Reset
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/save", methods=["POST"])
+def save_game():
+    """Persist the current world state to disk.
+
+    Accepts JSON body with a ``state`` dict (the serialised
+    :class:`~app.world.model.WorldState`) and an optional ``name``
+    (defaults to ``"autosave"``).
+
+    Returns
+    -------
+    JSON with ``ok``, ``name``, and ``timestamp`` on success.
+
+    Errors
+    ------
+    400
+        If the request body is not valid JSON, or ``state`` is missing.
+    500
+        If the persistence layer raises an error (e.g. invalid name,
+        filesystem failure).
+    """
+    if not request.is_json:
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
+
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
+
+    if "state" not in data:
+        return jsonify({"ok": False, "error": "Missing 'state' in request body"}), 400
+
+    name = data.get("name", "autosave")
+    state_dict = data["state"]
+
+    try:
+        world_state = WorldState.from_dict(state_dict)
+        timestamp = _storage.save(world_state, name)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+    return jsonify({"ok": True, "name": name, "timestamp": timestamp})
+
+
+@app.route("/api/saves", methods=["GET"])
+def list_saves():
+    """Return metadata for all saved games.
+
+    Returns
+    -------
+    JSON with ``ok`` and a ``saves`` list of metadata dicts.
+    """
+    saves = _storage.list_saves()
+    return jsonify({"ok": True, "saves": saves})
+
+
+@app.route("/api/load/<string:name>", methods=["POST"])
+def load_game(name):
+    """Restore a previously saved world state.
+
+    Returns
+    -------
+    JSON with ``ok`` and the full ``state`` dict on success.
+
+    Errors
+    ------
+    404
+        If no save with the given *name* exists.
+    400
+        If the save file is corrupt or unreadable.
+    """
+    try:
+        world_state = _storage.load(name)
+    except FileNotFoundError:
+        return jsonify({"ok": False, "error": f"Save '{name}' not found"}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+    return jsonify({"ok": True, "state": world_state.to_dict()})
+
+
+@app.route("/api/reset", methods=["POST"])
+def reset_game():
+    """Return a fresh default world state without touching disk.
+
+    Returns
+    -------
+    JSON with ``ok`` and a fresh ``state`` dict.
+    """
+    fresh_state = WorldState()
+    return jsonify({"ok": True, "state": fresh_state.to_dict()})
