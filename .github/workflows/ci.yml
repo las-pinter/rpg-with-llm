@@ -1,0 +1,96 @@
+name: "CI — RPG Engine"
+
+"on":
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install lint tools
+        run: pip install ruff mypy pytest pytest-cov pytest-xdist
+
+      - name: Ruff lint check
+        run: ruff check app/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check app/ tests/
+
+      - name: Mypy type check
+        run: mypy app/ --ignore-missing-imports
+        continue-on-error: true
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install test tools
+        run: pip install pytest pytest-cov pytest-xdist
+
+      - name: Run tests with coverage
+        run: |
+          python -m pytest tests/ -v -n auto \
+            --cov=app --cov-report=xml --cov-report=term \
+            --cov-fail-under=60 \
+            --junitxml=junit/test-results.xml
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+
+      - name: Publish test results
+        if: success() || failure()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results (${{ matrix.python-version }})
+          path: junit/test-results.xml
+          reporter: java-junit
