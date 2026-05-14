@@ -53,11 +53,11 @@ source .venv/bin/activate   # Linux/macOS
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run the game (once the Flask server is implemented)
+# 4. Start the game server
 python run.py
 ```
 
-> **Note:** The Flask server, frontend, and startup scripts are in Phases 5–10. For now, the project provides the core engine libraries and can be used programmatically or tested via `pytest`.
+The server starts on `http://localhost:5000`. Open it in your browser to access the UI (once the frontend is implemented in Phase 6). The health check endpoint at `POST /api/health` can be used to verify LLM provider connectivity.
 
 ---
 
@@ -74,6 +74,7 @@ rpg-with-llm/
 │   ├── world/                    # World state model, JSON persistence
 │   ├── llm/                      # LLM provider abstraction (Ollama, Groq, OpenRouter)
 │   ├── character/                # Character model, creation & persistence
+│   ├── server.py                 # Flask server, health check endpoint
 │   ├── agents/                   # (Phase 5, 7)
 │   └── static/                   # (Phase 6)
 ├── data/

@@ -9,10 +9,10 @@
 - Run type check: `mypy app/ --ignore-missing-imports`
 - Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
 - Run single module: `python3 -m pytest tests/test_dice.py -v`
-- Run game: `python3 run.py` (once Flask server is implemented)
+- Run game: `python3 run.py` (starts Flask dev server on port 5000)
 
 ## Project overview
-Python-based LLM-powered RPG game. Phases 1-4 complete (dice, rules, tables, LLM provider abstraction, world state persistence, character creation). Agent system, frontend DM loop, and startup scripts are upcoming phases. CI pipeline enforces lint, format, type checking, and test coverage.
+Python-based LLM-powered RPG game. Phases 1-4 complete (dice, rules, tables, LLM provider abstraction with health endpoint, world state persistence, character creation). Flask server running at `http://localhost:5000`. Agent system, frontend DM loop, and startup scripts are upcoming phases. CI pipeline enforces lint, format, type checking, and test coverage.
 
 ## Code conventions
 - Python 3.10+ type hints on all function signatures and dataclass fields
