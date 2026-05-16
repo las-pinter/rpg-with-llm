@@ -16,7 +16,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 2 | LLM Provider Abstraction | ✅ Complete |
 | 3 | World State Persistence | ✅ Complete |
 | 4 | Character Creation | ✅ Complete |
-| 5 | Single-Agent DM Loop | ⬜ Not started |
+| 5 | Single-Agent DM Loop | ✅ Complete |
 | 6 | Frontend UI | ⬜ Not started |
 | 7 | NPC Subagents | ⬜ Not started |
 | 8 | Memory Summarization | ⬜ Not started |
@@ -57,7 +57,19 @@ pip install -r requirements.txt
 python run.py
 ```
 
-The server starts on `http://localhost:5000`. Open it in your browser to access the UI (once the frontend is implemented in Phase 6). The health check endpoint at `POST /api/health` can be used to verify LLM provider connectivity.
+The server starts on `http://localhost:5000`. Open it in your browser to access the UI (once the frontend is implemented in Phase 6).
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/health` | Check LLM provider connectivity (takes `base_url`, `model`, optional `api_key`) |
+| `POST` | `/api/turn` | Process a player turn through the DM agent |
+| `GET` | `/api/game/stream` | SSE streaming endpoint for real-time DM narrative |
+| `POST` | `/api/save` | Save current world state to disk |
+| `GET` | `/api/saves` | List all saved games with metadata |
+| `POST` | `/api/load/<name>` | Load a saved game state |
+| `POST` | `/api/reset` | Get a fresh default world state |
 
 ---
 
@@ -74,9 +86,9 @@ rpg-with-llm/
 │   ├── world/                    # World state model, JSON persistence
 │   ├── llm/                      # LLM provider abstraction (Ollama, Groq, OpenRouter)
 │   ├── character/                # Character model, creation & persistence
-│   ├── server.py                 # Flask server, health check endpoint
-│   ├── agents/                   # (Phase 5, 7)
-│   └── static/                   # (Phase 6)
+│   ├── server.py                 # Flask server, REST + SSE endpoints
+│   ├── agents/                  # DM agent, response parser, tool dispatcher, history
+│   └── static/                  # (Phase 6)
 ├── data/
 │   ├── tables/                   # Encounters, loot, weather, NPC traits
 │   └── saves/                    # Saved games (gitignored)
