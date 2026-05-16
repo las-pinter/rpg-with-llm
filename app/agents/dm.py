@@ -318,7 +318,7 @@ class DungeonMaster:
 
         try:
             first_response = self._call_llm(messages)
-        except Exception as e:
+        except Exception:
             logger.exception("LLM call failed on first attempt")
             return {
                 "narrative": "",
@@ -326,7 +326,7 @@ class DungeonMaster:
                 "tool_results": [],
                 "turn_count": self.turn_count,
                 "ok": False,
-                "error": f"LLM call failed: {e}",
+                "error": "LLM call failed",
             }
 
         # ------------------------------------------------------------------
@@ -355,7 +355,7 @@ class DungeonMaster:
             try:
                 first_response = self._call_llm(messages)
                 parsed = parse_dm_response(first_response)
-            except Exception as e2:
+            except Exception:
                 logger.exception("LLM retry also failed")
                 return {
                     "narrative": "",
@@ -363,7 +363,7 @@ class DungeonMaster:
                     "tool_results": [],
                     "turn_count": self.turn_count,
                     "ok": False,
-                    "error": f"Failed to get parseable response: {e2}",
+                    "error": "Failed to get parseable response",
                 }
 
         tool_requests = parsed["tool_requests"]
