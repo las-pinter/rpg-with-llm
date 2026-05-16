@@ -229,6 +229,6 @@ def dispatch_tool(name: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
         tool_fn = TOOL_REGISTRY[name]
         return tool_fn(params)
-    except Exception as e:
+    except Exception:
         logger.exception("Tool '%s' raised unexpected exception", name)
-        return {"ok": False, "error": f"Tool '{name}' failed: {e}"}
+        return {"ok": False, "error": f"Tool '{name}' failed"}
