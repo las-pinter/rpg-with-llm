@@ -120,6 +120,7 @@ See the plan document for detailed task breakdown.
 | Provider | Type | Default Model |
 |----------|------|---------------|
 | **Ollama** | Local | `llama3.2` |
+| **Unsloth** | Local (GPU) | `unsloth/Qwen3.6-27B-GGUF` |
 | **Groq** | Cloud (fast inference) | `llama3-70b-8192` |
 | **OpenRouter** | Cloud (model aggregator) | `mistralai/mistral-7b-instruct:free` |
 
