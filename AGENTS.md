@@ -12,7 +12,7 @@
 - Run game: `python3 run.py` (starts Flask dev server on port 5000)
 
 ## Project overview
-Python-based LLM-powered RPG game. Phases 1-5 complete (dice, rules, tables, LLM provider abstraction with health endpoint, world state persistence, character creation, single-agent DM loop with game endpoints). Flask server running at `http://localhost:5000`. Frontend, NPC subagents, memory summarization, and startup scripts are upcoming phases. CI pipeline enforces lint, format, type checking, and test coverage.
+Python-based LLM-powered RPG game. Phases 1-6 complete (dice, rules, tables, LLM provider abstraction with health endpoint, world state persistence, character creation, single-agent DM loop with game endpoints, frontend SPA with SSE streaming). Flask server running at `http://localhost:5000`. NPC subagents, memory summarization, and startup scripts are upcoming phases. CI pipeline enforces lint, format, type checking, and test coverage.
 
 ## Code conventions
 - Python 3.10+ type hints on all function signatures and dataclass fields
@@ -40,7 +40,16 @@ app/
 ├── llm/        — Provider abstraction (Ollama, Groq, OpenRouter)
 ├── character/  — Character model, creation & persistence
 ├── agents/     — DM agent, response parser, tool dispatcher, turn history
-└── static/     — (Phase 6)
+└── static/     — Frontend SPA
+    ├── index.html       # SPA shell
+    ├── css/
+    │   └── style.css    # Dark fantasy theme
+    └── js/
+        ├── app.js       # SPA router
+        ├── connection.js# Connection view
+        ├── character.js # Character creation/load
+        ├── game.js      # Game view
+        └── sse.js       # SSE streaming client
 data/tables/    — Encounters, loot, weather, NPC traits
 tests/          — Test suite mirroring app structure
 ```

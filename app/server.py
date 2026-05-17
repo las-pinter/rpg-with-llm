@@ -18,14 +18,34 @@ from flask import Flask, Response, jsonify, request, stream_with_context
 from app.agents.dm import DungeonMaster
 from app.agents.parser import parse_dm_response
 from app.agents.tools import dispatch_tool
+from app.character.creation import (
+    AssistedCreation,
+    CharacterGenerationError,
+    CharacterStorage,
+)
+from app.character.model import Character
 from app.llm.ollama import OllamaProvider
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
 from app.world.validator import apply_changes, validate_state_changes
 
-app = Flask(__name__)
+# Resolve static folder relative to this module's location
+_static_folder = str(Path(__file__).resolve().parent / "static")
+app = Flask(__name__, static_folder=_static_folder, static_url_path="/static")
 logger = logging.getLogger(__name__)
 _storage = WorldStorage(data_dir=Path("data"))
+_character_storage = CharacterStorage(data_dir=Path("data"))
+
+
+# ---------------------------------------------------------------------------
+# Static file serving (SPA frontend)
+# ---------------------------------------------------------------------------
+
+
+@app.route("/")
+def index():
+    """Serve the SPA entry point (index.html)."""
+    return app.send_static_file("index.html")
 
 
 # ---------------------------------------------------------------------------
@@ -59,8 +79,8 @@ def health_check():
     if data is None:
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
 
-    base_url = data.get("base_url", "").strip()
-    model = data.get("model", "").strip()
+    base_url = (data.get("base_url") or "").strip()
+    model = (data.get("model") or "").strip()
 
     if not base_url or not model:
         return jsonify({"ok": False, "error": "base_url and model are required"}), 400
@@ -187,6 +207,146 @@ def reset_game():
 
 
 # ---------------------------------------------------------------------------
+# Character API — Assisted Creation, Save, Load, List
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/character/generate", methods=["POST"])
+def generate_character():
+    """Generate a character from narrative answers using the LLM.
+
+    Accepts JSON body with ``answers`` (dict of index -> answer text)
+    and optional ``provider`` config (``base_url``, ``model``, ``api_key``).
+
+    Returns
+    -------
+    JSON with ``ok`` and ``character`` (serialised Character) on success.
+
+    Errors
+    ------
+    400
+        If the request body is invalid, answers are missing/fewer than 3,
+        or provider config is missing.
+    422
+        If the LLM fails to generate a valid character.
+    500
+        If an internal error occurs.
+    """
+    if not request.is_json:
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
+
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
+
+    answers = data.get("answers")
+    if not isinstance(answers, dict) or len(answers) < 3:
+        return jsonify({"ok": False, "error": "At least 3 answers are required"}), 400
+
+    # Convert string keys to int
+    try:
+        answers_int: dict[int, str] = {}
+        for k, v in answers.items():
+            answers_int[int(k)] = str(v)
+    except (ValueError, TypeError):
+        return jsonify(
+            {"ok": False, "error": "Answer keys must be numeric indices"}
+        ), 400
+
+    provider_config = data.get("provider", {})
+    if not isinstance(provider_config, dict):
+        return jsonify({"ok": False, "error": "Provider config must be a dict"}), 400
+
+    base_url = (provider_config.get("base_url") or "").strip()
+    model = (provider_config.get("model") or "").strip()
+    if not base_url or not model:
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Provider base_url and model are required",
+            }
+        ), 400
+
+    api_key = provider_config.get("api_key")
+
+    try:
+        provider = OllamaProvider(
+            base_url=base_url,
+            model=model,
+            api_key=api_key,
+        )
+        creation = AssistedCreation(llm_provider=provider)
+        character = creation.generate_character(answers_int)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except CharacterGenerationError as e:
+        return jsonify({"ok": False, "error": str(e)}), 422
+    except Exception:
+        logger.exception("Character generation failed")
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True, "character": character.to_dict()})
+
+
+@app.route("/api/character/save", methods=["POST"])
+def save_character():
+    """Save a character to disk.
+
+    Accepts JSON body with ``character`` (serialised Character dict)
+    and optional ``name`` (defaults to the character's own name).
+
+    Returns
+    -------
+    JSON with ``ok``, ``name``, and ``timestamp`` on success.
+
+    Errors
+    ------
+    400
+        If the request body is invalid or character data is missing.
+    500
+        If the persistence layer raises an error.
+    """
+    if not request.is_json:
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
+
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
+
+    char_data = data.get("character")
+    if not isinstance(char_data, dict):
+        return jsonify(
+            {"ok": False, "error": "Missing 'character' dict in request body"}
+        ), 400
+
+    name = data.get("name")
+
+    try:
+        character = Character.from_dict(char_data)
+        timestamp = _character_storage.save(character, name=name)
+        saved_name = name if name and name.strip() else character.name
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception:
+        logger.exception("Failed to save character")
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True, "name": saved_name, "timestamp": timestamp})
+
+
+@app.route("/api/characters", methods=["GET"])
+def list_characters():
+    """Return metadata for all saved characters.
+
+    Returns
+    -------
+    JSON with ``ok`` and a ``characters`` list of metadata dicts.
+    """
+    characters = _character_storage.list_characters()
+    return jsonify({"ok": True, "characters": characters})
+
+
+# ---------------------------------------------------------------------------
 # Game Loop
 # ---------------------------------------------------------------------------
 
@@ -214,8 +374,8 @@ def _create_dm_from_request() -> tuple[DungeonMaster | None, str | None]:
     # Build optional provider
     provider_config = data.get("provider", {})
     if provider_config and isinstance(provider_config, dict):
-        base_url = provider_config.get("base_url", "").strip()
-        model = provider_config.get("model", "").strip()
+        base_url = (provider_config.get("base_url") or "").strip()
+        model = (provider_config.get("model") or "").strip()
         if base_url and model:
             llm_provider = OllamaProvider(
                 base_url=base_url,
@@ -274,7 +434,7 @@ def game_turn():
     if data is None:
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
 
-    player_input = data.get("input", "").strip()
+    player_input = (data.get("input") or "").strip()
     if not player_input:
         return jsonify({"ok": False, "error": "Missing 'input' in request body"}), 400
 
@@ -353,13 +513,16 @@ def game_stream():
             try:
                 for token in dm.llm_provider.stream(messages):
                     collected_tokens.append(token)
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    yield (
+                        f"event: token\n"
+                        f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    )
             except Exception:
                 logger.exception("Stream error")
                 error_data = json.dumps(
                     {"type": "error", "message": "Internal server error"}
                 )
-                yield f"data: {error_data}\n\n"
+                yield f"event: error\ndata: {error_data}\n\n"
                 return
 
             full_response = "".join(collected_tokens)
@@ -376,6 +539,7 @@ def game_stream():
         except Exception:
             logger.exception("Parse error in stream response")
             yield (
+                f"event: error\n"
                 f"data: {json.dumps({'type': 'error', 'message': 'Parse error'})}\n\n"
             )
             return
@@ -440,8 +604,12 @@ def game_stream():
                     logger.warning("Failed to apply state changes in stream: %s", e)
 
         # Yield narrative
-        yield f"data: {json.dumps({'type': 'narrative', 'content': narrative})}\n\n"
         yield (
+            f"event: narrative\n"
+            f"data: {json.dumps({'type': 'narrative', 'content': narrative})}\n\n"
+        )
+        yield (
+            f"event: done\n"
             f"data: {json.dumps({'type': 'done', 'turn_count': dm.turn_count + 1})}\n\n"
         )
 

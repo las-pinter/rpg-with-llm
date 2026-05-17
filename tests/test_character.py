@@ -5,10 +5,15 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from app.character.creation import CharacterStorage
+from app.character.creation import (
+    AssistedCreation,
+    CharacterGenerationError,
+    CharacterStorage,
+)
 from app.character.model import STANDARD_ABILITIES, VALID_CLASSES, Character
 
 
@@ -594,6 +599,7 @@ class TestCharacterPersistence:
         assert "timestamp" in meta
         assert meta["class"] == "Fighter"
         assert meta["level"] == 1
+        assert meta["name"] == "list_me"
 
     def test_list_multiple_saves(self, tmp_path: Path) -> None:
         """Multiple saves must all appear in the listing."""
@@ -830,3 +836,335 @@ class TestCharacterPersistence:
             os.rename = original_rename
         assert (store.characters_dir / "atomic_test.json").exists()
         assert not (store.characters_dir / "atomic_test.json.tmp").exists()
+
+
+# ---------------------------------------------------------------------------
+# Assisted Creation — Task 4.4
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_llm(response_text: str) -> MagicMock:
+    """Create a mock LLM provider that returns *response_text* as content."""
+    mock = MagicMock()
+    mock.call.return_value = {
+        "content": response_text,
+        "finish_reason": "stop",
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        },
+    }
+    return mock
+
+
+_VALID_CHARACTER_JSON = json.dumps(
+    {
+        "name": "Rurik Stoneheart",
+        "character_class": "Fighter",
+        "level": 1,
+        "abilities": {"STR": 15, "DEX": 13, "CON": 14, "WIS": 12, "INT": 10, "CHA": 8},
+        "skills": ["Athletics", "Perception"],
+        "hp": 12,
+        "max_hp": 12,
+        "ac": 18,
+        "appearance": "Stocky dwarf with a braided beard and a scar over one eye.",
+        "backstory": (
+            "A blacksmith's apprentice who took up arms when orcs raided his village."
+        ),
+        "inventory": ["Longsword", "Chain Mail", "Shield", "Explorer's Pack"],
+    }
+)
+
+_VALID_ANSWERS: dict[int, str] = {
+    0: "I was a blacksmith's apprentice in a small mountain village.",
+    1: "Orcs raided our village and I was the only one who fought back.",
+    2: "My strength is my stubbornness; my flaw is that I never back down.",
+    3: "I seek redemption for the comrades I couldn't save.",
+    4: "My old master would say I was always too hot-headed.",
+}
+
+
+class TestAssistedCreation:
+    """Tests for the AssistedCreation class."""
+
+    def test_assisted_creation_requires_at_least_3_answers(self) -> None:
+        """Fewer than 3 answers must raise ValueError."""
+        mock_llm = _make_mock_llm("{}")
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(ValueError, match="At least 3 answers"):
+            creation.generate_character({0: "answer1", 1: "answer2"})
+
+    def test_assisted_creation_generates_character(self) -> None:
+        """With valid answers and a mock LLM returning valid JSON,
+        a Character must be created."""
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+
+        assert isinstance(char, Character)
+        assert char.name == "Rurik Stoneheart"
+        assert char.character_class == "Fighter"
+        assert char.abilities["STR"] == 15
+        assert char.abilities["DEX"] == 13
+        assert "Athletics" in char.skills
+        assert char.hp == 12
+        assert char.ac == 18
+
+    def test_assisted_creation_retries_on_bad_json(self) -> None:
+        """If the first LLM response is invalid JSON, the system must
+        retry once.  If the second response is valid, a Character is
+        returned."""
+        mock_llm = MagicMock()
+        mock_llm.call.side_effect = [
+            {
+                "content": "This is not JSON at all",
+                "finish_reason": "stop",
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 3,
+                    "total_tokens": 8,
+                },
+            },
+            {
+                "content": _VALID_CHARACTER_JSON,
+                "finish_reason": "stop",
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            },
+        ]
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+
+        assert isinstance(char, Character)
+        assert char.name == "Rurik Stoneheart"
+        assert mock_llm.call.call_count == 2
+
+    def test_assisted_creation_fails_after_two_bad_responses(self) -> None:
+        """Two invalid LLM responses must raise CharacterGenerationError."""
+        mock_llm = MagicMock()
+        mock_llm.call.return_value = {
+            "content": "not valid json",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+        }
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_validates_class(self) -> None:
+        """If the LLM returns an invalid class, CharacterGenerationError
+        must be raised."""
+        bad_json = json.dumps(
+            {
+                "name": "Bad Class",
+                "character_class": "Paladin",
+                "level": 1,
+                "abilities": {a: 10 for a in STANDARD_ABILITIES},
+                "skills": [],
+                "hp": 10,
+                "max_hp": 10,
+                "ac": 10,
+                "appearance": "",
+                "backstory": "",
+            }
+        )
+        mock_llm = _make_mock_llm(bad_json)
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_validates_ability_range(self) -> None:
+        """If the LLM returns an ability score out of range,
+        CharacterGenerationError must be raised."""
+        bad_json = json.dumps(
+            {
+                "name": "OP Hero",
+                "character_class": "Fighter",
+                "level": 1,
+                "abilities": {
+                    "STR": 99,
+                    "DEX": 13,
+                    "CON": 14,
+                    "WIS": 12,
+                    "INT": 10,
+                    "CHA": 8,
+                },
+                "skills": ["Athletics"],
+                "hp": 12,
+                "max_hp": 12,
+                "ac": 18,
+                "appearance": "",
+                "backstory": "",
+            }
+        )
+        mock_llm = _make_mock_llm(bad_json)
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_extracts_json_from_markdown_block(self) -> None:
+        """The LLM might wrap JSON in ```json ... ``` fences.
+        The parser must still extract the JSON."""
+        wrapped = "```json\n" + _VALID_CHARACTER_JSON + "\n```"
+        mock_llm = _make_mock_llm(wrapped)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+        assert char.name == "Rurik Stoneheart"
+        assert char.character_class == "Fighter"
+
+    def test_assisted_creation_uses_all_five_questions(self) -> None:
+        """QUESTIONS must have exactly 5 entries."""
+        assert len(AssistedCreation.QUESTIONS) == 5
+
+    def test_assisted_creation_questions_are_non_empty(self) -> None:
+        """Every question in QUESTIONS must be a non-empty string."""
+        for q in AssistedCreation.QUESTIONS:
+            assert isinstance(q, str) and len(q) > 20
+
+    def test_assisted_creation_with_empty_name_triggers_retry(self) -> None:
+        """An empty or null name in the LLM response must trigger a retry,
+        then raise CharacterGenerationError if the second attempt also
+        has an empty name."""
+        bad_json = json.dumps(
+            {
+                "name": "",
+                "character_class": "Fighter",
+                "level": 1,
+                "abilities": {a: 10 for a in STANDARD_ABILITIES},
+                "skills": [],
+                "hp": 10,
+                "max_hp": 10,
+                "ac": 10,
+                "appearance": "",
+                "backstory": "",
+                "inventory": [],
+            }
+        )
+        mock_llm = _make_mock_llm(bad_json)
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_with_missing_numeric_fields_triggers_retry(
+        self,
+    ) -> None:
+        """If hp/max_hp/ac are missing from the JSON, validation must
+        return None and trigger a retry."""
+        bad_json = json.dumps(
+            {
+                "name": "NoHP",
+                "character_class": "Fighter",
+                "level": 1,
+                "abilities": {a: 10 for a in STANDARD_ABILITIES},
+                "skills": [],
+                "inventory": [],
+                "appearance": "",
+                "backstory": "",
+            }
+        )
+        mock_llm = _make_mock_llm(bad_json)
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_with_non_dict_abilities_triggers_retry(
+        self,
+    ) -> None:
+        """If abilities is not a dict, validation must return None and retry."""
+        bad_json = json.dumps(
+            {
+                "name": "BadAbilities",
+                "character_class": "Fighter",
+                "level": 1,
+                "abilities": "not_a_dict",
+                "skills": [],
+                "hp": 10,
+                "max_hp": 10,
+                "ac": 10,
+                "appearance": "",
+                "backstory": "",
+                "inventory": [],
+            }
+        )
+        mock_llm = _make_mock_llm(bad_json)
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_non_list_skills_and_inventory_use_defaults(
+        self,
+    ) -> None:
+        """When skills and inventory are not lists in the LLM response,
+        they should default to empty lists rather than failing."""
+        resilient_json = json.dumps(
+            {
+                "name": "Resilient",
+                "character_class": "Mage",
+                "level": 1,
+                "abilities": {a: 10 for a in STANDARD_ABILITIES},
+                "skills": "not_a_list",
+                "inventory": None,
+                "hp": 8,
+                "max_hp": 8,
+                "ac": 12,
+                "appearance": "",
+                "backstory": "",
+            }
+        )
+        mock_llm = _make_mock_llm(resilient_json)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+        assert char.skills == []
+        assert char.inventory == []
+
+    def test_assisted_creation_extracts_json_from_text_prefix(self) -> None:
+        """The LLM might return plain text before the JSON block.
+        The parser must still extract the JSON using the regex fallback."""
+        prefixed = "Here is your character:\n" + _VALID_CHARACTER_JSON
+        mock_llm = _make_mock_llm(prefixed)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+        assert char.name == "Rurik Stoneheart"
+        assert char.character_class == "Fighter"
+
+    def test_assisted_creation_with_character_constructor_error_retries(
+        self,
+    ) -> None:
+        """If the Character constructor raises ValueError (e.g. negative
+        level), the error must be caught and a retry triggered."""
+        bad_json = json.dumps(
+            {
+                "name": "BadLevel",
+                "character_class": "Fighter",
+                "level": -1,
+                "abilities": {a: 10 for a in STANDARD_ABILITIES},
+                "skills": [],
+                "hp": 10,
+                "max_hp": 10,
+                "ac": 10,
+                "appearance": "",
+                "backstory": "",
+                "inventory": [],
+            }
+        )
+        mock_llm = _make_mock_llm(bad_json)
+        creation = AssistedCreation(mock_llm)
+
+        with pytest.raises(CharacterGenerationError, match="Failed to generate"):
+            creation.generate_character(_VALID_ANSWERS)
