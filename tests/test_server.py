@@ -1205,7 +1205,7 @@ class TestCharacterGenerateEndpoint:
         assert resp.status_code == 422
         data = resp.get_json()
         assert data["ok"] is False
-        assert "Failed to generate" in data.get("error", "")
+        assert "Unable to generate" in data.get("error", "")
 
 
 class TestCharacterSaveEndpoint:
