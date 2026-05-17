@@ -278,7 +278,8 @@ def generate_character():
         creation = AssistedCreation(llm_provider=provider)
         character = creation.generate_character(answers_int)
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        logger.warning("Invalid character generation request: %s", e)
+        return jsonify({"ok": False, "error": "Invalid request data"}), 400
     except CharacterGenerationError as e:
         return jsonify({"ok": False, "error": str(e)}), 422
     except Exception:
