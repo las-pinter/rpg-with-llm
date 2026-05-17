@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.character.creation import CharacterStorage
 from app.server import app
+from app.world.persistence import WorldStorage
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the Flask app."""
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Create a test client with isolated storage directories."""
+    tmp_world_storage = WorldStorage(data_dir=tmp_path)
+    tmp_char_storage = CharacterStorage(data_dir=tmp_path)
+    monkeypatch.setattr("app.server._storage", tmp_world_storage)
+    monkeypatch.setattr("app.server._character_storage", tmp_char_storage)
+
     with app.test_client() as c:
         yield c
 
