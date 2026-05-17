@@ -19,7 +19,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 5 | Single-Agent DM Loop | ✅ Complete |
 | 6 | Frontend UI | ✅ Complete |
 | 7 | NPC Subagents | ✅ Complete |
-| 8 | Memory Summarization | 🔄 In progress |
+| 8 | Memory Summarization | ✅ Complete |
 | 9 | Additional LLM Providers | ⬜ Not started |
 | 10 | Platform Startup Scripts | ⬜ Not started |
 

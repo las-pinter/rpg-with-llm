@@ -16,6 +16,7 @@ from typing import Any
 from app.agents.history import SessionHistory
 from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
+from app.agents.summarizer import summarize_turns
 from app.agents.tools import dispatch_tool
 from app.llm.base import LLMProvider
 from app.world.validator import apply_changes, validate_state_changes
@@ -345,6 +346,16 @@ class DungeonMaster:
                 }
             )
 
+        # Append compressed summary if available
+        summary_text = self.history.get_summary()
+        if summary_text:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"Session summary (previous events):\n{summary_text}",
+                }
+            )
+
         # Append conversation history (last few exchanges for context)
         for msg in self.history.get_context_messages():
             messages.append(msg)
@@ -581,6 +592,9 @@ class DungeonMaster:
         # Update conversation history — store cleaned narrative (no XML tags)
         self.history.add_turn(player_input, narrative)
 
+        # Check if summarization should trigger
+        self._maybe_summarize()
+
         return {
             "narrative": narrative,
             "state_changes": applied_changes,
@@ -760,3 +774,33 @@ class DungeonMaster:
         Delegates to the module-level :func:`format_npc_results`.
         """
         return format_npc_results(npc_results)
+
+    # ------------------------------------------------------------------
+    # Memory summarization
+    # ------------------------------------------------------------------
+
+    def _maybe_summarize(self) -> None:
+        """Check if summarization should trigger and run it if needed.
+
+        Called after each completed turn.  When the recent turns buffer is
+        full, compresses recent turns (along with any existing summary) into
+        a new summary and clears the verbatim buffer.
+        """
+        recent_count = len(self.history.recent_turns)
+        if recent_count < self.history.max_turns:
+            return
+
+        try:
+            turns_text = self.history.get_turns_text()
+            existing_summary = self.history.get_summary()
+            if existing_summary:
+                turns_text = (
+                    f"Previous summary:\n{existing_summary}"
+                    f"\n\nRecent turns:\n{turns_text}"
+                )
+            if turns_text:
+                summary = summarize_turns(turns_text, self.llm_provider)
+                self.history.set_summary(summary)
+                self.history.clear_turns()
+        except Exception:
+            logger.exception("Summarization failed after turn")

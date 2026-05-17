@@ -49,6 +49,22 @@ class SessionHistory:
         """
         self.recent_turns.append({"user": player_input, "assistant": dm_response})
 
+    def get_turns_text(self) -> str:
+        """Get all recent turns as a single text block for summarization.
+
+        Returns a formatted string with each turn labeled as
+        ``[Turn N]\\nPlayer: ...\\nDM: ...`` separated by blank lines.
+
+        Returns
+        -------
+        str
+            Formatted turns text, or empty string if no turns exist.
+        """
+        parts: list[str] = []
+        for i, turn in enumerate(self.recent_turns, start=1):
+            parts.append(f"[Turn {i}]\nPlayer: {turn['user']}\nDM: {turn['assistant']}")
+        return "\n\n".join(parts)
+
     def get_context_messages(self) -> list[dict[str, str]]:
         """Return recent turns as message dicts for LLM context.
 
@@ -68,12 +84,23 @@ class SessionHistory:
         return messages
 
     def get_summary(self) -> str:
-        """Return the compressed summary (placeholder for Phase 8).
+        """Return the compressed summary of past gameplay turns.
 
-        Currently returns an empty string — will be populated by
-        the memory summarizer in Phase 8.
+        Populated by the memory summarizer when recent turns are
+        compressed.  Returns an empty string if no summary exists yet.
         """
         return self.compressed_summary
+
+    def set_summary(self, summary: str) -> None:
+        """Set the compressed summary text.
+
+        Parameters
+        ----------
+        summary : str
+            The new compressed summary string.  Pass an empty string to
+            clear the summary without affecting the turns buffer.
+        """
+        self.compressed_summary = summary
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -123,3 +150,11 @@ class SessionHistory:
         """Reset all history — drops recent turns and summary."""
         self.recent_turns.clear()
         self.compressed_summary = ""
+
+    def clear_turns(self) -> None:
+        """Clear all recent turns from the buffer.
+
+        Unlike :meth:`clear`, this only removes the verbatim turn
+        history, leaving the compressed summary intact.
+        """
+        self.recent_turns.clear()

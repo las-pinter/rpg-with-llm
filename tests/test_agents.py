@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
 
@@ -455,6 +455,112 @@ class TestSessionHistory:
         assert sh.max_turns == 5
         assert sh.recent_turns.maxlen == 5
 
+    # ------------------------------------------------------------------
+    # get_turns_text
+    # ------------------------------------------------------------------
+
+    def test_get_turns_text_returns_empty_for_empty_history(self) -> None:
+        """get_turns_text should return empty string when no turns exist."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        assert sh.get_turns_text() == ""
+
+    def test_get_turns_text_formats_single_turn(self) -> None:
+        """get_turns_text should format a single turn with turn number."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_turn("Hello", "Hi there!")
+        text = sh.get_turns_text()
+        assert "[Turn 1]" in text
+        assert "Player: Hello" in text
+        assert "DM: Hi there!" in text
+
+    def test_get_turns_text_formats_multiple_turns(self) -> None:
+        """get_turns_text should format multiple turns separated by blank lines."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory(max_turns=10)
+        sh.add_turn("First", "Response 1")
+        sh.add_turn("Second", "Response 2")
+        text = sh.get_turns_text()
+        assert "[Turn 1]" in text
+        assert "[Turn 2]" in text
+        assert "Player: First" in text
+        assert "Player: Second" in text
+        assert "DM: Response 1" in text
+        assert "DM: Response 2" in text
+        assert "\n\n" in text
+
+    def test_get_turns_text_includes_player_and_dm_labels(self) -> None:
+        """Each turn should have Player: and DM: labels."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_turn("Attack the goblin", "The goblin dodges!")
+        text = sh.get_turns_text()
+        assert "Player:" in text
+        assert "DM:" in text
+
+    # ------------------------------------------------------------------
+    # set_summary
+    # ------------------------------------------------------------------
+
+    def test_set_summary_stores_text(self) -> None:
+        """set_summary should store the provided text."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.set_summary("Player fought a dragon")
+        assert sh.compressed_summary == "Player fought a dragon"
+        assert sh.get_summary() == "Player fought a dragon"
+
+    def test_set_summary_overwrites_previous(self) -> None:
+        """set_summary should replace any existing summary."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.set_summary("First summary")
+        sh.set_summary("Second summary")
+        assert sh.compressed_summary == "Second summary"
+
+    def test_set_summary_accepts_empty_string(self) -> None:
+        """set_summary should accept an empty string to clear the summary."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.set_summary("Some summary")
+        sh.set_summary("")
+        assert sh.compressed_summary == ""
+
+    # ------------------------------------------------------------------
+    # clear_turns
+    # ------------------------------------------------------------------
+
+    def test_clear_turns_empties_buffer(self) -> None:
+        """clear_turns should remove all recent turns from the buffer."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_turn("Hello", "Hi")
+        sh.add_turn("How are you?", "Good")
+        sh.clear_turns()
+        assert len(sh.recent_turns) == 0
+        assert sh.get_context_messages() == []
+
+    def test_clear_turns_leaves_summary_intact(self) -> None:
+        """clear_turns should keep compressed_summary unchanged."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_turn("Hello", "Hi")
+        sh.set_summary("Previous summary")
+        sh.clear_turns()
+        assert len(sh.recent_turns) == 0
+        assert sh.compressed_summary == "Previous summary"
+        assert sh.get_summary() == "Previous summary"
+
 
 class TestDungeonMasterHistoryIntegration:
     """Tests for DungeonMaster integration with SessionHistory."""
@@ -513,8 +619,6 @@ class TestDungeonMasterHistoryIntegration:
 
     def test_history_survives_tool_calls(self) -> None:
         """History should be recorded even when tool calls happen."""
-        from unittest.mock import MagicMock
-
         mock_provider = MagicMock()
         mock_provider.call.return_value = {
             "content": (
@@ -533,3 +637,176 @@ class TestDungeonMasterHistoryIntegration:
         msgs = dm.history.get_context_messages()
         assert len(msgs) == 2
         assert msgs[0] == {"role": "user", "content": "Check for traps"}
+
+    def test_process_turn_triggers_summarize_at_capacity(self) -> None:
+        """After 5 process_turn calls, summarization should trigger."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>Stuff happens.</narrative>",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        with patch(
+            "app.agents.dm.summarize_turns", return_value="summary"
+        ) as mock_summ:
+            for i in range(5):
+                dm.process_turn(f"Turn {i + 1}")
+        mock_summ.assert_called_once()
+        assert dm.history.compressed_summary == "summary"
+        assert len(dm.history.recent_turns) == 0
+
+
+# ---------------------------------------------------------------------------
+# _build_context with summary
+# ---------------------------------------------------------------------------
+
+
+class TestDungeonMasterBuildContextSummary:
+    """Tests for ``_build_context`` with compressed summary integration."""
+
+    def test_context_includes_summary_when_present(self) -> None:
+        """A system message with summary should appear when summary is set."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        dm.history.set_summary("Player entered the dark forest")
+        context = dm._build_context("Hello")
+        summary_msgs = [m for m in context if "Session summary" in m.get("content", "")]
+        assert len(summary_msgs) == 1
+        assert summary_msgs[0]["role"] == "system"
+        assert "Player entered the dark forest" in summary_msgs[0]["content"]
+
+    def test_context_skips_summary_when_empty(self) -> None:
+        """No summary message should appear when compressed_summary is empty."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        context = dm._build_context("Hello")
+        summary_msgs = [m for m in context if "Session summary" in m.get("content", "")]
+        assert len(summary_msgs) == 0
+
+    def test_context_summary_position(self) -> None:
+        """Summary should appear after character info but before history."""
+        from app.character.model import Character
+        from app.world.model import WorldState
+
+        ws = WorldState(current_location="dark_forest", turn_count=3)
+        char = Character(
+            name="Kaelen",
+            character_class="Rogue",
+            level=2,
+            hp=14,
+            max_hp=14,
+            ac=14,
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 12,
+                "WIS": 10,
+                "CHA": 8,
+            },
+        )
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=char)
+        dm.history.add_turn("I sneak ahead", "You move silently through the shadows")
+        dm.history.set_summary("Summary text here")
+        context = dm._build_context("I continue forward")
+
+        # Summary should be message index 3 (0=system, 1=world, 2=character)
+        summary_idx = next(
+            i
+            for i, m in enumerate(context)
+            if "Session summary" in m.get("content", "")
+        )
+        assert summary_idx == 3, (
+            f"Expected summary at index 3, got {summary_idx}. "
+            f"Messages: {[m['role'] + ':' + m['content'][:30] for m in context]}"
+        )
+
+        # History messages should appear after the summary
+        history_idx = next(
+            i for i, m in enumerate(context) if m.get("content") == "I sneak ahead"
+        )
+        assert history_idx > summary_idx
+
+
+# ---------------------------------------------------------------------------
+# _maybe_summarize
+# ---------------------------------------------------------------------------
+
+
+class TestDungeonMasterMaybeSummarize:
+    """Tests for ``DungeonMaster._maybe_summarize``."""
+
+    def _full_buffer(self, dm: DungeonMaster) -> None:
+        """Fill the DM's history buffer to capacity (5 turns)."""
+        for i in range(5):
+            dm.history.add_turn(f"Turn {i + 1}", f"Response {i + 1}")
+
+    def test_maybe_summarize_does_nothing_when_buffer_empty(self) -> None:
+        """Empty buffer means no trigger, no summarizer call."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        with patch("app.agents.dm.summarize_turns") as mock_summarize:
+            dm._maybe_summarize()
+        mock_summarize.assert_not_called()
+        assert dm.history.compressed_summary == ""
+
+    def test_maybe_summarize_does_not_trigger_at_four_turns(self) -> None:
+        """4 turns should not trigger summarization (threshold is 5)."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        for i in range(4):
+            dm.history.add_turn(f"Turn {i + 1}", f"Response {i + 1}")
+        with patch("app.agents.dm.summarize_turns") as mock_summarize:
+            dm._maybe_summarize()
+        mock_summarize.assert_not_called()
+        assert dm.history.compressed_summary == ""
+
+    def test_maybe_summarize_triggers_when_buffer_full(self) -> None:
+        """Buffer at max_turns triggers summarization."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        self._full_buffer(dm)
+
+        with patch(
+            "app.agents.dm.summarize_turns",
+            return_value="Mocked summary",
+        ) as mock_summarize:
+            dm._maybe_summarize()
+
+        mock_summarize.assert_called_once()
+
+    def test_maybe_summarize_clears_turns_after_summary(self) -> None:
+        """After summarization the turns buffer should be empty."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        self._full_buffer(dm)
+
+        with patch("app.agents.dm.summarize_turns", return_value="Mocked summary"):
+            dm._maybe_summarize()
+
+        assert len(dm.history.recent_turns) == 0
+
+    def test_maybe_summarize_stores_summary(self) -> None:
+        """After summarization compressed_summary should hold the result."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        self._full_buffer(dm)
+
+        with patch("app.agents.dm.summarize_turns", return_value="Mocked summary"):
+            dm._maybe_summarize()
+
+        assert dm.history.compressed_summary == "Mocked summary"
+        assert dm.history.get_summary() == "Mocked summary"
+
+    def test_maybe_summarize_handles_summarize_failure(self) -> None:
+        """When summarize_turns raises, _maybe_summarize should catch and not crash."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        self._full_buffer(dm)
+
+        with patch(
+            "app.agents.dm.summarize_turns",
+            side_effect=ValueError("LLM failed"),
+        ):
+            dm._maybe_summarize()  # Should not raise
+
+        # Summary should remain unchanged after failure
+        assert dm.history.compressed_summary == ""
+        assert dm.history.get_summary() == ""
