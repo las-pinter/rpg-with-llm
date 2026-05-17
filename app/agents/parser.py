@@ -175,7 +175,9 @@ def _extract_state_changes(text: str) -> list[dict[str, Any]]:
 def _extract_npc_requests(text: str) -> list[dict[str, str]]:
     """Extract all ``<npc_request>`` tags from the response text.
 
-    Each NPC request must have ``npc_id`` and ``context`` attributes.
+    Each NPC request must have an ``npc_id`` attribute.  All other
+    attributes (``context``, ``goal``, ``personality``, ``mood``) are
+    optional and returned as-is from the parsed tag.
     """
     requests: list[dict[str, str]] = []
     for match in _SELF_CLOSING_TAG_RE.finditer(text):
@@ -183,10 +185,9 @@ def _extract_npc_requests(text: str) -> list[dict[str, str]]:
             continue
         attrs = _parse_attributes(match.group(2))
         npc_id = attrs.get("npc_id", "")
-        context = attrs.get("context", "")
         if not npc_id:
             continue
-        requests.append({"npc_id": npc_id, "context": context})
+        requests.append(attrs)
     return requests
 
 

@@ -18,7 +18,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 4 | Character Creation | ✅ Complete |
 | 5 | Single-Agent DM Loop | ✅ Complete |
 | 6 | Frontend UI | ✅ Complete |
-| 7 | NPC Subagents | ⬜ Not started |
+| 7 | NPC Subagents | ✅ Complete |
 | 8 | Memory Summarization | ⬜ Not started |
 | 9 | Additional LLM Providers | ⬜ Not started |
 | 10 | Platform Startup Scripts | ⬜ Not started |
@@ -106,8 +106,6 @@ rpg-with-llm/
 │   └── saves/                    # Saved games (gitignored)
 └── tests/                        # Test suite for all modules
 ```
-
-See the plan document for detailed task breakdown.
 
 ---
 

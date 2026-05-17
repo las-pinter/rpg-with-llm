@@ -9,16 +9,83 @@ invoke, weaves narrative, and proposes world state changes at every turn.
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 from typing import Any
 
 from app.agents.history import SessionHistory
+from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
 from app.agents.tools import dispatch_tool
 from app.llm.base import LLMProvider
 from app.world.validator import apply_changes, validate_state_changes
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Formatting helpers (module-level for reuse by server.py)
+# ---------------------------------------------------------------------------
+
+
+def format_tool_results(tool_results: list[dict[str, Any]]) -> str:
+    """Format tool results into a readable summary for the LLM.
+
+    Parameters
+    ----------
+    tool_results : list[dict]
+        List of tool execution results, each with ``name`` and
+        ``result`` keys.
+
+    Returns
+    -------
+    str
+        A formatted string summarising each tool result.
+    """
+    parts: list[str] = []
+    for i, tr in enumerate(tool_results):
+        name = tr.get("name", "unknown")
+        result = tr.get("result", {})
+        ok = result.get("ok", False) if isinstance(result, dict) else False
+        result_data = (
+            result.get("result", result) if isinstance(result, dict) else result
+        )
+        parts.append(f"  [{i + 1}] {name}: {'OK' if ok else 'FAILED'}")
+        parts.append(f"      Result: {result_data}")
+    return "\n".join(parts)
+
+
+def format_npc_results(npc_results: list[dict[str, Any]]) -> str:
+    """Format NPC results for injection into the second LLM call.
+
+    Applies Caveman compression to dialogue and action fields.
+    Error entries are reported as unavailable.
+
+    Parameters
+    ----------
+    npc_results : list[dict]
+        List of NPC result dicts from NPC subagent calls.
+
+    Returns
+    -------
+    str
+        Formatted NPC results block.
+    """
+    parts: list[str] = []
+    for nr in npc_results:
+        if "error" in nr:
+            parts.append(f"[NPC {nr.get('npc_id', 'unknown')} unavailable]")
+        else:
+            compressed_dialogue = compress_text(nr.get("dialogue", ""))
+            compressed_action = compress_text(nr.get("action", ""))
+            parts.append(
+                f"[NPC {nr.get('npc_id', 'unknown')} response]\n"
+                f"Dialogue: {compressed_dialogue}\n"
+                f"Action: {compressed_action}\n"
+                f"Emotional state: "
+                f"{nr.get('emotional_state', '')}"
+            )
+    return "\n\n".join(parts)
+
 
 # ---------------------------------------------------------------------------
 # DM System Prompt
@@ -118,11 +185,27 @@ up an item, an NPC is defeated, a quest advances — propose the change here.
 <state_change action="append" path="inventory" value="Rusted Key" />
 <state_change action="set" path="quests.old_well.status" value="completed" />
 
-## npc_request (optional, repeatable, reserved for future use)
-When an NPC interaction is complex enough to require its own agent, request
-one here.  (Currently reserved — the system will ignore these for now.)
+## npc_request (optional, repeatable)
+When an NPC interaction is complex enough that the NPC should speak and act
+for itself, request an NPC subagent here.  The system will spawn the NPC,
+run it in parallel with other NPCs, and return its dialogue and actions to
+you.
 
-<npc_request npc_id="tavern_keep" context="The player is asking about the old well" />
+<npc_request npc_id="tavern_keep" context="Asks about the well" />
+
+Supported attributes:
+
+- **npc_id** (required): Unique identifier for this NPC.
+- **context** (required): What's happening that involves this NPC.
+- **goal** (optional): What the NPC wants in this interaction.
+- **personality** (optional): Brief personality description.
+- **mood** (optional): Current emotional state.
+
+## NPC Subagent Results
+
+After NPC subagents have run, their responses will be provided to you as
+structured blocks.  You may use, modify, or ignore these results as you
+see fit — you are the final author of the narrative.
 
 # CONSTRAINTS
 
@@ -187,6 +270,7 @@ class DungeonMaster:
         llm_provider: LLMProvider | None,
         world_state: Any | None,
         character: Any | None,
+        npc_provider: LLMProvider | None = None,
     ) -> None:
         """Store references for later use in the turn loop.
 
@@ -198,12 +282,17 @@ class DungeonMaster:
             The current persistent world state snapshot.
         character : Character or None
             The player character model.
+        npc_provider : LLMProvider or None
+            Provider for NPC subagents.  Falls back to *llm_provider* if
+            not specified.
         """
         self.llm_provider = llm_provider
+        self.npc_provider = llm_provider if npc_provider is None else npc_provider
         self.world_state = world_state
         self.character = character
         self.turn_count: int = 0
         self.history: SessionHistory = SessionHistory(max_turns=5)
+        self.npcs: dict[str, dict[str, str]] = {}
 
     def _build_context(self, player_input: str) -> list[dict[str, str]]:
         """Build the message list for the LLM call.
@@ -367,6 +456,7 @@ class DungeonMaster:
                 }
 
         tool_requests = parsed["tool_requests"]
+        npc_requests = parsed.get("npc_requests", [])
 
         # ------------------------------------------------------------------
         # 3. Execute tool requests
@@ -383,25 +473,50 @@ class DungeonMaster:
                     }
                 )
 
-            # ------------------------------------------------------------------
-            # 4. Inject tool results and call LLM again for final narrative
-            # ------------------------------------------------------------------
-            tool_summary = self._format_tool_results(tool_results)
+        # ------------------------------------------------------------------
+        # 4. Spawn NPC subagents
+        # ------------------------------------------------------------------
+        npc_results: list[dict[str, Any]] = []
+        if npc_requests:
+            npc_results = self._spawn_npcs(npc_requests, player_input)
+
+        # ------------------------------------------------------------------
+        # 5. Second LLM call — inject tool results and/or NPC results
+        # ------------------------------------------------------------------
+        need_second_call = bool(tool_requests) or bool(npc_results)
+        if need_second_call:
             messages.append(
                 {
                     "role": "assistant",
                     "content": first_response,
                 }
             )
+
+            context_parts: list[str] = []
+
+            if tool_results:
+                tool_summary = self._format_tool_results(tool_results)
+                context_parts.append(f"Tool results:\n{tool_summary}")
+
+            if npc_results:
+                npc_block = self._format_npc_results(npc_results)
+                context_parts.append(
+                    f"NPC interactions produced the following results:\n\n"
+                    f"{npc_block}\n\n"
+                    f"You may use, modify, or ignore these NPC responses "
+                    f"as you see fit.  Weave them into the narrative."
+                )
+
+            context_parts.append(
+                "Now continue the narrative, weaving these results into "
+                "the story.  Include the final narrative and any necessary "
+                "state_change tags."
+            )
+
             messages.append(
                 {
                     "role": "user",
-                    "content": (
-                        f"Tool results:\n{tool_summary}\n\n"
-                        f"Now continue the narrative, weaving these results into "
-                        f"the story.  Include the final narrative and any "
-                        f"necessary state_change tags."
-                    ),
+                    "content": "\n\n".join(context_parts),
                 }
             )
 
@@ -417,7 +532,7 @@ class DungeonMaster:
             except Exception:
                 final_parsed = parsed
         else:
-            # No tools requested — use the first response directly
+            # No tools or NPC results — use the first response directly
             final_parsed = parsed
 
         narrative = final_parsed.get("narrative", "")
@@ -525,25 +640,123 @@ class DungeonMaster:
     def _format_tool_results(self, tool_results: list[dict[str, Any]]) -> str:
         """Format tool results into a readable summary for the LLM.
 
+        Delegates to the module-level :func:`format_tool_results`.
+        """
+        return format_tool_results(tool_results)
+
+    # ------------------------------------------------------------------
+    # NPC spawning
+    # ------------------------------------------------------------------
+
+    def _spawn_npcs(
+        self,
+        npc_requests: list[dict[str, str]],
+        player_input: str,
+    ) -> list[dict[str, Any]]:
+        """Spawn NPC agents for each request and collect results.
+
+        Uses ``ThreadPoolExecutor`` to run NPCs in parallel (max 3
+        workers).  Each NPC gets a 15-second timeout.  Graceful
+        degradation: if an NPC times out or fails, an error entry is
+        included instead.
+
         Parameters
         ----------
-        tool_results : list[dict]
-            List of tool execution results, each with ``name`` and
-            ``result`` keys.
+        npc_requests : list[dict]
+            List of NPC request dicts with at minimum ``npc_id`` and
+            ``context`` keys.
+        player_input : str
+            The player's input to pass to each NPC.
 
         Returns
         -------
-        str
-            A formatted string summarising each tool result.
+        list[dict]
+            List of NPC result dicts, each with ``npc_id``,
+            ``dialogue``, ``action``, ``emotional_state``,
+            ``tool_request``, and optional ``error``.
         """
-        parts: list[str] = []
-        for i, tr in enumerate(tool_results):
-            name = tr.get("name", "unknown")
-            result = tr.get("result", {})
-            ok = result.get("ok", False) if isinstance(result, dict) else False
-            result_data = (
-                result.get("result", result) if isinstance(result, dict) else result
+        if not npc_requests:
+            return []
+
+        n_results: list[dict[str, Any]] = []
+
+        def _run_one(req: dict[str, str]) -> dict[str, Any]:
+            npc_id = req.get("npc_id", "unknown")
+
+            # Look up or store NPC identity
+            if npc_id not in self.npcs:
+                self.npcs[npc_id] = {
+                    "identity": req.get("identity", npc_id),
+                    "personality": req.get("personality", ""),
+                }
+            known = self.npcs[npc_id]
+
+            agent = NPCAgent(
+                llm_provider=self.npc_provider,
+                npc_id=npc_id,
+                identity=known.get("identity", npc_id),
+                personality=req.get("personality", known.get("personality", "")),
+                mood=req.get("mood", "neutral"),
+                scene_summary=req.get("context", ""),
+                goal=req.get("goal", ""),
             )
-            parts.append(f"  [{i + 1}] {name}: {'OK' if ok else 'FAILED'}")
-            parts.append(f"      Result: {result_data}")
-        return "\n".join(parts)
+
+            raw = agent.process(player_input)
+            return {
+                "npc_id": npc_id,
+                "dialogue": raw.get("dialogue", ""),
+                "action": raw.get("action", ""),
+                "emotional_state": raw.get("emotional_state", ""),
+                "tool_request": raw.get("tool_request"),
+            }
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            future_map: dict[
+                concurrent.futures.Future[dict[str, Any]],
+                str,
+            ] = {}
+            for req in npc_requests:
+                fut = pool.submit(_run_one, req)
+                future_map[fut] = req.get("npc_id", "unknown")
+
+            for fut in concurrent.futures.as_completed(future_map):
+                npc_id = future_map[fut]
+                try:
+                    result = fut.result(timeout=15)
+                    n_results.append(result)
+                except concurrent.futures.TimeoutError:
+                    logger.warning("NPC '%s' timed out", npc_id)
+                    n_results.append(
+                        {
+                            "npc_id": npc_id,
+                            "error": "NPC timed out",
+                            "dialogue": "",
+                            "action": "",
+                            "emotional_state": "",
+                            "tool_request": None,
+                        }
+                    )
+                except Exception:
+                    logger.exception("NPC '%s' failed", npc_id)
+                    n_results.append(
+                        {
+                            "npc_id": npc_id,
+                            "error": "NPC processing failed",
+                            "dialogue": "",
+                            "action": "",
+                            "emotional_state": "",
+                            "tool_request": None,
+                        }
+                    )
+
+        return n_results
+
+    def _format_npc_results(
+        self,
+        npc_results: list[dict[str, Any]],
+    ) -> str:
+        """Format NPC results for injection into the second LLM call.
+
+        Delegates to the module-level :func:`format_npc_results`.
+        """
+        return format_npc_results(npc_results)

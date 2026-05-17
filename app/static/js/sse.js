@@ -2,7 +2,7 @@
  * SSE client for streaming DM narrative from the backend.
  *
  * Connects to GET /api/game/stream?input=... and emits events for
- * streaming tokens, final narrative, and completion.
+ * streaming tokens, final narrative, NPC thinking, and completion.
  */
 const SSEClient = {
     eventSource: null,
@@ -14,6 +14,7 @@ const SSEClient = {
      * @param {object} callbacks - Event callbacks.
      * @param {function} callbacks.onToken - Called with each streamed token.
      * @param {function} callbacks.onNarrative - Called with the final narrative.
+     * @param {function} callbacks.onNpcThinking - Called with {npc_id, hint} on NPC processing.
      * @param {function} callbacks.onDone - Called with turn_count on completion.
      * @param {function} callbacks.onError - Called with an error message.
      */
@@ -34,6 +35,13 @@ const SSEClient = {
             try {
                 const data = JSON.parse(e.data);
                 if (callbacks.onNarrative) callbacks.onNarrative(data.content);
+            } catch (_) { /* skip malformed events */ }
+        });
+
+        this.eventSource.addEventListener("npc_thinking", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (callbacks.onNpcThinking) callbacks.onNpcThinking(data);
             } catch (_) { /* skip malformed events */ }
         });
 
