@@ -281,7 +281,8 @@ def generate_character():
         logger.warning("Invalid character generation request: %s", e)
         return jsonify({"ok": False, "error": "Invalid request data"}), 400
     except CharacterGenerationError as e:
-        return jsonify({"ok": False, "error": str(e)}), 422
+        logger.warning("Character generation validation failed: %s", e)
+        return jsonify({"ok": False, "error": "Unable to generate character from provided answers"}), 422
     except Exception:
         logger.exception("Character generation failed")
         return jsonify({"ok": False, "error": "Internal server error"}), 500
