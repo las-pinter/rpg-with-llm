@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM-Powered RPG</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ============================================================
+             CONNECTION VIEW  —  Choose your LLM storyteller
+             ============================================================ -->
+        <div id="view-connection" class="view active">
+            <div class="connection-container">
+                <div class="connection-brand">
+                    <h1>LLM-Powered RPG</h1>
+                    <p class="subtitle">A tale spun by living language</p>
+                </div>
+                <div class="connection-form">
+                    <div class="form-group">
+                        <label for="provider-select">Provider</label>
+                        <select id="provider-select">
+                            <option value="ollama">Ollama</option>
+                            <option value="groq">Groq</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="base-url">Base URL</label>
+                        <input type="url" id="base-url"
+                               value="http://localhost:11434"
+                               placeholder="http://localhost:11434">
+                    </div>
+                    <div class="form-group" id="api-key-group">
+                        <label for="api-key">API Key</label>
+                        <input type="password" id="api-key"
+                               placeholder="sk-... (cloud providers only)">
+                    </div>
+                    <div class="form-group">
+                        <label for="model-select">Model</label>
+                        <div class="model-row">
+                            <select id="model-select">
+                                <option value="">— Select or enter a model —</option>
+                            </select>
+                            <button id="fetch-models" class="btn btn-sm"
+                                    title="Fetch available models">Fetch</button>
+                        </div>
+                        <input type="text" id="model-input"
+                               placeholder="Or type a model name (e.g. llama3.2)">
+                    </div>
+                    <div class="btn-row">
+                        <button id="test-connection" class="btn">Test Connection</button>
+                    </div>
+                    <div id="connection-status" class="status-indicator">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Not connected</span>
+                    </div>
+                    <button id="start-adventure" class="btn btn-primary btn-block"
+                            disabled>Start Adventure</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             CHARACTER VIEW  —  Forge your hero
+             ============================================================ -->
+        <div id="view-character" class="view">
+            <div class="character-container">
+                <div class="character-header">
+                    <h1>Character</h1>
+                    <p class="subtitle">Who walks the path?</p>
+                </div>
+                <div class="tab-bar">
+                    <button class="tab active" data-tab="create">Create New</button>
+                    <button class="tab" data-tab="load">Load Existing</button>
+                </div>
+
+                <!-- Create Tab -->
+                <div id="tab-create" class="tab-content active">
+                    <div class="form-row">
+                        <div class="form-group flex-grow">
+                            <label for="char-name">Name</label>
+                            <input type="text" id="char-name" placeholder="e.g. Thorne Ironveil">
+                        </div>
+                        <div class="form-group">
+                            <label for="char-class">Class</label>
+                            <select id="char-class">
+                                <option value="Fighter">Fighter</option>
+                                <option value="Rogue">Rogue</option>
+                                <option value="Mage">Mage</option>
+                                <option value="Cleric">Cleric</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Ability Scores (Point Buy) -->
+                    <div class="abilities-section">
+                        <div class="section-header">
+                            <h2>Ability Scores</h2>
+                            <span class="point-buy-remaining">
+                                Points: <strong id="remaining-points">27</strong>
+                            </span>
+                        </div>
+                        <p class="section-hint">Point-buy: 27 points to spend.
+                        Each score starts at 8 (max 15).</p>
+                        <div class="abilities-grid" id="abilities-grid">
+                            <div class="ability-card" data-abil="STR">
+                                <span class="abil-label">Strength</span>
+                                <span class="abil-abbr">STR</span>
+                                <div class="abil-controls">
+                                    <button class="abil-btn dec" title="Decrease">−</button>
+                                    <span class="abil-score" id="abil-STR">8</span>
+                                    <button class="abil-btn inc" title="Increase">+</button>
+                                </div>
+                                <span class="abil-cost" id="cost-STR">(0 pts)</span>
+                            </div>
+                            <div class="ability-card" data-abil="DEX">
+                                <span class="abil-label">Dexterity</span>
+                                <span class="abil-abbr">DEX</span>
+                                <div class="abil-controls">
+                                    <button class="abil-btn dec">−</button>
+                                    <span class="abil-score" id="abil-DEX">8</span>
+                                    <button class="abil-btn inc">+</button>
+                                </div>
+                                <span class="abil-cost" id="cost-DEX">(0 pts)</span>
+                            </div>
+                            <div class="ability-card" data-abil="CON">
+                                <span class="abil-label">Constitution</span>
+                                <span class="abil-abbr">CON</span>
+                                <div class="abil-controls">
+                                    <button class="abil-btn dec">−</button>
+                                    <span class="abil-score" id="abil-CON">8</span>
+                                    <button class="abil-btn inc">+</button>
+                                </div>
+                                <span class="abil-cost" id="cost-CON">(0 pts)</span>
+                            </div>
+                            <div class="ability-card" data-abil="INT">
+                                <span class="abil-label">Intelligence</span>
+                                <span class="abil-abbr">INT</span>
+                                <div class="abil-controls">
+                                    <button class="abil-btn dec">−</button>
+                                    <span class="abil-score" id="abil-INT">8</span>
+                                    <button class="abil-btn inc">+</button>
+                                </div>
+                                <span class="abil-cost" id="cost-INT">(0 pts)</span>
+                            </div>
+                            <div class="ability-card" data-abil="WIS">
+                                <span class="abil-label">Wisdom</span>
+                                <span class="abil-abbr">WIS</span>
+                                <div class="abil-controls">
+                                    <button class="abil-btn dec">−</button>
+                                    <span class="abil-score" id="abil-WIS">8</span>
+                                    <button class="abil-btn inc">+</button>
+                                </div>
+                                <span class="abil-cost" id="cost-WIS">(0 pts)</span>
+                            </div>
+                            <div class="ability-card" data-abil="CHA">
+                                <span class="abil-label">Charisma</span>
+                                <span class="abil-abbr">CHA</span>
+                                <div class="abil-controls">
+                                    <button class="abil-btn dec">−</button>
+                                    <span class="abil-score" id="abil-CHA">8</span>
+                                    <button class="abil-btn inc">+</button>
+                                </div>
+                                <span class="abil-cost" id="cost-CHA">(0 pts)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Skills (class-dependent) -->
+                    <div class="form-group">
+                        <label>Skills</label>
+                        <div id="skills-display" class="skills-display">
+                            <span class="skill-tag">Athletics</span>
+                            <span class="skill-tag">Perception</span>
+                        </div>
+                    </div>
+
+                    <!-- Narrative Fields -->
+                    <div class="form-group">
+                        <label for="char-appearance">Appearance</label>
+                        <textarea id="char-appearance"
+                                  placeholder="Describe your character's look..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="char-backstory">Backstory</label>
+                        <textarea id="char-backstory"
+                                  placeholder="What past haunts or drives you?"></textarea>
+                    </div>
+
+                    <!-- Assisted Creation Toggle -->
+                    <div class="form-group toggle-row">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="assisted-toggle">
+                            <span class="toggle-slider"></span>
+                            Assisted Creation
+                        </label>
+                        <span class="toggle-hint">Answer narrative questions instead</span>
+                    </div>
+                    <div id="assisted-info" class="assisted-info hidden">
+                        <p>Assisted creation will let the Dungeon Master guide you
+                        through 3–5 narrative questions to build your character.
+                        (Coming in a future update — use the form for now.)</p>
+                    </div>
+
+                    <div class="btn-row">
+                        <button id="create-character" class="btn btn-primary btn-block">
+                            Create Character
+                        </button>
+                    </div>
+                    <p id="char-validation" class="validation-msg hidden"></p>
+                </div>
+
+                <!-- Load Tab -->
+                <div id="tab-load" class="tab-content">
+                    <p class="section-hint">Saved characters on this device.</p>
+                    <div id="character-list" class="character-list">
+                        <p class="empty-state">No saved characters yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             GAME VIEW  —  The adventure unfolds
+             ============================================================ -->
+        <div id="view-game" class="view">
+            <!-- Narrative Pane (center) -->
+            <div id="narrative-pane">
+                <div id="narrative-content">
+                    <p class="narrative-welcome">Your adventure awaits...</p>
+                </div>
+                <div id="thinking-indicator" class="thinking hidden">
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-text">The Dungeon Master considers...</span>
+                </div>
+            </div>
+
+            <!-- Status Sidebar (right) -->
+            <div id="status-sidebar">
+                <div class="sidebar-section">
+                    <h2 id="sidebar-name">—</h2>
+                    <p id="sidebar-class-level" class="sidebar-subtitle">—</p>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Hit Points</h3>
+                    <div class="hp-bar-container">
+                        <div class="hp-bar">
+                            <div class="hp-fill" id="hp-fill" style="width: 100%"></div>
+                        </div>
+                        <span class="hp-text" id="hp-text">0 / 0</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Abilities</h3>
+                    <ul class="stats-list" id="stats-list">
+                        <li><span class="stat-label">STR</span><span class="stat-value">10</span></li>
+                        <li><span class="stat-label">DEX</span><span class="stat-value">10</span></li>
+                        <li><span class="stat-label">CON</span><span class="stat-value">10</span></li>
+                        <li><span class="stat-label">INT</span><span class="stat-value">10</span></li>
+                        <li><span class="stat-label">WIS</span><span class="stat-value">10</span></li>
+                        <li><span class="stat-label">CHA</span><span class="stat-value">10</span></li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Inventory</h3>
+                    <ul class="item-list" id="inventory-list">
+                        <li class="empty-state">Empty</li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Location</h3>
+                    <p class="location-text" id="location-text">—</p>
+                </div>
+
+                <button id="sidebar-collapse" class="btn btn-sm sidebar-toggle"
+                        title="Toggle sidebar">◀</button>
+            </div>
+
+            <!-- Input Area (bottom) -->
+            <div id="input-area">
+                <div class="input-row">
+                    <input type="text" id="player-input"
+                           placeholder="What do you do?" disabled>
+                    <button id="submit-action" class="btn" disabled>Act</button>
+                </div>
+                <div class="input-row-secondary">
+                    <div id="quick-actions" class="quick-actions"></div>
+                    <button id="new-game-btn" class="btn btn-sm btn-danger">
+                        New Game
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /app -->
+
+    <script defer src="/static/js/app.js"></script>
+    <script defer src="/static/js/connection.js"></script>
+    <script defer src="/static/js/character.js"></script>
+    <script defer src="/static/js/sse.js"></script>
+    <script defer src="/static/js/game.js"></script>
+</body>
+</html>

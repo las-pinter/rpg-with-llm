@@ -17,7 +17,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 3 | World State Persistence | ✅ Complete |
 | 4 | Character Creation | ✅ Complete |
 | 5 | Single-Agent DM Loop | ✅ Complete |
-| 6 | Frontend UI | ⬜ Not started |
+| 6 | Frontend UI | ✅ Complete |
 | 7 | NPC Subagents | ⬜ Not started |
 | 8 | Memory Summarization | ⬜ Not started |
 | 9 | Additional LLM Providers | ⬜ Not started |
@@ -70,6 +70,9 @@ The server starts on `http://localhost:5000`. Open it in your browser to access 
 | `GET` | `/api/saves` | List all saved games with metadata |
 | `POST` | `/api/load/<name>` | Load a saved game state |
 | `POST` | `/api/reset` | Get a fresh default world state |
+| `POST` | `/api/character/generate` | Generate a character via DM-assisted creation |
+| `POST` | `/api/character/save` | Save a generated character |
+| `GET`  | `/api/characters` | List saved characters |
 
 ---
 
@@ -88,7 +91,16 @@ rpg-with-llm/
 │   ├── character/                # Character model, creation & persistence
 │   ├── server.py                 # Flask server, REST + SSE endpoints
 │   ├── agents/                  # DM agent, response parser, tool dispatcher, history
-│   └── static/                  # (Phase 6)
+│   └── static/                  # Frontend SPA
+│       ├── index.html           # SPA shell with 3 views
+│       ├── css/
+│       │   └── style.css        # Dark fantasy theme
+│       └── js/
+│           ├── app.js           # SPA router
+│           ├── connection.js    # Connection view
+│           ├── character.js     # Character creation/load
+│           ├── game.js          # Game view (narrative, input, sidebar)
+│           └── sse.js           # SSE streaming client
 ├── data/
 │   ├── tables/                   # Encounters, loot, weather, NPC traits
 │   └── saves/                    # Saved games (gitignored)
