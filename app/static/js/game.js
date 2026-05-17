@@ -29,6 +29,8 @@ const GameView = {
             narrativeContent: document.getElementById("narrative-content"),
             narrativePane: document.getElementById("narrative-pane"),
             thinkingIndicator: document.getElementById("thinking-indicator"),
+            npcThinkingIndicator: document.getElementById("npc-thinking-indicator"),
+            npcThinkingText: document.querySelector("#npc-thinking-indicator .npc-thinking-text"),
 
             // Sidebar
             sidebarName: document.getElementById("sidebar-name"),
@@ -142,6 +144,7 @@ const GameView = {
 
         this.state.isThinking = true;
         this._disableInput();
+        this._hideNpcThinking();
         this._showThinking(true);
 
         // Add the player's action to the narrative
@@ -203,15 +206,21 @@ const GameView = {
                     }
                 }.bind(this),
 
+                onNpcThinking(npcData) {
+                    this._showNpcThinking(npcData);
+                }.bind(this),
+
                 onNarrative(narrative) {
                     // Replace streaming content with the properly
                     // formatted narrative (paragraphs, etc.)
+                    this._hideNpcThinking();
                     removeStreamDiv();
                     this._addNarrative(narrative);
                     this._scrollToBottom();
                 }.bind(this),
 
                 onDone(turnCount) {
+                    this._hideNpcThinking();
                     this.state.turnCount = turnCount ?? this.state.turnCount + 1;
                     this._renderSidebar();
                     this._addTurnSeparator();
@@ -219,10 +228,11 @@ const GameView = {
                 }.bind(this),
 
                 onError(msg) {
+                    this._hideNpcThinking();
                     SSEClient.disconnect();
                     removeStreamDiv();
                     reject(new Error(msg || "SSE connection failed"));
-                },
+                }.bind(this),
             });
         });
     },
@@ -232,6 +242,7 @@ const GameView = {
      * Used when SSE is unavailable or fails.
      */
     async _sendTurnFetch(input) {
+        this._hideNpcThinking();
         const provider = App.state.provider;
 
         const resp = await fetch("/api/turn", {
@@ -351,6 +362,29 @@ const GameView = {
         if (visible) {
             this._scrollToBottom();
         }
+    },
+
+    // ------------------------------------------------------------------
+    // NPC Thinking Indicator
+    // ------------------------------------------------------------------
+
+    /** Show the NPC thinking indicator with a hint about what they're mulling over. */
+    _showNpcThinking(npcData) {
+        if (this.els.npcThinkingText) {
+            const hint = npcData.hint || "";
+            const npcName = npcData.npc_id || "Someone";
+            this.els.npcThinkingText.textContent =
+                hint
+                    ? `${npcName} considers... ${hint}`
+                    : `The ${npcName} considers...`;
+        }
+        this.els.npcThinkingIndicator.classList.remove("hidden");
+        this._scrollToBottom();
+    },
+
+    /** Hide the NPC thinking indicator. */
+    _hideNpcThinking() {
+        this.els.npcThinkingIndicator.classList.add("hidden");
     },
 
     // ------------------------------------------------------------------

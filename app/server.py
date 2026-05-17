@@ -15,7 +15,7 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, stream_with_context
 
-from app.agents.dm import DungeonMaster
+from app.agents.dm import DungeonMaster, format_npc_results, format_tool_results
 from app.agents.parser import parse_dm_response
 from app.agents.tools import dispatch_tool
 from app.character.creation import (
@@ -409,6 +409,7 @@ def _create_dm_from_request() -> tuple[DungeonMaster | None, str | None]:
         llm_provider=llm_provider,
         world_state=world_state,
         character=character,
+        npc_provider=llm_provider,
     )
     return dm, None
 
@@ -470,12 +471,14 @@ def game_stream():
 
     Accepts ``?input=player+action`` query parameter.  Creates a
     DungeonMaster, collects the LLM streaming response, parses it,
-    executes any tool requests, and yields the final result as SSE
-    events.
+    executes any tool requests, spawns NPC subagents, and yields the
+    final result as SSE events.
 
     SSE events:
       ``data: {"type": "token", "content": "..."}``
         Individual tokens as they stream from the LLM.
+      ``data: {"type": "npc_thinking", "npc_id": "...", "hint": "..."}``
+        Indicates an NPC agent is processing.
       ``data: {"type": "narrative", "content": "..."}``
         The final parsed narrative.
       ``data: {"type": "done", "turn_count": N}``
@@ -505,6 +508,7 @@ def game_stream():
         llm_provider=llm_provider,
         world_state=world_state,
         character=None,
+        npc_provider=llm_provider,
     )
 
     def generate() -> Generator[str, None, None]:
@@ -541,6 +545,7 @@ def game_stream():
             narrative = parsed.get("narrative", "")
             state_changes = parsed.get("state_changes", [])
             tool_requests = parsed.get("tool_requests", [])
+            npc_requests = parsed.get("npc_requests", [])
         except Exception:
             logger.exception("Parse error in stream response")
             yield (
@@ -562,28 +567,50 @@ def game_stream():
                     }
                 )
 
-            # Second LLM call with tool results (non-streaming for simplicity)
-            tool_summary_parts = []
-            for i, tr in enumerate(tool_results):
-                name = tr.get("name", "unknown")
-                res = tr.get("result", {})
-                ok_res = res.get("ok", False) if isinstance(res, dict) else False
-                res_data = res.get("result", res) if isinstance(res, dict) else res
-                tool_summary_parts.append(
-                    f"  [{i + 1}] {name}: {'OK' if ok_res else 'FAILED'}"
+        # Spawn NPC subagents and yield npc_thinking events
+        npc_results = []
+        if npc_requests:
+            for nr in npc_requests:
+                npc_id = nr.get("npc_id", "unknown")
+                hint = nr.get("context", f"The {npc_id} considers...")[:60]
+                event_data = json.dumps(
+                    {
+                        "type": "npc_thinking",
+                        "npc_id": npc_id,
+                        "hint": hint,
+                    }
                 )
-                tool_summary_parts.append(f"      Result: {res_data}")
-            tool_summary = "\n".join(tool_summary_parts)
+                yield (f"event: npc_thinking\ndata: {event_data}\n\n")
+            npc_results = dm._spawn_npcs(npc_requests, player_input)
 
+        # Second LLM call with tool results and/or NPC results
+        need_second_call = bool(tool_requests) or bool(npc_results)
+        if need_second_call:
             messages.append({"role": "assistant", "content": full_response})
+
+            context_parts = []
+
+            if tool_results:
+                tool_summary = format_tool_results(tool_results)
+                context_parts.append(f"Tool results:\n{tool_summary}")
+
+            if npc_results:
+                npc_block = format_npc_results(npc_results)
+                context_parts.append(
+                    f"NPC interactions produced the following results:\n\n"
+                    f"{npc_block}\n\n"
+                    f"You may use, modify, or ignore these NPC responses "
+                    f"as you see fit.  Weave them into the narrative."
+                )
+
+            context_parts.append(
+                "Now continue the narrative, weaving these results into the story."
+            )
+
             messages.append(
                 {
                     "role": "user",
-                    "content": (
-                        f"Tool results:\n{tool_summary}\n\n"
-                        f"Now continue the narrative, weaving these results into "
-                        f"the story."
-                    ),
+                    "content": "\n\n".join(context_parts),
                 }
             )
 
