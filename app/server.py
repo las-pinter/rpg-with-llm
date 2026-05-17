@@ -327,8 +327,9 @@ def save_character():
         character = Character.from_dict(char_data)
         timestamp = _character_storage.save(character, name=name)
         saved_name = name if name and name.strip() else character.name
-    except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+    except ValueError:
+        logger.warning("Invalid character data in save_character", exc_info=True)
+        return jsonify({"ok": False, "error": "Invalid character data"}), 400
     except Exception:
         logger.exception("Failed to save character")
         return jsonify({"ok": False, "error": "Internal server error"}), 500
