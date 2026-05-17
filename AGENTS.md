@@ -12,7 +12,7 @@
 - Run game: `python3 run.py` (starts Flask dev server on port 5000)
 
 ## Project overview
-Python-based LLM-powered RPG game. Phases 1-7 complete (dice, rules, tables, LLM provider abstraction with health endpoint, world state persistence, character creation, single-agent DM loop with game endpoints, frontend SPA with SSE streaming, NPC subagents with parallel spawning). Flask server running at `http://localhost:5000`. Memory summarization, additional LLM providers, and startup scripts are upcoming phases. CI pipeline enforces lint, format, type checking, and test coverage.
+Python-based LLM-powered RPG game. Phases 1-7 complete (dice, rules, tables, LLM provider abstraction with health endpoint, world state persistence, character creation, single-agent DM loop with game endpoints, frontend SPA with SSE streaming, NPC subagents with parallel spawning). Phase 8 (memory summarization) in progress — summarizer module created with roll-up compression, trigger logic, and Caveman-style ultra-compression. Flask server running at `http://localhost:5000`. Additional LLM providers and startup scripts are upcoming phases. CI pipeline enforces lint, format, type checking, and test coverage.
 
 ## Code conventions
 - Python 3.10+ type hints on all function signatures and dataclass fields
