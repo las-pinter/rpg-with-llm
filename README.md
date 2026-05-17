@@ -192,6 +192,13 @@ pytest -v tests/test_dice.py
 
 ---
 
+## Credits
+
+This game is being **developed by goblins** 🧌 — a horde of persona-driven AI agents under the command of the Goblin Chief. Each agent has its own role, personality, and specialty (implementer, tester, reviewer, researcher, planner, mascot).
+
+The persona-agents system used to orchestrate this horde can be found at:
+👉 [github.com/las-pinter/persona-agents](https://github.com/las-pinter/persona-agents)
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for full text.
