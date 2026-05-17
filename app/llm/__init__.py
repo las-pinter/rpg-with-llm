@@ -9,3 +9,4 @@ from app.llm.base import (
     ProviderError,
 )
 from app.llm.groq import GroqProvider
+from app.llm.unsloth import UnslothProvider
