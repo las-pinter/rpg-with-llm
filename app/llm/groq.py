@@ -1,10 +1,10 @@
 """
-Ollama LLM Provider.
+Groq LLM Provider.
 
-Implements the :class:`LLMProvider` interface for Ollama_ using its
+Implements the :class:`LLMProvider` interface for Groq_ using its
 OpenAI-compatible chat completion endpoint.
 
-.. _Ollama: https://ollama.com
+.. _Groq: https://groq.com
 """
 
 from __future__ import annotations
@@ -25,21 +25,20 @@ from app.llm.base import (
 )
 
 
-class OllamaProvider(LLMProvider):
-    """LLM provider backed by an Ollama instance.
+class GroqProvider(LLMProvider):
+    """LLM provider backed by the Groq cloud API.
 
-    Communicates with Ollama through its OpenAI-compatible
+    Communicates with Groq through its OpenAI-compatible
     ``/v1/chat/completions`` endpoint.
 
     Parameters
     ----------
     base_url:
-        Base URL of the Ollama server (e.g. ``http://localhost:11434``).
+        Base URL of the Groq API (e.g. ``https://api.groq.com/openai``).
     model:
-        Model name to use for completions (e.g. ``"llama3.2"``).
+        Model name to use for completions (e.g. ``"llama3-70b-8192"``).
     api_key:
-        Optional API key.  Some Ollama proxy setups require
-        authentication.
+        API key for Groq authentication (required for API access).
     timeout:
         Request timeout in seconds (default 30).
     """
@@ -61,7 +60,7 @@ class OllamaProvider(LLMProvider):
     # ------------------------------------------------------------------
 
     def _headers(self) -> dict[str, str]:
-        """Build common HTTP headers for Ollama API requests."""
+        """Build common HTTP headers for Groq API requests."""
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
@@ -74,7 +73,7 @@ class OllamaProvider(LLMProvider):
     # ------------------------------------------------------------------
 
     def call(self, messages: list[dict]) -> dict:
-        """Send a non-streaming chat completion request to Ollama.
+        """Send a non-streaming chat completion request to Groq.
 
         POSTs to ``{base_url}/v1/chat/completions`` with an
         OpenAI-compatible payload.
@@ -100,22 +99,22 @@ class OllamaProvider(LLMProvider):
             )
         except requests.exceptions.Timeout as e:
             raise LLMTimeoutError(
-                f"Ollama request timed out after {self.timeout}s: {e}"
+                f"Groq request timed out after {self.timeout}s: {e}"
             ) from e
         except requests.exceptions.ConnectionError as e:
             raise LLMConnectionError(
-                f"Cannot connect to Ollama at {self.base_url}: {e}"
+                f"Cannot connect to Groq at {self.base_url}: {e}"
             ) from e
 
         if not response.ok:
             raise ProviderError(
-                f"Ollama returned HTTP {response.status_code}: {response.text}"
+                f"Groq returned HTTP {response.status_code}: {response.text}"
             )
 
         try:
             data = response.json()
         except (json.JSONDecodeError, ValueError) as e:
-            raise ProviderError(f"Invalid JSON in Ollama response: {e}") from e
+            raise ProviderError(f"Invalid JSON in Groq response: {e}") from e
 
         choice = data["choices"][0]
         return {
@@ -129,7 +128,7 @@ class OllamaProvider(LLMProvider):
         }
 
     def stream(self, messages: list[dict]) -> Generator[str, None, None]:
-        """Send a streaming chat completion request to Ollama.
+        """Send a streaming chat completion request to Groq.
 
         POSTs with ``stream=True`` and yields content tokens as they
         arrive via Server-Sent Events.
@@ -151,16 +150,16 @@ class OllamaProvider(LLMProvider):
             )
         except requests.exceptions.Timeout as e:
             raise LLMTimeoutError(
-                f"Ollama stream request timed out after {self.timeout}s: {e}"
+                f"Groq stream request timed out after {self.timeout}s: {e}"
             ) from e
         except requests.exceptions.ConnectionError as e:
             raise LLMConnectionError(
-                f"Cannot connect to Ollama at {self.base_url}: {e}"
+                f"Cannot connect to Groq at {self.base_url}: {e}"
             ) from e
 
         if not response.ok:
             raise ProviderError(
-                f"Ollama returned HTTP {response.status_code}: {response.text}"
+                f"Groq returned HTTP {response.status_code}: {response.text}"
             )
 
         try:
@@ -177,7 +176,7 @@ class OllamaProvider(LLMProvider):
                     chunk = json.loads(payload_str)
                 except (json.JSONDecodeError, ValueError) as e:
                     raise ProviderError(
-                        f"Invalid JSON in Ollama stream chunk: {e}"
+                        f"Invalid JSON in Groq stream chunk: {e}"
                     ) from e
                 choices = chunk.get("choices")
                 if not choices:
@@ -196,12 +195,12 @@ class OllamaProvider(LLMProvider):
             raise ProviderError(f"Stream error: {e}") from e
 
     def health(self) -> HealthResult:
-        """Check if the Ollama server is reachable.
+        """Check if the Groq API is reachable.
 
-        Hits the ``/api/tags`` endpoint and measures response latency.
+        Hits the ``/v1/models`` endpoint and measures response latency.
         Always returns a :class:`HealthResult` --- never raises.
         """
-        url = f"{self.base_url}/api/tags"
+        url = f"{self.base_url}/v1/models"
         start = time.monotonic()
         try:
             response = requests.get(url, timeout=self.timeout)
@@ -218,8 +217,7 @@ class OllamaProvider(LLMProvider):
                 latency_ms=latency_ms,
                 model=self.model,
                 error=(
-                    f"Ollama returned HTTP {response.status_code}: "
-                    f"{response.text[:200]}"
+                    f"Groq returned HTTP {response.status_code}: {response.text[:200]}"
                 ),
             )
         except requests.exceptions.ConnectionError as e:
