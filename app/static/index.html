@@ -25,6 +25,8 @@
                             <option value="ollama">Ollama</option>
                             <option value="groq">Groq</option>
                             <option value="openrouter">OpenRouter</option>
+                            <option value="unsloth">Unsloth</option>
+                            <option value="llamacpp">llama.cpp</option>
                             <option value="custom">Custom</option>
                         </select>
                     </div>
@@ -58,6 +60,72 @@
                         <span class="status-dot"></span>
                         <span class="status-text">Not connected</span>
                     </div>
+
+                    <!-- Advanced — Per-Agent Provider Configuration -->
+                    <button id="advanced-toggle" class="advanced-toggle"
+                            type="button">▸ Advanced</button>
+                    <div id="advanced-section" style="display: none;">
+
+                        <h3>NPC Provider (optional)</h3>
+                        <div class="form-group">
+                            <label for="npc-provider-select">Provider Type</label>
+                            <select id="npc-provider-select">
+                                <option value="ollama">Ollama</option>
+                                <option value="groq">Groq</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="unsloth">Unsloth</option>
+                                <option value="llamacpp">llama.cpp</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="npc-base-url">Base URL</label>
+                            <input type="url" id="npc-base-url"
+                                   value="http://localhost:11434"
+                                   placeholder="http://localhost:11434">
+                        </div>
+                        <div class="form-group" id="npc-api-key-group">
+                            <label for="npc-api-key">API Key</label>
+                            <input type="password" id="npc-api-key"
+                                   placeholder="sk-... (cloud providers only)">
+                        </div>
+                        <div class="form-group">
+                            <label for="npc-model-input">Model</label>
+                            <input type="text" id="npc-model-input"
+                                   placeholder="e.g. llama3.2">
+                        </div>
+
+                        <h3>Summarizer Provider (optional)</h3>
+                        <div class="form-group">
+                            <label for="summarizer-provider-select">Provider Type</label>
+                            <select id="summarizer-provider-select">
+                                <option value="ollama">Ollama</option>
+                                <option value="groq">Groq</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="unsloth">Unsloth</option>
+                                <option value="llamacpp">llama.cpp</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="summarizer-base-url">Base URL</label>
+                            <input type="url" id="summarizer-base-url"
+                                   value="http://localhost:11434"
+                                   placeholder="http://localhost:11434">
+                        </div>
+                        <div class="form-group" id="summarizer-api-key-group">
+                            <label for="summarizer-api-key">API Key</label>
+                            <input type="password" id="summarizer-api-key"
+                                   placeholder="sk-... (cloud providers only)">
+                        </div>
+                        <div class="form-group">
+                            <label for="summarizer-model-input">Model</label>
+                            <input type="text" id="summarizer-model-input"
+                                   placeholder="e.g. llama3.2">
+                        </div>
+
+                    </div>
+
                     <button id="start-adventure" class="btn btn-primary btn-block"
                             disabled>Start Adventure</button>
                 </div>

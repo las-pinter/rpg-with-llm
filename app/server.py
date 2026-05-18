@@ -24,7 +24,8 @@ from app.character.creation import (
     CharacterStorage,
 )
 from app.character.model import Character
-from app.llm.ollama import OllamaProvider
+from app.llm.base import LLMProvider, ProviderConfig
+from app.llm.config import create_provider
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
 from app.world.validator import apply_changes, validate_state_changes
@@ -58,8 +59,8 @@ def health_check():
     """Check the health of an LLM provider.
 
     Accepts JSON body with ``base_url``, ``model``, and optional
-    ``api_key``.  Creates an :class:`OllamaProvider` and calls its
-    :meth:`~OllamaProvider.health` method.
+    ``api_key``.  Creates an LLM provider (based on ``provider_type``)
+    and calls its :meth:`health` method.
 
     Returns
     -------
@@ -86,12 +87,15 @@ def health_check():
         return jsonify({"ok": False, "error": "base_url and model are required"}), 400
 
     api_key = data.get("api_key")
+    provider_type = (data.get("provider_type") or "").strip() or "ollama"
 
-    provider = OllamaProvider(
+    config = ProviderConfig(
         base_url=base_url,
         model=model,
+        provider_type=provider_type,
         api_key=api_key,
     )
+    provider = create_provider(config)
 
     result = provider.health()
 
@@ -268,13 +272,16 @@ def generate_character():
         ), 400
 
     api_key = provider_config.get("api_key")
+    provider_type = (provider_config.get("provider_type") or "").strip() or "ollama"
 
     try:
-        provider = OllamaProvider(
+        config = ProviderConfig(
             base_url=base_url,
             model=model,
+            provider_type=provider_type,
             api_key=api_key,
         )
+        provider = create_provider(config)
         creation = AssistedCreation(llm_provider=provider)
         character = creation.generate_character(answers_int)
     except ValueError as e:
@@ -356,12 +363,39 @@ def list_characters():
 # ---------------------------------------------------------------------------
 
 
-def _create_dm_from_request() -> tuple[DungeonMaster | None, str | None]:
-    """Create a DungeonMaster from the current request's JSON body.
+def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
+    """Build a provider from a config dict, returning None if incomplete."""
+    base_url = (config_data.get("base_url") or "").strip()
+    model = (config_data.get("model") or "").strip()
+    if not base_url or not model:
+        return None
 
-    Looks for optional ``provider``, ``state``, and ``character`` keys.
+    provider_type = (config_data.get("provider_type") or "").strip() or "ollama"
+    api_key = config_data.get("api_key")
+    timeout = config_data.get("timeout", 30)
+
+    config = ProviderConfig(
+        base_url=base_url,
+        model=model,
+        provider_type=provider_type,
+        api_key=api_key,
+        timeout=timeout,
+    )
+    return create_provider(config)
+
+
+def _build_dm(data: dict) -> tuple[DungeonMaster | None, str | None]:
+    """Build a DungeonMaster from request data, with per-agent providers.
+
+    Looks for optional ``provider`` (DM), ``npc_provider``,
+    ``summarizer_provider``, ``state``, and ``character`` keys.
     If ``provider`` is missing, creates a DM with ``llm_provider=None``
     (which returns canned responses for testing).
+
+    Parameters
+    ----------
+    data : dict
+        Request JSON data.
 
     Returns
     -------
@@ -369,28 +403,26 @@ def _create_dm_from_request() -> tuple[DungeonMaster | None, str | None]:
         (dm, error) — either a configured DungeonMaster or an error
         message string.
     """
-    if not request.is_json:
-        return None, "Request must be JSON"
-
-    data = request.get_json(silent=True)
-    if data is None:
-        return None, "Invalid JSON body"
-
-    # Build optional provider
-    provider_config = data.get("provider", {})
-    if provider_config and isinstance(provider_config, dict):
-        base_url = (provider_config.get("base_url") or "").strip()
-        model = (provider_config.get("model") or "").strip()
-        if base_url and model:
-            llm_provider = OllamaProvider(
-                base_url=base_url,
-                model=model,
-                api_key=provider_config.get("api_key"),
-            )
-        else:
-            llm_provider = None
+    # DM provider config
+    dm_config_data = data.get("provider", {})
+    if dm_config_data and isinstance(dm_config_data, dict):
+        dm_provider = _build_provider_from_dict(dm_config_data)
     else:
-        llm_provider = None
+        dm_provider = None
+
+    # NPC provider config (separate agent)
+    npc_config_data = data.get("npc_provider", {})
+    if npc_config_data and isinstance(npc_config_data, dict):
+        npc_provider = _build_provider_from_dict(npc_config_data)
+    else:
+        npc_provider = dm_provider  # Fallback to DM provider
+
+    # Summarizer provider config (separate agent, falls back to DM provider)
+    summarizer_config_data = data.get("summarizer_provider", {})
+    if summarizer_config_data and isinstance(summarizer_config_data, dict):
+        summarizer_provider = _build_provider_from_dict(summarizer_config_data)
+    else:
+        summarizer_provider = None  # Falls back to DM provider in DungeonMaster
 
     # Build optional world state
     state_data = data.get("state")
@@ -406,10 +438,11 @@ def _create_dm_from_request() -> tuple[DungeonMaster | None, str | None]:
     character = data.get("character")
 
     dm = DungeonMaster(
-        llm_provider=llm_provider,
+        llm_provider=dm_provider,
         world_state=world_state,
         character=character,
-        npc_provider=llm_provider,
+        npc_provider=npc_provider,
+        summarizer_provider=summarizer_provider,
     )
     return dm, None
 
@@ -444,7 +477,7 @@ def game_turn():
     if not player_input:
         return jsonify({"ok": False, "error": "Missing 'input' in request body"}), 400
 
-    dm, error = _create_dm_from_request()
+    dm, error = _build_dm(data)
     if error:
         return jsonify({"ok": False, "error": error}), 400
 
@@ -495,20 +528,25 @@ def game_stream():
     model = request.args.get("model", "").strip()
 
     if base_url and model:
-        llm_provider = OllamaProvider(
+        provider_type = (request.args.get("provider_type") or "").strip() or "ollama"
+        config = ProviderConfig(
             base_url=base_url,
             model=model,
+            provider_type=provider_type,
             api_key=request.args.get("api_key"),
         )
+        llm_provider = create_provider(config)
+        npc_provider = llm_provider
     else:
         llm_provider = None
+        npc_provider = None
 
     world_state = WorldState()
     dm = DungeonMaster(
         llm_provider=llm_provider,
         world_state=world_state,
         character=None,
-        npc_provider=llm_provider,
+        npc_provider=npc_provider,
     )
 
     def generate() -> Generator[str, None, None]:

@@ -196,7 +196,7 @@ const GameView = {
                 }
             };
 
-            SSEClient.connect(input, {
+            SSEClient.connect(input, App.state.provider, {
                 onToken(token) {
                     tokenBuffer += token;
                     streamP.textContent = tokenBuffer;
@@ -254,7 +254,24 @@ const GameView = {
                     ? {
                         base_url: provider.base_url,
                         model: provider.model,
+                        provider_type: provider.provider_type || "ollama",
                         api_key: provider.api_key || undefined,
+                    }
+                    : undefined,
+                npc_provider: App.state.npcProvider
+                    ? {
+                        base_url: App.state.npcProvider.base_url,
+                        model: App.state.npcProvider.model,
+                        provider_type: App.state.npcProvider.provider_type || "ollama",
+                        api_key: App.state.npcProvider.api_key || undefined,
+                    }
+                    : undefined,
+                summarizer_provider: App.state.summarizerProvider
+                    ? {
+                        base_url: App.state.summarizerProvider.base_url,
+                        model: App.state.summarizerProvider.model,
+                        provider_type: App.state.summarizerProvider.provider_type || "ollama",
+                        api_key: App.state.summarizerProvider.api_key || undefined,
                     }
                     : undefined,
                 character: App.state.character || undefined,

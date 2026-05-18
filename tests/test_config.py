@@ -504,3 +504,122 @@ class TestConfigManager:
             msg = str(e).lower()
             assert "super-secret-key-12345" not in msg
             assert "****" not in msg
+
+    def test_get_default_includes_provider_type(self):
+        """get_default() should include provider_type='ollama'."""
+        cfg = ConfigManager.get_default()
+        assert cfg.provider_type == "ollama"
+
+
+class TestCreateProvider:
+    """Tests for the create_provider factory function."""
+
+    def test_create_ollama_provider(self):
+        """create_provider should create an OllamaProvider."""
+        from app.llm.config import create_provider
+        from app.llm.ollama import OllamaProvider
+
+        config = ProviderConfig(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+            provider_type="ollama",
+        )
+        provider = create_provider(config)
+        assert isinstance(provider, OllamaProvider)
+        assert provider.base_url == "http://localhost:11434"
+        assert provider.model == "llama3.2"
+
+    def test_create_groq_provider(self):
+        """create_provider should create a GroqProvider."""
+        from app.llm.config import create_provider
+        from app.llm.groq import GroqProvider
+
+        config = ProviderConfig(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+            provider_type="groq",
+            api_key="gsk-test",
+        )
+        provider = create_provider(config)
+        assert isinstance(provider, GroqProvider)
+
+    def test_create_openrouter_provider(self):
+        """create_provider should create an OpenRouterProvider."""
+        from app.llm.config import create_provider
+        from app.llm.openrouter import OpenRouterProvider
+
+        config = ProviderConfig(
+            base_url="https://openrouter.ai/api",
+            model="mistralai/mistral-7b-instruct:free",
+            provider_type="openrouter",
+            api_key="sk-or-v1-test",
+        )
+        provider = create_provider(config)
+        assert isinstance(provider, OpenRouterProvider)
+
+    def test_create_unsloth_provider(self):
+        """create_provider should create an UnslothProvider."""
+        from app.llm.config import create_provider
+        from app.llm.unsloth import UnslothProvider
+
+        config = ProviderConfig(
+            base_url="http://localhost:8888",
+            model="unsloth/Llama-3.2-1B-Instruct",
+            provider_type="unsloth",
+        )
+        provider = create_provider(config)
+        assert isinstance(provider, UnslothProvider)
+
+    def test_create_llamacpp_provider(self):
+        """create_provider should create a LlamacppProvider."""
+        from app.llm.config import create_provider
+        from app.llm.llamacpp import LlamacppProvider
+
+        config = ProviderConfig(
+            base_url="http://localhost:8080",
+            model="default",
+            provider_type="llamacpp",
+        )
+        provider = create_provider(config)
+        assert isinstance(provider, LlamacppProvider)
+
+    def test_create_provider_unknown_type_raises_error(self):
+        """create_provider should raise ConfigError for unknown types."""
+        from app.llm.config import ConfigError, create_provider
+
+        config = ProviderConfig(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+            provider_type="nonexistent",
+        )
+        with pytest.raises(ConfigError) as excinfo:
+            create_provider(config)
+        assert "Unknown provider type" in str(excinfo.value)
+
+    def test_create_provider_with_timeout(self):
+        """create_provider should pass timeout to the provider."""
+        from app.llm.config import create_provider
+
+        config = ProviderConfig(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+            provider_type="ollama",
+            timeout=120,
+        )
+        provider = create_provider(config)
+        assert provider.timeout == 120
+
+    def test_create_provider_minimal_config(self):
+        """create_provider should work with minimal config (just provider_type)."""
+        from app.llm.config import create_provider
+        from app.llm.ollama import OllamaProvider
+
+        config = ProviderConfig(
+            base_url="http://localhost:11434",
+            model="test-model",
+            provider_type="ollama",
+        )
+        provider = create_provider(config)
+        assert isinstance(provider, OllamaProvider)
+        assert provider.api_key is None
+        assert provider.timeout == 30

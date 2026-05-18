@@ -148,6 +148,51 @@ class TestProviderConfig:
         )
         assert cfg.timeout == 60
 
+    def test_provider_type_defaults_to_ollama(self):
+        """provider_type should default to 'ollama'."""
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
+        assert cfg.provider_type == "ollama"
+
+    def test_provider_type_custom(self):
+        """provider_type should accept a custom value."""
+        cfg = ProviderConfig(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+            provider_type="groq",
+        )
+        assert cfg.provider_type == "groq"
+
+    def test_provider_type_in_to_dict(self):
+        """to_dict() should include provider_type."""
+        cfg = ProviderConfig(
+            base_url="http://localhost:8080",
+            model="default",
+            provider_type="llamacpp",
+        )
+        d = cfg.to_dict()
+        assert d["provider_type"] == "llamacpp"
+
+    def test_provider_type_from_dict(self):
+        """from_dict() should parse provider_type."""
+        cfg = ProviderConfig.from_dict(
+            {
+                "base_url": "http://localhost:8888",
+                "model": "test-model",
+                "provider_type": "unsloth",
+            }
+        )
+        assert cfg.provider_type == "unsloth"
+
+    def test_provider_type_from_dict_default(self):
+        """from_dict() should default provider_type to 'ollama'."""
+        cfg = ProviderConfig.from_dict(
+            {
+                "base_url": "http://localhost:11434",
+                "model": "test-model",
+            }
+        )
+        assert cfg.provider_type == "ollama"
+
 
 class TestErrorHierarchy:
     """Tests for the LLM error hierarchy."""
