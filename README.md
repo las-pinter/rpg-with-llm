@@ -20,7 +20,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 6 | Frontend UI | ✅ Complete |
 | 7 | NPC Subagents | ✅ Complete |
 | 8 | Memory Summarization | ✅ Complete |
-| 9 | Additional LLM Providers | 🟡 In progress (Groq ✅, OpenRouter ✅, Unsloth ✅, llama.cpp ✅, Multi-Provider Config ✅, Model List Fetching ✅) |
+| 9 | Additional LLM Providers | ✅ Complete |
 | 10 | Platform Startup Scripts | ⬜ Not started |
 
 ---
@@ -131,7 +131,7 @@ rpg-with-llm/
 | Provider | Type | Default Model |
 |----------|------|---------------|
 | **Ollama** | Local | `llama3.2` |
-| **Unsloth** | Local (GPU) | `unsloth/Qwen3.6-27B-GGUF` |
+| **Unsloth** | Local (GPU) | `unsloth/Qwen3-4B-128K-GGUF:UD-Q4_K_XL` |
 | **Groq** | Cloud (fast inference) | `llama3-70b-8192` |
 | **OpenRouter** | Cloud (model aggregator) | `mistralai/mistral-7b-instruct:free` |
 | **llama.cpp** | Local | `default` |

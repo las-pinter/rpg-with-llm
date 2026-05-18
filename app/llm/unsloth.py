@@ -37,10 +37,10 @@ class UnslothProvider(LLMProvider):
     Parameters
     ----------
     base_url:
-        Base URL of the Unsloth server (e.g. ``http://localhost:8888``).
+        Base URL of the Unsloth server (e.g. ``http://localhost:8000``).
     model:
         Model name to use for completions
-        (e.g. ``"unsloth/Llama-3.2-1B-Instruct"``).
+        (e.g. ``"unsloth/Qwen3-4B-128K-GGUF:UD-Q4_K_XL"``).
     api_key:
         Optional API key.  Unsloth instances typically use
         ``sk-unsloth-...`` prefixed keys.
@@ -50,8 +50,8 @@ class UnslothProvider(LLMProvider):
 
     def __init__(
         self,
-        base_url: str,
-        model: str,
+        base_url: str = "http://localhost:8000",
+        model: str = "unsloth/Qwen3-4B-128K-GGUF:UD-Q4_K_XL",
         api_key: str | None = None,
         timeout: int = 30,
     ) -> None:

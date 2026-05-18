@@ -29,7 +29,7 @@ const ConnectionView = {
             label: "Custom",
         },
         unsloth: {
-            url: "http://localhost:8888",
+            url: "http://localhost:8000",
             needsKey: false,
             label: "Unsloth",
         },
