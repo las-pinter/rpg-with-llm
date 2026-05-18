@@ -1,10 +1,11 @@
 """
-OpenRouter LLM Provider.
+llama.cpp LLM Provider.
 
-Implements the :class:`LLMProvider` interface for OpenRouter_ using its
-OpenAI-compatible chat completion endpoint.
+Implements the :class:`LLMProvider` interface for llama.cpp's ``llama-server``
+using its OpenAI-compatible chat completion endpoint with a two-tier
+health check.
 
-.. _OpenRouter: https://openrouter.ai
+.. _llama.cpp: https://github.com/ggml-org/llama.cpp
 """
 
 from __future__ import annotations
@@ -25,61 +26,51 @@ from app.llm.base import (
 )
 
 
-class OpenRouterProvider(LLMProvider):
-    """LLM provider backed by the OpenRouter cloud API.
+class LlamacppProvider(LLMProvider):
+    """LLM provider backed by a llama.cpp server instance.
 
-    Communicates with OpenRouter through its OpenAI-compatible
-    ``/v1/chat/completions`` endpoint.
+    Communicates with llama.cpp's ``llama-server`` through its
+    OpenAI-compatible ``/v1/chat/completions`` endpoint.  The health
+    check uses a two-tier strategy: first try ``/v1/models`` (OpenAI-
+    compatible endpoint), then fall back to ``/health`` (legacy).
 
     Parameters
     ----------
     base_url:
-        Base URL of the OpenRouter API
-        (e.g. ``https://openrouter.ai/api``).
+        Base URL of the llama.cpp server (e.g. ``http://localhost:8080``).
     model:
-        Model name to use for completions
-        (e.g. ``"mistralai/mistral-7b-instruct:free"``).
+        Model name to use for completions.  llama.cpp uses the filename
+        or ``--alias`` (default ``"default"``).
     api_key:
-        API key for OpenRouter authentication (required for API access).
+        Optional API key.  Required when ``llama-server`` is started
+        with ``--api-key``.
     timeout:
         Request timeout in seconds (default 30).
-    site_url:
-        Site URL sent as the ``HTTP-Referer`` header (optional).
-    app_name:
-        App name sent as the ``X-Title`` header (optional).
     """
 
     def __init__(
         self,
-        base_url: str = "https://openrouter.ai/api",
-        model: str = "mistralai/mistral-7b-instruct:free",
+        base_url: str = "http://localhost:8080",
+        model: str = "default",
         api_key: str | None = None,
         timeout: int = 30,
-        site_url: str | None = None,
-        app_name: str | None = None,
     ) -> None:
         self.base_url = base_url.strip().rstrip("/")
         self.model = model
         self.api_key = api_key if api_key else None
         self.timeout = timeout
-        self.site_url = site_url
-        self.app_name = app_name
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _headers(self) -> dict[str, str]:
-        """Build common HTTP headers for OpenRouter API requests."""
+        """Build common HTTP headers for llama.cpp API requests."""
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        if self.site_url:
-            headers["HTTP-Referer"] = self.site_url
-        if self.app_name:
-            headers["X-Title"] = self.app_name
         return headers
 
     # ------------------------------------------------------------------
@@ -87,7 +78,7 @@ class OpenRouterProvider(LLMProvider):
     # ------------------------------------------------------------------
 
     def call(self, messages: list[dict]) -> dict:
-        """Send a non-streaming chat completion request to OpenRouter.
+        """Send a non-streaming chat completion request to llama.cpp.
 
         POSTs to ``{base_url}/v1/chat/completions`` with an
         OpenAI-compatible payload.
@@ -113,22 +104,22 @@ class OpenRouterProvider(LLMProvider):
             )
         except requests.exceptions.Timeout as e:
             raise LLMTimeoutError(
-                f"OpenRouter request timed out after {self.timeout}s: {e}"
+                f"llama.cpp request timed out after {self.timeout}s: {e}"
             ) from e
         except requests.exceptions.ConnectionError as e:
             raise LLMConnectionError(
-                f"Cannot connect to OpenRouter at {self.base_url}: {e}"
+                f"Cannot connect to llama.cpp at {self.base_url}: {e}"
             ) from e
 
         if not response.ok:
             raise ProviderError(
-                f"OpenRouter returned HTTP {response.status_code}: {response.text}"
+                f"llama.cpp returned HTTP {response.status_code}: {response.text}"
             )
 
         try:
             data = response.json()
         except (json.JSONDecodeError, ValueError) as e:
-            raise ProviderError(f"Invalid JSON in OpenRouter response: {e}") from e
+            raise ProviderError(f"Invalid JSON in llama.cpp response: {e}") from e
 
         choice = data["choices"][0]
         return {
@@ -142,7 +133,7 @@ class OpenRouterProvider(LLMProvider):
         }
 
     def stream(self, messages: list[dict]) -> Generator[str, None, None]:
-        """Send a streaming chat completion request to OpenRouter.
+        """Send a streaming chat completion request to llama.cpp.
 
         POSTs with ``stream=True`` and yields content tokens as they
         arrive via Server-Sent Events.
@@ -164,16 +155,16 @@ class OpenRouterProvider(LLMProvider):
             )
         except requests.exceptions.Timeout as e:
             raise LLMTimeoutError(
-                f"OpenRouter stream request timed out after {self.timeout}s: {e}"
+                f"llama.cpp stream request timed out after {self.timeout}s: {e}"
             ) from e
         except requests.exceptions.ConnectionError as e:
             raise LLMConnectionError(
-                f"Cannot connect to OpenRouter at {self.base_url}: {e}"
+                f"Cannot connect to llama.cpp at {self.base_url}: {e}"
             ) from e
 
         if not response.ok:
             raise ProviderError(
-                f"OpenRouter returned HTTP {response.status_code}: {response.text}"
+                f"llama.cpp returned HTTP {response.status_code}: {response.text}"
             )
 
         try:
@@ -190,7 +181,7 @@ class OpenRouterProvider(LLMProvider):
                     chunk = json.loads(payload_str)
                 except (json.JSONDecodeError, ValueError) as e:
                     raise ProviderError(
-                        f"Invalid JSON in OpenRouter stream chunk: {e}"
+                        f"Invalid JSON in llama.cpp stream chunk: {e}"
                     ) from e
                 choices = chunk.get("choices")
                 if not choices:
@@ -209,47 +200,100 @@ class OpenRouterProvider(LLMProvider):
             raise ProviderError(f"Stream error: {e}") from e
 
     def health(self) -> HealthResult:
-        """Check if the OpenRouter API is reachable.
+        """Check if the llama.cpp server is reachable.
 
-        Hits the ``/v1/models`` endpoint and measures response latency.
+        Two-tier strategy:
+        1. Try ``GET {base_url}/v1/models`` (OpenAI-compatible endpoint
+           on newer llama.cpp builds).
+        2. On connection error, fall back to ``GET {base_url}/health``
+           (legacy endpoint on older builds).
+
+        When the ``/v1/models`` endpoint responds, the active model
+        name is extracted from its response if available.
+
         Always returns a :class:`HealthResult` --- never raises.
         """
-        url = f"{self.base_url}/v1/models"
+        url_v1 = f"{self.base_url}/v1/models"
         start = time.monotonic()
         try:
-            response = requests.get(url, timeout=self.timeout)
+            response = requests.get(url_v1, timeout=self.timeout)
             latency_ms = (time.monotonic() - start) * 1000
 
             if response.ok:
+                model_name = self.model
+                try:
+                    data = response.json()
+                    model_name = data["data"][0]["id"]
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+                    pass
                 return HealthResult(
                     ok=True,
                     latency_ms=latency_ms,
-                    model=self.model,
+                    model=model_name,
                 )
             return HealthResult(
                 ok=False,
                 latency_ms=latency_ms,
                 model=self.model,
                 error=(
-                    f"OpenRouter returned HTTP {response.status_code}: "
+                    f"llama.cpp returned HTTP {response.status_code}: "
                     f"{response.text[:200]}"
                 ),
             )
-        except requests.exceptions.ConnectionError as e:
-            latency_ms = (time.monotonic() - start) * 1000
-            return HealthResult(
-                ok=False,
-                latency_ms=latency_ms,
-                model=self.model,
-                error=f"Connection error: {e}",
-            )
+        except requests.exceptions.ConnectionError:
+            # Fallback to /health endpoint (legacy llama.cpp)
+            url_health = f"{self.base_url}/health"
+            try:
+                response = requests.get(url_health, timeout=self.timeout)
+                latency_ms = (time.monotonic() - start) * 1000
+                if response.ok:
+                    return HealthResult(
+                        ok=True,
+                        latency_ms=latency_ms,
+                        model=self.model,
+                    )
+                return HealthResult(
+                    ok=False,
+                    latency_ms=latency_ms,
+                    model=self.model,
+                    error=(
+                        f"llama.cpp returned HTTP {response.status_code}: "
+                        f"{response.text[:200]}"
+                    ),
+                )
+            except requests.exceptions.ConnectionError as e:
+                latency_ms = (time.monotonic() - start) * 1000
+                return HealthResult(
+                    ok=False,
+                    latency_ms=latency_ms,
+                    model=self.model,
+                    error=f"llama.cpp health check: Connection error: {e}",
+                )
+            except requests.exceptions.Timeout as e:
+                latency_ms = (time.monotonic() - start) * 1000
+                return HealthResult(
+                    ok=False,
+                    latency_ms=latency_ms,
+                    model=self.model,
+                    error=(
+                        f"llama.cpp health check: Timeout after {self.timeout}s: {e}"
+                    ),
+                )
+            except Exception as e:
+                latency_ms = (time.monotonic() - start) * 1000
+                return HealthResult(
+                    ok=False,
+                    latency_ms=latency_ms,
+                    model=self.model,
+                    error=f"llama.cpp health check failed: {e}",
+                )
         except requests.exceptions.Timeout as e:
             latency_ms = (time.monotonic() - start) * 1000
             return HealthResult(
                 ok=False,
                 latency_ms=latency_ms,
                 model=self.model,
-                error=f"Timeout after {self.timeout}s: {e}",
+                error=(f"llama.cpp health check: Timeout after {self.timeout}s: {e}"),
             )
         except Exception as e:
             latency_ms = (time.monotonic() - start) * 1000
@@ -257,5 +301,5 @@ class OpenRouterProvider(LLMProvider):
                 ok=False,
                 latency_ms=latency_ms,
                 model=self.model,
-                error=f"Health check failed: {e}",
+                error=f"llama.cpp health check failed: {e}",
             )
