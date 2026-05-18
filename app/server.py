@@ -175,9 +175,7 @@ def list_models():
         models = provider.list_models()
     except Exception as exc:
         logger.warning("Failed to fetch models: %s", exc)
-        return jsonify(
-            {"ok": False, "error": f"Failed to fetch models: {exc}", "models": []}
-        )
+        return jsonify({"ok": False, "error": "Failed to fetch models", "models": []})
 
     # Cache the result
     set_cached_models(provider_type, base_url, models)
