@@ -1790,6 +1790,1133 @@ class TestGroqProvider:
 
 
 # ---------------------------------------------------------------------------
+# OpenRouter provider tests
+# ---------------------------------------------------------------------------
+
+
+class TestOpenRouterProvider:
+    """Tests for the OpenRouterProvider implementation."""
+
+    def test_is_instance_of_llm_provider(self):
+        """OpenRouterProvider should be a concrete LLMProvider subclass."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+        assert isinstance(provider, LLMProvider)
+
+    def test_initialization_defaults(self):
+        """Default values for api_key and timeout should be set correctly."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+        assert provider.base_url == "https://openrouter.ai/api/v1"
+        assert provider.model == "mistralai/mistral-7b-instruct:free"
+        assert provider.api_key is None
+        assert provider.timeout == 30
+
+    def test_initialization_custom_values(self):
+        """Custom constructor arguments should be stored."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://custom.openrouter.ai/api/v1/",
+            model="anthropic/claude-3-opus",
+            api_key="sk-or-v1-test",
+            timeout=120,
+        )
+        # Trailing slash should be stripped
+        assert provider.base_url == "https://custom.openrouter.ai/api/v1"
+        assert provider.model == "anthropic/claude-3-opus"
+        assert provider.api_key == "sk-or-v1-test"
+        assert provider.timeout == 120
+
+    def test_initialization_strips_trailing_slash(self):
+        """Trailing slashes on base_url should be removed."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1///",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+        assert provider.base_url == "https://openrouter.ai/api/v1"
+
+    def test_initialization_with_optional_headers(self):
+        """site_url and app_name should be stored when provided."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            site_url="https://mygame.example.com",
+            app_name="MyRPG",
+        )
+        assert provider.site_url == "https://mygame.example.com"
+        assert provider.app_name == "MyRPG"
+
+    def test_call_sends_correct_payload(self):
+        """call() should POST to /v1/chat/completions with correct body."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key="sk-or-v1-test",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello! How can I help?",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+        messages = [{"role": "user", "content": "Hi"}]
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            return_value=mock_response,
+        ) as mock_post:
+            result = provider.call(messages)
+
+        # Verify the request was made correctly
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "https://openrouter.ai/api/v1/chat/completions"
+        assert call_args[1]["json"] == {
+            "model": "mistralai/mistral-7b-instruct:free",
+            "messages": messages,
+            "stream": False,
+        }
+        assert call_args[1]["headers"] == {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer sk-or-v1-test",
+        }
+        assert call_args[1]["timeout"] == 30
+
+        # Verify the returned dict shape
+        assert result == {
+            "content": "Hello! How can I help?",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+
+    def test_call_returns_formatted_response(self):
+        """call() should parse the response into the expected dict format."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-456",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Sure, here is a poem...",
+                    },
+                    "finish_reason": "length",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 25,
+                "completion_tokens": 100,
+                "total_tokens": 125,
+            },
+        }
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            result = provider.call([{"role": "user", "content": "Write a poem"}])
+
+        assert result["content"] == "Sure, here is a poem..."
+        assert result["finish_reason"] == "length"
+        assert result["usage"]["total_tokens"] == 125
+
+    def test_stream_yields_tokens(self):
+        """stream() should yield content tokens from SSE lines."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            (
+                b'data: {"choices":[{"index":0,"delta":{"content":"Hello "},'
+                b'"finish_reason":null}]}'
+            ),
+            (
+                b'data: {"choices":[{"index":0,"delta":{"content":"world"},'
+                b'"finish_reason":null}]}'
+            ),
+            (
+                b'data: {"choices":[{"index":0,"delta":{"content":"!"},'
+                b'"finish_reason":null}]}'
+            ),
+            (b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'),
+            b"data: [DONE]",
+        ]
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            return_value=mock_response,
+        ) as mock_post:
+            tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
+
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[1]["json"]["stream"] is True
+
+        assert tokens == ["Hello ", "world", "!"]
+
+    def test_stream_skips_empty_lines_and_irrelevant_data(self):
+        """stream() should gracefully handle blank lines and non-data SSE."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b"",
+            b'data: {"choices":[{"index":0,"delta":{"content":"Hi"}}]}',
+            b":comment",
+            b'data: {"choices":[{"index":0,"delta":{"content":" there"}}]}',
+            b"data: [DONE]",
+        ]
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
+
+        assert tokens == ["Hi", " there"]
+
+    def test_health_returns_success(self):
+        """health() should return a HealthResult with ok=True on success."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            result = provider.health()
+
+        assert isinstance(result, HealthResult)
+        assert result.ok is True
+        assert result.model == "mistralai/mistral-7b-instruct:free"
+        assert result.error is None
+        assert result.latency_ms >= 0
+
+    def test_health_returns_failure_on_http_error(self):
+        """health() should return a HealthResult with ok=False on HTTP error."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            result = provider.health()
+
+        assert isinstance(result, HealthResult)
+        assert result.ok is False
+        assert result.model == "mistralai/mistral-7b-instruct:free"
+        assert result.error is not None
+        assert "500" in result.error
+        assert result.latency_ms >= 0
+
+    def test_health_handles_connection_error(self):
+        """health() should return ok=False when connection is refused."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.get",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            result = provider.health()
+
+        assert isinstance(result, HealthResult)
+        assert result.ok is False
+        assert result.error is not None
+        assert "Connection error" in result.error
+
+    def test_http_error_raises_provider_error(self):
+        """call() should raise ProviderError on HTTP 4xx/5xx."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.text = '{"error": "bad request"}'
+        mock_response.__bool__ = lambda self: False
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
+                provider.call([{"role": "user", "content": "Hi"}])
+
+        assert "400" in str(excinfo.value)
+        assert "bad request" in str(excinfo.value)
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_http_error_in_stream_raises_provider_error(self):
+        """stream() should raise ProviderError on HTTP 4xx/5xx."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.text = "unauthorized"
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert "401" in str(excinfo.value)
+
+    def test_timeout_raises_timeout_error(self):
+        """call() should raise LLMTimeoutError on request timeout."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            timeout=5,
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            side_effect=requests.exceptions.Timeout("Connection timed out"),
+        ):
+            with pytest.raises(LLMTimeoutError) as excinfo:
+                provider.call([{"role": "user", "content": "Hi"}])
+
+        assert "timed out" in str(excinfo.value).lower()
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_connection_error_raises_connection_error(self):
+        """call() should raise LLMConnectionError when provider is unreachable."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            with pytest.raises(LLMConnectionError) as excinfo:
+                provider.call([{"role": "user", "content": "Hi"}])
+
+        assert "Cannot connect" in str(excinfo.value)
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_invalid_json_raises_provider_error(self):
+        """call() should raise ProviderError when response is not valid JSON."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
+                provider.call([{"role": "user", "content": "Hi"}])
+
+        assert "Invalid JSON" in str(excinfo.value)
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_stream_invalid_json_chunk_raises_provider_error(self):
+        """stream() should raise ProviderError on malformed SSE data."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b"data: {invalid json here}",
+        ]
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert "Invalid JSON" in str(excinfo.value)
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_stream_timeout_raises_timeout_error(self):
+        """stream() should raise LLMTimeoutError on request timeout."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            side_effect=requests.exceptions.Timeout("Stream timed out"),
+        ):
+            with pytest.raises(LLMTimeoutError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_stream_connection_error_raises_connection_error(self):
+        """stream() should raise LLMConnectionError when provider is unreachable."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            with pytest.raises(LLMConnectionError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_stream_chunked_encoding_error_raises_connection_error(self):
+        """stream() should raise LLMConnectionError when connection drops mid-stream."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        # Simulate connection dropping mid-stream
+        mock_response.iter_lines.side_effect = requests.exceptions.ChunkedEncodingError(
+            "Connection broken"
+        )
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(LLMConnectionError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert "Stream connection lost" in str(excinfo.value)
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_stream_generic_request_exception_raises_provider_error(self):
+        """stream() should raise ProviderError on generic request error mid-stream."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.side_effect = requests.exceptions.RequestException(
+            "Something went wrong"
+        )
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert "Stream error" in str(excinfo.value)
+        assert isinstance(excinfo.value, LLMError)
+
+    def test_api_key_empty_string_normalized_to_none(self):
+        """Empty string api_key should be normalized to None."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key="",
+        )
+        assert provider.api_key is None
+
+    def test_base_url_whitespace_stripped(self):
+        """base_url should have leading/trailing whitespace stripped."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="  https://openrouter.ai/api/v1  ",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+        assert provider.base_url == "https://openrouter.ai/api/v1"
+
+    # ------------------------------------------------------------------
+    # Stream edge cases (beyond happy path)
+    # ------------------------------------------------------------------
+
+    def test_stream_empty_only_done(self):
+        """stream() should yield nothing when only [DONE] is received."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [b"data: [DONE]"]
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
+
+        assert tokens == []
+
+    def test_stream_non_content_delta_only(self):
+        """stream() should skip deltas without a 'content' key."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b'data: {"choices":[{"index":0,"delta":{},"finish_reason":null}]}',
+            b'data: {"choices":[{"index":0,"delta":{"role":"assistant"},'
+            b'"finish_reason":null}]}',
+            b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+            b"data: [DONE]",
+        ]
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
+
+        assert tokens == []
+
+    def test_stream_empty_choices_array_does_not_crash(self):
+        """stream() should handle an empty choices array gracefully."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b'data: {"choices":[],"finish_reason":null}',
+            b"data: [DONE]",
+        ]
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
+
+        assert tokens == []
+
+    # ------------------------------------------------------------------
+    # Health-check edge cases
+    # ------------------------------------------------------------------
+
+    def test_health_returns_failure_on_403(self):
+        """health() should return ok=False on HTTP 403 (unauthorized)."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 403
+        mock_response.text = "Forbidden"
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            result = provider.health()
+
+        assert isinstance(result, HealthResult)
+        assert result.ok is False
+        assert result.model == "mistralai/mistral-7b-instruct:free"
+        assert "403" in result.error
+        assert result.latency_ms >= 0
+
+    def test_health_handles_timeout(self):
+        """health() should return ok=False when the request times out."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.get",
+            side_effect=requests.exceptions.Timeout("Timed out"),
+        ):
+            result = provider.health()
+
+        assert isinstance(result, HealthResult)
+        assert result.ok is False
+        assert "Timeout" in result.error
+        assert result.latency_ms >= 0
+
+    # ------------------------------------------------------------------
+    # call() response-parsing edge cases
+    # ------------------------------------------------------------------
+
+    def test_call_missing_choices_key(self):
+        """call() should raise KeyError when response has no 'choices'."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "model": "mistralai/mistral-7b-instruct:free",
+        }
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(KeyError):
+                provider.call([{"role": "user", "content": "Hi"}])
+
+    def test_call_empty_choices_array(self):
+        """call() should raise IndexError when choices array is empty."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(IndexError):
+                provider.call([{"role": "user", "content": "Hi"}])
+
+    def test_call_missing_message_in_choice(self):
+        """call() should raise KeyError when a choice has no 'message'."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(KeyError):
+                provider.call([{"role": "user", "content": "Hi"}])
+
+    def test_call_missing_usage(self):
+        """call() should raise KeyError when response has no 'usage'."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello!",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+        }
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            with pytest.raises(KeyError):
+                provider.call([{"role": "user", "content": "Hi"}])
+
+    def test_call_extra_fields_in_response(self):
+        """call() should ignore unexpected fields in the response."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-789",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello!",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+            "system_fingerprint": "fp_abc123",
+            "x_openrouter": {"hint": "extra metadata"},
+        }
+
+        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+            result = provider.call([{"role": "user", "content": "Hi"}])
+
+        assert result["content"] == "Hello!"
+        assert result["finish_reason"] == "stop"
+        assert result["usage"]["total_tokens"] == 15
+
+    # ------------------------------------------------------------------
+    # Constructor edge cases
+    # ------------------------------------------------------------------
+
+    def test_constructor_api_key_explicit_none(self):
+        """api_key=None should be stored as None."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key=None,
+        )
+        assert provider.api_key is None
+
+    def test_constructor_timeout_zero(self):
+        """timeout=0 should be stored without validation."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            timeout=0,
+        )
+        assert provider.timeout == 0
+
+    def test_constructor_very_long_model_name(self):
+        """A very long model name should be accepted."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        long_name = "openrouter/" + "x" * 500 + ":v1"
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model=long_name,
+        )
+        assert provider.model == long_name
+
+    # ------------------------------------------------------------------
+    # _headers() edge cases
+    # ------------------------------------------------------------------
+
+    def test_headers_no_api_key(self):
+        """_headers() should not include Authorization when api_key is None."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+        headers = provider._headers()
+        assert headers == {"Content-Type": "application/json"}
+        assert "Authorization" not in headers
+
+    def test_headers_with_api_key(self):
+        """_headers() should include Bearer Authorization when api_key is set."""
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key="sk-or-v1-test-key",
+        )
+        headers = provider._headers()
+        assert headers == {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer sk-or-v1-test-key",
+        }
+
+    # ------------------------------------------------------------------
+    # OpenRouter-specific header tests
+    # ------------------------------------------------------------------
+
+    def test_headers_include_openrouter_extra_headers(self):
+        """call() should send HTTP-Referer and X-Title headers
+        when site_url and app_name are set."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key="sk-or-v1-test",
+            site_url="https://mygame.example.com",
+            app_name="MyRPG",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello!",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            return_value=mock_response,
+        ) as mock_post:
+            provider.call([{"role": "user", "content": "Hi"}])
+
+        call_args = mock_post.call_args
+        headers = call_args[1]["headers"]
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer sk-or-v1-test"
+        assert headers["HTTP-Referer"] == "https://mygame.example.com"
+        assert headers["X-Title"] == "MyRPG"
+
+    def test_headers_omit_openrouter_headers_when_not_set(self):
+        """call() should not send HTTP-Referer or X-Title when not configured."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key="sk-or-v1-test",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "mistralai/mistral-7b-instruct:free",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello!",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            return_value=mock_response,
+        ) as mock_post:
+            provider.call([{"role": "user", "content": "Hi"}])
+
+        call_args = mock_post.call_args
+        headers = call_args[1]["headers"]
+        assert "HTTP-Referer" not in headers
+        assert "X-Title" not in headers
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer sk-or-v1-test"
+
+    def test_stream_timeout_error_messages_prefix(self):
+        """stream() timeout error messages should include 'OpenRouter' prefix."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.post",
+            side_effect=requests.exceptions.Timeout("Stream timed out"),
+        ):
+            with pytest.raises(LLMTimeoutError) as excinfo:
+                for _ in provider.stream([{"role": "user", "content": "Hi"}]):
+                    pass
+
+        assert "OpenRouter" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
 # Unsloth provider tests
 # ---------------------------------------------------------------------------
 
