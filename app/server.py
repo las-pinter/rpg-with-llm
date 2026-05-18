@@ -24,7 +24,12 @@ from app.character.creation import (
     CharacterStorage,
 )
 from app.character.model import Character
-from app.llm.base import LLMProvider, ProviderConfig
+from app.llm.base import (
+    LLMProvider,
+    ProviderConfig,
+    get_cached_models,
+    set_cached_models,
+)
 from app.llm.config import create_provider
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
@@ -80,14 +85,14 @@ def health_check():
     if data is None:
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
 
-    base_url = (data.get("base_url") or "").strip()
-    model = (data.get("model") or "").strip()
+    base_url = str(data.get("base_url") or "").strip()
+    model = str(data.get("model") or "").strip()
 
     if not base_url or not model:
         return jsonify({"ok": False, "error": "base_url and model are required"}), 400
 
     api_key = data.get("api_key")
-    provider_type = (data.get("provider_type") or "").strip() or "ollama"
+    provider_type = str(data.get("provider_type") or "").strip() or "ollama"
 
     config = ProviderConfig(
         base_url=base_url,
@@ -107,6 +112,77 @@ def health_check():
             "error": result.error,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Model List
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/models", methods=["POST"])
+def list_models():
+    """Fetch available models from an LLM provider.
+
+    Accepts JSON body with ``base_url``, ``model``, and optional
+    ``api_key`` and ``provider_type``.  Creates the appropriate
+    provider, checks the cache, and calls its ``list_models()``
+    method.
+
+    Results are cached for 5 minutes by ``(provider_type, base_url)``.
+
+    Returns
+    -------
+    JSON with ``ok`` and ``models`` (list of ``{"id", "name"}`` dicts).
+
+    Errors
+    ------
+    400
+        If the request body is invalid, or ``base_url`` or
+        ``model`` are missing or empty.
+    """
+    if not request.is_json:
+        return jsonify({"ok": False, "error": "Invalid JSON body", "models": []}), 400
+
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"ok": False, "error": "Invalid JSON body", "models": []}), 400
+
+    base_url = str(data.get("base_url") or "").strip()
+    model = str(data.get("model") or "").strip()
+
+    if not base_url or not model:
+        return jsonify(
+            {"ok": False, "error": "base_url and model are required", "models": []}
+        ), 400
+
+    api_key = data.get("api_key")
+    provider_type = str(data.get("provider_type") or "").strip() or "ollama"
+
+    # Check cache first
+    cached = get_cached_models(provider_type, base_url)
+    if cached is not None:
+        return jsonify({"ok": True, "models": [m.to_dict() for m in cached]})
+
+    # Cache miss — create provider and fetch
+    config = ProviderConfig(
+        base_url=base_url,
+        model=model,
+        provider_type=provider_type,
+        api_key=api_key,
+    )
+    try:
+        provider = create_provider(config)
+        models = provider.list_models()
+    except Exception as exc:
+        logger.warning("Failed to fetch models: %s", exc)
+        return jsonify(
+            {"ok": False, "error": f"Failed to fetch models: {exc}", "models": []}
+        )
+
+    # Cache the result
+    set_cached_models(provider_type, base_url, models)
+
+    return jsonify({"ok": True, "models": [m.to_dict() for m in models]})
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +337,8 @@ def generate_character():
     if not isinstance(provider_config, dict):
         return jsonify({"ok": False, "error": "Provider config must be a dict"}), 400
 
-    base_url = (provider_config.get("base_url") or "").strip()
-    model = (provider_config.get("model") or "").strip()
+    base_url = str(provider_config.get("base_url") or "").strip()
+    model = str(provider_config.get("model") or "").strip()
     if not base_url or not model:
         return jsonify(
             {
@@ -272,7 +348,7 @@ def generate_character():
         ), 400
 
     api_key = provider_config.get("api_key")
-    provider_type = (provider_config.get("provider_type") or "").strip() or "ollama"
+    provider_type = str(provider_config.get("provider_type") or "").strip() or "ollama"
 
     try:
         config = ProviderConfig(
@@ -365,14 +441,16 @@ def list_characters():
 
 def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
     """Build a provider from a config dict, returning None if incomplete."""
-    base_url = (config_data.get("base_url") or "").strip()
-    model = (config_data.get("model") or "").strip()
+    base_url = str(config_data.get("base_url") or "").strip()
+    model = str(config_data.get("model") or "").strip()
     if not base_url or not model:
         return None
 
-    provider_type = (config_data.get("provider_type") or "").strip() or "ollama"
+    provider_type = str(config_data.get("provider_type") or "").strip() or "ollama"
     api_key = config_data.get("api_key")
     timeout = config_data.get("timeout", 30)
+    if timeout is not None and (not isinstance(timeout, int) or timeout <= 0):
+        timeout = 30
 
     config = ProviderConfig(
         base_url=base_url,
@@ -528,7 +606,7 @@ def game_stream():
     model = request.args.get("model", "").strip()
 
     if base_url and model:
-        provider_type = (request.args.get("provider_type") or "").strip() or "ollama"
+        provider_type = str(request.args.get("provider_type") or "").strip() or "ollama"
         config = ProviderConfig(
             base_url=base_url,
             model=model,

@@ -8,6 +8,7 @@ along with shared data types and a consistent error hierarchy.
 from __future__ import annotations
 
 import abc
+import time
 from collections.abc import Generator
 from dataclasses import dataclass
 
@@ -52,6 +53,33 @@ class HealthResult:
     latency_ms: float
     model: str
     error: str | None = None
+
+
+@dataclass
+class ModelInfo:
+    """Information about a model available from a provider.
+
+    Attributes:
+        id:       The model identifier (e.g. ``"llama3.2"``).
+        name:     Human-readable name (defaults to ``id``).
+        provider: The provider type (e.g. ``"ollama"``, ``"groq"``).
+    """
+
+    id: str
+    name: str = ""
+    provider: str = ""
+
+    def __post_init__(self) -> None:
+        """Default ``name`` to ``id`` if not provided."""
+        if not self.name:
+            self.name = self.id
+
+    def to_dict(self) -> dict:
+        """Return a dict with ``id``, ``name``, and optional ``provider`` for JSON."""
+        d: dict = {"id": self.id, "name": self.name}
+        if self.provider:
+            d["provider"] = self.provider
+        return d
 
 
 @dataclass
@@ -199,6 +227,22 @@ class LLMProvider(abc.ABC):
         """
 
     @abc.abstractmethod
+    def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from the provider.
+
+        Makes an HTTP GET to the provider's model-list endpoint and
+        returns the parsed results.  If the request fails for any
+        reason (connection error, non-OK status, invalid JSON), an
+        empty list is returned — this method **never raises**.
+
+        Returns
+        -------
+        list[ModelInfo]
+            A list of available models.  Always returns a list,
+            empty on failure.
+        """
+
+    @abc.abstractmethod
     def health(self) -> HealthResult:
         """Check whether the provider is reachable and working.
 
@@ -212,3 +256,69 @@ class LLMProvider(abc.ABC):
             A dataclass with ``ok``, ``latency_ms``, ``model``,
             and optionally ``error``.
         """
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Model-list caching
+# ---------------------------------------------------------------------------
+
+_model_cache: dict[str, tuple[list[ModelInfo], float]] = {}
+"""Simple in-memory cache for provider model lists.
+
+Maps ``"{provider_type}:{base_url}"`` to a ``(models, timestamp)``
+tuple.  The cache lives for the lifetime of the process.
+"""
+
+
+def get_cached_models(
+    provider_type: str,
+    base_url: str,
+    ttl: int = 300,
+) -> list[ModelInfo] | None:
+    """Return cached models for *provider_type* / *base_url* if still fresh.
+
+    Parameters
+    ----------
+    provider_type:
+        Provider type identifier (e.g. ``"ollama"``).
+    base_url:
+        Base URL of the provider.
+    ttl:
+        Time-to-live in seconds (default 300 = 5 minutes).
+
+    Returns
+    -------
+    list[ModelInfo] | None
+        The cached model list if available and within TTL, or ``None``
+        if no valid cache entry exists.
+    """
+    key = f"{provider_type}:{base_url}"
+    entry = _model_cache.get(key)
+    if entry is None:
+        return None
+    models, timestamp = entry
+    if time.monotonic() - timestamp > ttl:
+        del _model_cache[key]
+        return None
+    return models
+
+
+def set_cached_models(
+    provider_type: str,
+    base_url: str,
+    models: list[ModelInfo],
+) -> None:
+    """Store *models* in the cache for *provider_type* / *base_url*.
+
+    Parameters
+    ----------
+    provider_type:
+        Provider type identifier (e.g. ``"ollama"``).
+    base_url:
+        Base URL of the provider.
+    models:
+        The model list to cache.
+    """
+    key = f"{provider_type}:{base_url}"
+    _model_cache[key] = (models, time.monotonic())

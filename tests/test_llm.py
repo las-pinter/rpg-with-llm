@@ -12,6 +12,7 @@ from app.llm.base import (
     LLMError,
     LLMProvider,
     LLMTimeoutError,
+    ModelInfo,
     ProviderConfig,
     ProviderError,
 )
@@ -35,6 +36,12 @@ class MockProvider(LLMProvider):
         yield "Mock "
         yield "streaming "
         yield "response"
+
+    def list_models(self) -> list[ModelInfo]:
+        return [
+            ModelInfo(id="mock-model-1", name="Mock Model 1", provider="mock"),
+            ModelInfo(id="mock-model-2", name="Mock Model 2", provider="mock"),
+        ]
 
     def health(self) -> HealthResult:
         return HealthResult(ok=True, latency_ms=42.0, model="mock-model")
@@ -74,6 +81,14 @@ class TestLLMProvider:
         assert h.ok is True
         assert h.latency_ms == 42.0
 
+        # list_models()
+        models = provider.list_models()
+        assert isinstance(models, list)
+        assert len(models) == 2
+        assert isinstance(models[0], ModelInfo)
+        assert models[0].id == "mock-model-1"
+        assert models[1].name == "Mock Model 2"
+
     def test_mock_provider_returns_expected_content(self):
         """Verify the mock's non-streaming response shape."""
         provider = MockProvider()
@@ -109,6 +124,118 @@ class TestHealthResult:
             error="Connection refused",
         )
         assert h.error == "Connection refused"
+
+
+class TestModelInfo:
+    """Tests for the ModelInfo dataclass."""
+
+    def test_fields(self):
+        """ModelInfo should have the expected fields."""
+        m = ModelInfo(id="llama3.2", name="Llama 3.2", provider="ollama")
+        assert m.id == "llama3.2"
+        assert m.name == "Llama 3.2"
+        assert m.provider == "ollama"
+
+    def test_name_defaults_to_id(self):
+        """name should default to id when not provided."""
+        m = ModelInfo(id="llama3.2", provider="ollama")
+        assert m.name == "llama3.2"
+
+    def test_name_defaults_to_id_with_empty_string(self):
+        """name should default to id when empty string is provided."""
+        m = ModelInfo(id="llama3.2", name="", provider="ollama")
+        assert m.name == "llama3.2"
+
+    def test_to_dict(self):
+        """to_dict should return id, name, and provider."""
+        m = ModelInfo(id="llama3.2", name="Llama 3.2", provider="ollama")
+        d = m.to_dict()
+        assert d == {"id": "llama3.2", "name": "Llama 3.2", "provider": "ollama"}
+
+    def test_to_dict_uses_id_when_name_default(self):
+        """to_dict should use id as name when name defaults to id."""
+        m = ModelInfo(id="llama3.2", provider="ollama")
+        d = m.to_dict()
+        assert d == {"id": "llama3.2", "name": "llama3.2", "provider": "ollama"}
+
+    def test_to_dict_no_provider_omits_key(self):
+        """to_dict should omit provider when it is empty."""
+        m = ModelInfo(id="llama3.2", name="Llama 3.2")
+        d = m.to_dict()
+        assert d == {"id": "llama3.2", "name": "Llama 3.2"}
+        assert "provider" not in d
+
+    def test_accepts_empty_string_id(self):
+        """ModelInfo with empty string id should not crash."""
+        m = ModelInfo(id="", provider="ollama")
+        assert m.id == ""
+        assert m.name == ""  # Name defaults to id (empty string)
+
+    def test_accepts_special_characters_in_id(self):
+        """ModelInfo should accept unicode and special characters."""
+        m = ModelInfo(
+            id="gpt-4o:latest@v1.0",
+            name="GPT-4o (latest)",
+            provider="openrouter",
+        )
+        assert m.id == "gpt-4o:latest@v1.0"
+        assert m.name == "GPT-4o (latest)"
+
+    def test_accepts_unicode_model_name(self):
+        """ModelInfo should accept unicode characters in names."""
+        m = ModelInfo(
+            id="claude-3-opus",
+            name="Claude 3 Opus — 最強",
+            provider="openrouter",
+        )
+        d = m.to_dict()
+        assert "最強" in d["name"]
+
+
+class TestModelCache:
+    """Tests for the model-list caching functions."""
+
+    def test_cache_miss_returns_none(self):
+        """get_cached_models should return None for unknown key."""
+        from app.llm.base import get_cached_models
+
+        result = get_cached_models("ollama", "http://localhost:11434")
+        assert result is None
+
+    def test_cache_set_and_get(self):
+        """set_cached_models followed by get_cached_models should return data."""
+        from app.llm.base import get_cached_models, set_cached_models
+
+        models = [ModelInfo(id="test-model", provider="ollama")]
+        set_cached_models("ollama", "http://localhost:11434", models)
+        result = get_cached_models("ollama", "http://localhost:11434")
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].id == "test-model"
+
+    def test_cache_key_isolation(self):
+        """Different provider types or base URLs should have separate caches."""
+        from app.llm.base import get_cached_models, set_cached_models
+
+        set_cached_models(
+            "ollama", "http://localhost:11434", [ModelInfo(id="ollama-model")]
+        )
+        result = get_cached_models("groq", "http://localhost:11434")
+        assert result is None  # Different provider type
+
+        result = get_cached_models("ollama", "http://other:11434")
+        assert result is None  # Different base URL
+
+    def test_cache_expiry(self):
+        """Cache entries should expire after TTL."""
+        from app.llm.base import get_cached_models, set_cached_models
+
+        models = [ModelInfo(id="test-model", provider="ollama")]
+        set_cached_models("ollama", "http://localhost:11434", models)
+
+        # Use a TTL of 0 to force expiry
+        result = get_cached_models("ollama", "http://localhost:11434", ttl=0)
+        assert result is None
 
 
 class TestProviderConfig:
@@ -852,6 +979,184 @@ class TestOllamaProvider:
             model="llama3.2",
         )
         assert provider.base_url == "http://localhost:11434"
+
+    # ------------------------------------------------------------------
+    # list_models() tests
+    # ------------------------------------------------------------------
+
+    def test_list_models_returns_models(self):
+        """list_models() should return ModelInfo list on success."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "models": [
+                {"name": "llama3.2", "modified_at": "..."},
+                {"name": "mistral", "modified_at": "..."},
+            ]
+        }
+
+        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "llama3.2"
+        assert models[0].name == "llama3.2"
+        assert models[0].provider == "ollama"
+        assert models[1].id == "mistral"
+
+    def test_list_models_returns_empty_on_http_error(self):
+        """list_models() should return [] on HTTP error."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 500
+
+        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_connection_error(self):
+        """list_models() should return [] on connection error."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        with patch(
+            "app.llm.ollama.requests.get",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_invalid_json(self):
+        """list_models() should return [] on invalid JSON response."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
+
+        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_empty_models_list(self):
+        """list_models() should return [] when the models list is empty."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"models": []}
+
+        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_skips_entries_without_name(self):
+        """list_models() should skip entries that lack a 'name' key."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "models": [
+                {"name": "valid-model"},
+                {"not_name": "should-be-skipped"},
+                {"name": "another-valid"},
+            ]
+        }
+
+        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "valid-model"
+        assert models[1].id == "another-valid"
+
+    def test_list_models_returns_empty_on_timeout(self):
+        """list_models() should return [] when the request times out."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.ollama import OllamaProvider
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+        )
+
+        with patch(
+            "app.llm.ollama.requests.get",
+            side_effect=requests.exceptions.Timeout("Request timed out"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
 
 
 # ---------------------------------------------------------------------------
@@ -1832,6 +2137,216 @@ class TestGroqProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer gsk-test-key",
         }
+
+    # ------------------------------------------------------------------
+    # list_models() tests
+    # ------------------------------------------------------------------
+
+    def test_list_models_returns_models(self):
+        """list_models() should return ModelInfo list on success."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+            api_key="gsk-test",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "llama3-70b-8192"},
+                {"id": "mixtral-8x7b-32768"},
+            ]
+        }
+
+        with patch("app.llm.groq.requests.get", return_value=mock_response) as mock_get:
+            models = provider.list_models()
+
+        # Verify auth headers were sent
+        mock_get.assert_called_once()
+        call_headers = mock_get.call_args[1].get("headers", {})
+        assert "Authorization" in call_headers
+        assert call_headers["Authorization"] == "Bearer gsk-test"
+
+        assert len(models) == 2
+        assert models[0].id == "llama3-70b-8192"
+        assert models[0].name == "llama3-70b-8192"
+        assert models[0].provider == "groq"
+        assert models[1].id == "mixtral-8x7b-32768"
+
+    def test_list_models_returns_empty_on_http_error(self):
+        """list_models() should return [] on HTTP error."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 401
+
+        with patch("app.llm.groq.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_connection_error(self):
+        """list_models() should return [] on connection error."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+        )
+
+        with patch(
+            "app.llm.groq.requests.get",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_invalid_json(self):
+        """list_models() should return [] on invalid JSON response."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
+
+        with patch("app.llm.groq.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_empty_data_list(self):
+        """list_models() should return [] when the data list is empty."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": []}
+
+        with patch("app.llm.groq.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_skips_entries_without_id(self):
+        """list_models() should skip entries that lack an 'id' key."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "valid-model"},
+                {"not_id": "should-be-skipped"},
+                {"id": "another-valid"},
+            ]
+        }
+
+        with patch("app.llm.groq.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "valid-model"
+        assert models[1].id == "another-valid"
+
+    def test_list_models_sends_auth_headers(self):
+        """list_models() should include auth headers when api_key is set."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+            api_key="gsk-secret",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": [{"id": "test-model"}]}
+
+        with patch("app.llm.groq.requests.get", return_value=mock_response) as mock_get:
+            provider.list_models()
+
+        call_headers = mock_get.call_args[1].get("headers", {})
+        assert call_headers.get("Authorization") == "Bearer gsk-secret"
+
+    def test_list_models_returns_empty_on_timeout(self):
+        """list_models() should return [] when the request times out."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.groq import GroqProvider
+
+        provider = GroqProvider(
+            base_url="https://api.groq.com/openai",
+            model="llama3-70b-8192",
+        )
+
+        with patch(
+            "app.llm.groq.requests.get",
+            side_effect=requests.exceptions.Timeout("Request timed out"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
 
 
 # ---------------------------------------------------------------------------
@@ -2960,6 +3475,201 @@ class TestOpenRouterProvider:
 
         assert "OpenRouter" in str(excinfo.value)
 
+    # ------------------------------------------------------------------
+    # list_models() tests
+    # ------------------------------------------------------------------
+
+    def test_list_models_returns_models(self):
+        """list_models() should return ModelInfo list on success."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+            api_key="sk-or-v1-test",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "mistralai/mistral-7b-instruct:free", "name": "Mistral 7B"},
+                {"id": "openai/gpt-4o", "name": "GPT-4o"},
+            ]
+        }
+
+        with patch(
+            "app.llm.openrouter.requests.get",
+            return_value=mock_response,
+        ) as mock_get:
+            models = provider.list_models()
+
+        # Verify auth headers were sent
+        mock_get.assert_called_once()
+        call_headers = mock_get.call_args[1].get("headers", {})
+        assert "Authorization" in call_headers
+
+        assert len(models) == 2
+        assert models[0].id == "mistralai/mistral-7b-instruct:free"
+        assert models[0].name == "Mistral 7B"
+        assert models[0].provider == "openrouter"
+        assert models[1].id == "openai/gpt-4o"
+
+    def test_list_models_uses_id_as_name_when_name_missing(self):
+        """list_models() should use id as name when name is missing."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "model-without-name"},
+            ]
+        }
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 1
+        assert models[0].id == "model-without-name"
+        assert models[0].name == "model-without-name"
+
+    def test_list_models_returns_empty_on_http_error(self):
+        """list_models() should return [] on HTTP error."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 403
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_connection_error(self):
+        """list_models() should return [] on connection error."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        with patch(
+            "app.llm.openrouter.requests.get",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_invalid_json(self):
+        """list_models() should return [] on invalid JSON response."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_empty_data_list(self):
+        """list_models() should return [] when the data list is empty."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": []}
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_skips_entries_without_id(self):
+        """list_models() should skip entries that lack an 'id' key."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(
+            base_url="https://openrouter.ai/api/v1",
+            model="mistralai/mistral-7b-instruct:free",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "valid-model"},
+                {"not_id": "should-be-skipped"},
+                {"id": "another-valid"},
+            ]
+        }
+
+        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "valid-model"
+        assert models[1].id == "another-valid"
+
 
 # ---------------------------------------------------------------------------
 # Llamacpp provider tests
@@ -4066,6 +4776,163 @@ class TestLlamacppProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer sk-llama-test-key",
         }
+
+    # ------------------------------------------------------------------
+    # list_models() tests
+    # ------------------------------------------------------------------
+
+    def test_list_models_returns_models(self):
+        """list_models() should return ModelInfo list on success."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.llamacpp import LlamacppProvider
+
+        provider = LlamacppProvider(
+            base_url="http://localhost:8080",
+            model="default",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "default"},
+                {"id": "llama-3.2-3b"},
+            ]
+        }
+
+        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "default"
+        assert models[0].name == "default"
+        assert models[0].provider == "llamacpp"
+        assert models[1].id == "llama-3.2-3b"
+
+    def test_list_models_returns_empty_on_http_error(self):
+        """list_models() should return [] on HTTP error."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.llamacpp import LlamacppProvider
+
+        provider = LlamacppProvider(
+            base_url="http://localhost:8080",
+            model="default",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 500
+
+        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_connection_error(self):
+        """list_models() should return [] on connection error."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.llamacpp import LlamacppProvider
+
+        provider = LlamacppProvider(
+            base_url="http://localhost:8080",
+            model="default",
+        )
+
+        with patch(
+            "app.llm.llamacpp.requests.get",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_invalid_json(self):
+        """list_models() should return [] on invalid JSON response."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.llamacpp import LlamacppProvider
+
+        provider = LlamacppProvider(
+            base_url="http://localhost:8080",
+            model="default",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
+
+        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_empty_data_list(self):
+        """list_models() should return [] when the data list is empty."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.llamacpp import LlamacppProvider
+
+        provider = LlamacppProvider(
+            base_url="http://localhost:8080",
+            model="default",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": []}
+
+        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_skips_entries_without_id(self):
+        """list_models() should skip entries that lack an 'id' key."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.llamacpp import LlamacppProvider
+
+        provider = LlamacppProvider(
+            base_url="http://localhost:8080",
+            model="default",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "valid-model"},
+                {"not_id": "should-be-skipped"},
+                {"id": "another-valid"},
+            ]
+        }
+
+        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "valid-model"
+        assert models[1].id == "another-valid"
 
 
 # ---------------------------------------------------------------------------
@@ -5573,3 +6440,160 @@ class TestUnslothProvider:
             timeout=-5,
         )
         assert provider.timeout == -5
+
+    # ------------------------------------------------------------------
+    # list_models() tests
+    # ------------------------------------------------------------------
+
+    def test_list_models_returns_models(self):
+        """list_models() should return ModelInfo list on success."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.unsloth import UnslothProvider
+
+        provider = UnslothProvider(
+            base_url="http://localhost:8888",
+            model="unsloth/Devstral-Small-2-24B-Instruct-2512",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "unsloth/Devstral-Small-2-24B-Instruct-2512"},
+                {"id": "unsloth/Meta-Llama-3.1-8B"},
+            ]
+        }
+
+        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "unsloth/Devstral-Small-2-24B-Instruct-2512"
+        assert models[0].name == "unsloth/Devstral-Small-2-24B-Instruct-2512"
+        assert models[0].provider == "unsloth"
+        assert models[1].id == "unsloth/Meta-Llama-3.1-8B"
+
+    def test_list_models_returns_empty_on_http_error(self):
+        """list_models() should return [] on HTTP error."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.unsloth import UnslothProvider
+
+        provider = UnslothProvider(
+            base_url="http://localhost:8888",
+            model="unsloth/Devstral-Small-2-24B-Instruct-2512",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = False
+        mock_response.status_code = 500
+
+        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_connection_error(self):
+        """list_models() should return [] on connection error."""
+        from unittest.mock import patch
+
+        import requests
+
+        from app.llm.unsloth import UnslothProvider
+
+        provider = UnslothProvider(
+            base_url="http://localhost:8888",
+            model="unsloth/Devstral-Small-2-24B-Instruct-2512",
+        )
+
+        with patch(
+            "app.llm.unsloth.requests.get",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        ):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_invalid_json(self):
+        """list_models() should return [] on invalid JSON response."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.unsloth import UnslothProvider
+
+        provider = UnslothProvider(
+            base_url="http://localhost:8888",
+            model="unsloth/Devstral-Small-2-24B-Instruct-2512",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
+
+        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_returns_empty_on_empty_data_list(self):
+        """list_models() should return [] when the data list is empty."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.unsloth import UnslothProvider
+
+        provider = UnslothProvider(
+            base_url="http://localhost:8888",
+            model="unsloth/Devstral-Small-2-24B-Instruct-2512",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": []}
+
+        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert models == []
+
+    def test_list_models_skips_entries_without_id(self):
+        """list_models() should skip entries that lack an 'id' key."""
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from app.llm.unsloth import UnslothProvider
+
+        provider = UnslothProvider(
+            base_url="http://localhost:8888",
+            model="unsloth/Devstral-Small-2-24B-Instruct-2512",
+        )
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "valid-model"},
+                {"not_id": "should-be-skipped"},
+                {"id": "another-valid"},
+            ]
+        }
+
+        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+            models = provider.list_models()
+
+        assert len(models) == 2
+        assert models[0].id == "valid-model"
+        assert models[1].id == "another-valid"

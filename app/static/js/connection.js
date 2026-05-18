@@ -19,7 +19,7 @@ const ConnectionView = {
             label: "Groq",
         },
         openrouter: {
-            url: "https://openrouter.ai/api/v1",
+            url: "https://openrouter.ai/api",
             needsKey: true,
             label: "OpenRouter",
         },
@@ -172,13 +172,9 @@ const ConnectionView = {
             this.els.apiKeyGroup.style.display = "none";
         }
 
-        // Disable fetch models for non-Ollama providers (they use
-        // different model listing endpoints)
-        if (key === "ollama" || key === "custom") {
-            this.els.fetchModels.disabled = false;
-        } else {
-            this.els.fetchModels.disabled = true;
-        }
+        // Enable Fetch Models for all providers — the server-side
+        // endpoint handles provider-specific model list APIs
+        this.els.fetchModels.disabled = false;
 
         // Reset connection status
         this._setStatus("idle", "Provider changed — test the connection");
@@ -217,23 +213,44 @@ const ConnectionView = {
     // Model fetching
     // ------------------------------------------------------------------
 
-    /** Fetch available models from the Ollama /api/tags endpoint. */
+    /** Fetch available models via the server-side proxy. */
     async _fetchModels() {
-        const baseUrl = this.els.baseUrl.value.trim().replace(/\/+$/, "");
-        const url = baseUrl + "/api/tags";
+        const baseUrl = this.els.baseUrl.value.trim();
+        const model = this._getModel();
+        const apiKey = this.els.apiKey.value.trim() || undefined;
+
+        if (!model) {
+            this._setStatus("error", "Please select or enter a model first");
+            return;
+        }
+        if (!baseUrl) {
+            this._setStatus("error", "Base URL is required to fetch models");
+            return;
+        }
 
         this.els.fetchModels.disabled = true;
         this.els.fetchModels.textContent = "Fetching...";
         this._setStatus("loading", "Fetching models...");
 
         try {
-            const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            if (!resp.ok) {
-                throw new Error(
-                    `Server returned HTTP ${resp.status}: ${resp.statusText}`,
-                );
-            }
+            const resp = await fetch("/api/models", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    base_url: baseUrl,
+                    model: model || "placeholder",
+                    api_key: apiKey,
+                    provider_type: this.els.providerSelect.value,
+                }),
+                signal: AbortSignal.timeout(15000),
+            });
+
             const data = await resp.json();
+
+            if (!data.ok) {
+                throw new Error(data.error || "Server returned error");
+            }
+
             const models = data.models || [];
 
             if (models.length === 0) {
@@ -245,19 +262,20 @@ const ConnectionView = {
             this.els.modelSelect.innerHTML = "";
             models.forEach((m) => {
                 const opt = document.createElement("option");
-                opt.value = m.name || m.model || m;
-                opt.textContent = m.name || m.model || m;
+                opt.value = m.id;
+                opt.textContent = m.name || m.id;
                 this.els.modelSelect.appendChild(opt);
             });
 
             // Also populate datalist for the text input
             if (models.length > 0) {
                 this.els.modelInput.placeholder =
-                    models[0].name || models[0].model || "llama3.2";
+                    models[0].name || models[0].id || "model-name";
             }
 
             this._setStatus("success", `Found ${models.length} model(s)`);
         } catch (err) {
+            this.els.modelSelect.innerHTML = "";
             if (err.name === "TimeoutError") {
                 this._setStatus("error", "Request timed out — is the server running?");
             } else {

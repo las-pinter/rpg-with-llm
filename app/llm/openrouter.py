@@ -21,6 +21,7 @@ from app.llm.base import (
     LLMConnectionError,
     LLMProvider,
     LLMTimeoutError,
+    ModelInfo,
     ProviderError,
 )
 
@@ -207,6 +208,39 @@ class OpenRouterProvider(LLMProvider):
             raise LLMConnectionError(f"Stream connection lost: {e}") from e
         except requests.exceptions.RequestException as e:
             raise ProviderError(f"Stream error: {e}") from e
+
+    def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from the OpenRouter API.
+
+        GETs ``{base_url}/v1/models`` with auth headers and parses
+        the ``data`` array.  Always returns a list — never raises.
+
+        Returns
+        -------
+        list[ModelInfo]
+            Available models, or empty list on failure.
+        """
+        url = f"{self.base_url}/v1/models"
+        try:
+            response = requests.get(url, headers=self._headers(), timeout=self.timeout)
+            if not response.ok:
+                return []
+            data = response.json()
+        except Exception:
+            return []
+
+        models: list[ModelInfo] = []
+        for m in data.get("data", []):
+            mid = m.get("id", "")
+            if mid:
+                models.append(
+                    ModelInfo(
+                        id=mid,
+                        name=m.get("name", mid),
+                        provider="openrouter",
+                    )
+                )
+        return models
 
     def health(self) -> HealthResult:
         """Check if the OpenRouter API is reachable.
