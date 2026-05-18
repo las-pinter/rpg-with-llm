@@ -532,7 +532,7 @@ class TestModelsEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is False
-        assert "Something broke" in data["error"]
+        assert "Something broke" not in data["error"]
 
     # ------------------------------------------------------------------
     # Edge cases — input validation
