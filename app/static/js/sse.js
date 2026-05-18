@@ -18,10 +18,18 @@ const SSEClient = {
      * @param {function} callbacks.onDone - Called with turn_count on completion.
      * @param {function} callbacks.onError - Called with an error message.
      */
-    connect(input, callbacks) {
+    connect(input, provider, callbacks) {
         this.disconnect();
 
-        const url = `/api/game/stream?input=${encodeURIComponent(input)}`;
+        let url = `/api/game/stream?input=${encodeURIComponent(input)}`;
+        if (provider) {
+            url += `&base_url=${encodeURIComponent(provider.base_url || '')}`;
+            url += `&model=${encodeURIComponent(provider.model || '')}`;
+            url += `&provider_type=${encodeURIComponent(provider.provider_type || 'ollama')}`;
+            if (provider.api_key) {
+                url += `&api_key=${encodeURIComponent(provider.api_key)}`;
+            }
+        }
         this.eventSource = new EventSource(url);
 
         this.eventSource.addEventListener("token", (e) => {

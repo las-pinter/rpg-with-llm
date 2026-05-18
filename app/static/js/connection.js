@@ -28,6 +28,16 @@ const ConnectionView = {
             needsKey: false,
             label: "Custom",
         },
+        unsloth: {
+            url: "http://localhost:8888",
+            needsKey: false,
+            label: "Unsloth",
+        },
+        llamacpp: {
+            url: "http://localhost:8080",
+            needsKey: false,
+            label: "llama.cpp",
+        },
     },
 
     /** DOM element references (populated in init). */
@@ -48,6 +58,27 @@ const ConnectionView = {
             statusDot: document.querySelector("#connection-status .status-dot"),
             statusText: document.querySelector("#connection-status .status-text"),
             startBtn: document.getElementById("start-adventure"),
+            // Advanced per-agent toggle and section
+            advancedToggle: document.getElementById("advanced-toggle"),
+            advancedSection: document.getElementById("advanced-section"),
+            // NPC provider fields
+            npcProviderSelect: document.getElementById("npc-provider-select"),
+            npcBaseUrl: document.getElementById("npc-base-url"),
+            npcApiKey: document.getElementById("npc-api-key"),
+            npcApiKeyGroup: document.getElementById("npc-api-key-group"),
+            npcModelInput: document.getElementById("npc-model-input"),
+            // Summarizer provider fields
+            summarizerProviderSelect: document.getElementById(
+                "summarizer-provider-select",
+            ),
+            summarizerBaseUrl: document.getElementById("summarizer-base-url"),
+            summarizerApiKey: document.getElementById("summarizer-api-key"),
+            summarizerApiKeyGroup: document.getElementById(
+                "summarizer-api-key-group",
+            ),
+            summarizerModelInput: document.getElementById(
+                "summarizer-model-input",
+            ),
         };
 
         // Provider change → update URL default + API key visibility
@@ -79,8 +110,44 @@ const ConnectionView = {
             this._setStatus("idle", "Model set to: " + this.els.modelInput.value);
         });
 
+        // Advanced toggle — show/hide per-agent config section
+        if (this.els.advancedToggle) {
+            this.els.advancedToggle.addEventListener("click", () => {
+                const expanded =
+                    this.els.advancedSection.style.display !== "none";
+                this.els.advancedSection.style.display = expanded
+                    ? "none"
+                    : "block";
+                this.els.advancedToggle.textContent = expanded
+                    ? "\u25B8 Advanced"
+                    : "\u25BE Advanced";
+            });
+        }
+
+        // NPC provider change → update defaults
+        if (this.els.npcProviderSelect) {
+            this.els.npcProviderSelect.addEventListener(
+                "change",
+                () => this._onAgentProviderChange("npc"),
+            );
+        }
+
+        // Summarizer provider change → update defaults
+        if (this.els.summarizerProviderSelect) {
+            this.els.summarizerProviderSelect.addEventListener(
+                "change",
+                () => this._onAgentProviderChange("summarizer"),
+            );
+        }
+
         // Set initial provider state
         this._onProviderChange();
+
+        // Initialise per-agent provider defaults
+        if (this.els.npcProviderSelect) this._onAgentProviderChange("npc");
+        if (this.els.summarizerProviderSelect) {
+            this._onAgentProviderChange("summarizer");
+        }
 
         // Restore previous connection if available
         this._restoreState();
@@ -116,6 +183,34 @@ const ConnectionView = {
         // Reset connection status
         this._setStatus("idle", "Provider changed — test the connection");
         this.els.startBtn.disabled = true;
+    },
+
+    /** Handle per-agent provider dropdown change — update URL and API key. */
+    _onAgentProviderChange(prefix) {
+        const selectKey = prefix + "ProviderSelect";
+        const urlKey = prefix + "BaseUrl";
+        const apiKeyKey = prefix + "ApiKey";
+        const apiKeyGroupKey = prefix + "ApiKeyGroup";
+
+        const sel = this.els[selectKey];
+        const url = this.els[urlKey];
+        const apiKeyGroup = this.els[apiKeyGroupKey];
+        const apiKeyInput = this.els[apiKeyKey];
+
+        if (!sel || !url) return;
+
+        const key = sel.value;
+        const provider = this.providers[key];
+        if (!provider) return;
+
+        url.value = provider.url;
+
+        if (provider.needsKey) {
+            apiKeyGroup.style.display = "block";
+        } else {
+            apiKeyGroup.style.display = "none";
+            if (apiKeyInput) apiKeyInput.value = "";
+        }
     },
 
     // ------------------------------------------------------------------
@@ -227,6 +322,7 @@ const ConnectionView = {
                     base_url: baseUrl,
                     model: model,
                     api_key: apiKey,
+                    provider_type: this.els.providerSelect.value,
                 };
                 this._saveState();
             } else {
@@ -256,10 +352,57 @@ const ConnectionView = {
     // Start Adventure
     // ------------------------------------------------------------------
 
-    /** Navigate to the character creation view. */
+    /** Save provider configs and navigate to character creation. */
     _startAdventure() {
         if (this.els.startBtn.disabled) return;
+
+        // Save DM provider config
+        const baseUrl = this.els.baseUrl.value.trim();
+        const model = this._getModel();
+        const apiKey = this.els.apiKey.value.trim() || undefined;
+        App.state.provider = {
+            base_url: baseUrl,
+            model: model,
+            api_key: apiKey,
+            provider_type: this.els.providerSelect.value,
+        };
+
+        // Save per-agent provider configs (null = use DM provider)
+        App.state.npcProvider = this._buildAgentProvider("npc");
+        App.state.summarizerProvider = this._buildAgentProvider("summarizer");
+
+        this._saveState();
         App.navigate("character");
+    },
+
+    /** Build a provider config for a per-agent (npc / summarizer), or null. */
+    _buildAgentProvider(prefix) {
+        // If advanced section never expanded — not configured
+        if (
+            !this.els.advancedSection ||
+            this.els.advancedSection.style.display === "none"
+        ) {
+            return null;
+        }
+
+        const providerType = this.els[prefix + "ProviderSelect"].value;
+        const baseUrl = this.els[prefix + "BaseUrl"].value.trim();
+        const model = this.els[prefix + "ModelInput"].value.trim();
+
+        if (!baseUrl || !model) return null;
+
+        const config = {
+            base_url: baseUrl,
+            model: model,
+            provider_type: providerType,
+        };
+
+        const apiKey = this.els[prefix + "ApiKey"].value.trim();
+        if (apiKey) {
+            config.api_key = apiKey;
+        }
+
+        return config;
     },
 
     // ------------------------------------------------------------------
@@ -292,6 +435,8 @@ const ConnectionView = {
         try {
             const data = {
                 provider: App.state.provider,
+                npcProvider: App.state.npcProvider || null,
+                summarizerProvider: App.state.summarizerProvider || null,
                 baseUrl: this.els.baseUrl.value,
                 model: this._getModel(),
             };
@@ -308,6 +453,12 @@ const ConnectionView = {
             const data = JSON.parse(raw);
             if (data.provider) {
                 App.state.provider = data.provider;
+            }
+            if (data.npcProvider) {
+                App.state.npcProvider = data.npcProvider;
+            }
+            if (data.summarizerProvider) {
+                App.state.summarizerProvider = data.summarizerProvider;
             }
         } catch (e) {
             // Corrupted data — ignore

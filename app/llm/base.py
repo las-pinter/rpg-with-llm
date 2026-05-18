@@ -59,14 +59,16 @@ class ProviderConfig:
     """Configuration for an LLM provider connection.
 
     Attributes:
-        base_url: Base URL of the provider API endpoint.
-        model:    Model identifier to use for completions.
-        api_key:  Optional API key for authentication.
-        timeout:  Request timeout in seconds (default 30).
+        base_url:       Base URL of the provider API endpoint.
+        model:          Model identifier to use for completions.
+        provider_type:  Provider type identifier (default "ollama").
+        api_key:        Optional API key for authentication.
+        timeout:        Request timeout in seconds (default 30).
     """
 
     base_url: str
     model: str
+    provider_type: str = "ollama"
     api_key: str | None = None
     timeout: int = 30
 
@@ -76,6 +78,7 @@ class ProviderConfig:
         return (
             f"ProviderConfig(base_url={self.base_url!r}, "
             f"model={self.model!r}, "
+            f"provider_type={self.provider_type!r}, "
             f"api_key={key!r}, "
             f"timeout={self.timeout})"
         )
@@ -88,6 +91,7 @@ class ProviderConfig:
         return {
             "base_url": self.base_url,
             "model": self.model,
+            "provider_type": self.provider_type,
             "api_key": api_key,
             "timeout": self.timeout,
         }
@@ -105,6 +109,7 @@ class ProviderConfig:
             return cls(
                 base_url=data["base_url"],
                 model=data["model"],
+                provider_type=data.get("provider_type", "ollama"),
                 api_key=data.get("api_key"),
                 timeout=data.get("timeout", 30),
             )

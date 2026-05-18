@@ -272,6 +272,7 @@ class DungeonMaster:
         world_state: Any | None,
         character: Any | None,
         npc_provider: LLMProvider | None = None,
+        summarizer_provider: LLMProvider | None = None,
     ) -> None:
         """Store references for later use in the turn loop.
 
@@ -286,9 +287,15 @@ class DungeonMaster:
         npc_provider : LLMProvider or None
             Provider for NPC subagents.  Falls back to *llm_provider* if
             not specified.
+        summarizer_provider : LLMProvider or None
+            Provider for memory summarization.  Falls back to *llm_provider*
+            if not specified.
         """
         self.llm_provider = llm_provider
         self.npc_provider = llm_provider if npc_provider is None else npc_provider
+        self.summarizer_provider = (
+            llm_provider if summarizer_provider is None else summarizer_provider
+        )
         self.world_state = world_state
         self.character = character
         self.turn_count: int = 0
@@ -799,7 +806,7 @@ class DungeonMaster:
                     f"\n\nRecent turns:\n{turns_text}"
                 )
             if turns_text:
-                summary = summarize_turns(turns_text, self.llm_provider)
+                summary = summarize_turns(turns_text, self.summarizer_provider)
                 self.history.set_summary(summary)
                 self.history.clear_turns()
         except Exception:

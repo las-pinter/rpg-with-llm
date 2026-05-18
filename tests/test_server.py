@@ -36,7 +36,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -60,7 +63,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = "Connection refused"
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -165,7 +171,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -187,7 +196,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -213,7 +225,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -236,7 +251,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -255,10 +273,10 @@ class TestHealthEndpoint:
 
     def test_health_provider_raises_unexpected_exception(self, client):
         """When health() raises, the endpoint returns 500."""
-        with patch(
-            "app.server.OllamaProvider.health",
-            side_effect=RuntimeError("unexpected failure"),
-        ):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.side_effect = RuntimeError("unexpected failure")
             resp = client.post(
                 "/api/health",
                 json={
@@ -302,7 +320,10 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider.health", return_value=mock_result):
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.health.return_value = mock_result
             resp = client.post(
                 "/api/health",
                 json={
@@ -385,16 +406,16 @@ class TestGameTurnEndpoint:
         assert data2["turn_count"] == 1
 
     def test_turn_with_provider_config(self, client):
-        """POST with provider config should use OllamaProvider."""
+        """POST with provider config should use create_provider."""
         mock_result = MagicMock()
         mock_result.ok = True
         mock_result.latency_ms = 5.0
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.OllamaProvider") as mock_provider_cls:
+        with patch("app.server.create_provider") as mock_create:
             mock_instance = MagicMock()
-            mock_provider_cls.return_value = mock_instance
+            mock_create.return_value = mock_instance
             mock_instance.call.return_value = {
                 "content": "<narrative>Test narrative.</narrative>",
                 "finish_reason": "stop",
@@ -419,7 +440,7 @@ class TestGameTurnEndpoint:
             assert resp.status_code == 200
             data = resp.get_json()
             assert data["ok"] is True
-            mock_provider_cls.assert_called_once()
+            mock_create.assert_called_once()
 
     def test_turn_with_state(self, client):
         """POST with state dict should restore world state."""
@@ -592,7 +613,7 @@ class TestGameStreamEndpoint:
             "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
         }
 
-        with patch("app.server.OllamaProvider", return_value=mock_provider):
+        with patch("app.server.create_provider", return_value=mock_provider):
             resp = client.get(
                 "/api/game/stream"
                 "?input=Test"
@@ -1066,7 +1087,7 @@ class TestCharacterGenerateEndpoint:
             "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
         }
 
-        with patch("app.server.OllamaProvider", return_value=mock_provider):
+        with patch("app.server.create_provider", return_value=mock_provider):
             resp = client.post(
                 "/api/character/generate",
                 json={
@@ -1186,7 +1207,7 @@ class TestCharacterGenerateEndpoint:
             "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
         }
 
-        with patch("app.server.OllamaProvider", return_value=mock_provider):
+        with patch("app.server.create_provider", return_value=mock_provider):
             resp = client.post(
                 "/api/character/generate",
                 json={

@@ -13,7 +13,12 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from app.llm.base import ProviderConfig
+from app.llm.base import LLMProvider, ProviderConfig
+from app.llm.groq import GroqProvider
+from app.llm.llamacpp import LlamacppProvider
+from app.llm.ollama import OllamaProvider
+from app.llm.openrouter import OpenRouterProvider
+from app.llm.unsloth import UnslothProvider
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -182,6 +187,7 @@ class ConfigManager:
         return ProviderConfig(
             base_url="http://localhost:11434",
             model="llama3.2",
+            provider_type="ollama",
         )
 
     # ------------------------------------------------------------------
@@ -233,3 +239,54 @@ class ConfigManager:
             except OSError:
                 pass
             raise
+
+
+# ---------------------------------------------------------------------------
+# Provider factory
+# ---------------------------------------------------------------------------
+
+
+def create_provider(config: ProviderConfig) -> LLMProvider:
+    """Create an LLM provider instance from a configuration.
+
+    Parameters
+    ----------
+    config : ProviderConfig
+        The provider configuration including provider_type.
+
+    Returns
+    -------
+    LLMProvider
+        An instance of the appropriate provider class.
+
+    Raises
+    ------
+    ConfigError
+        If the provider_type is unknown.
+    """
+    provider_map = {
+        "ollama": OllamaProvider,
+        "groq": GroqProvider,
+        "openrouter": OpenRouterProvider,
+        "unsloth": UnslothProvider,
+        "llamacpp": LlamacppProvider,
+    }
+
+    provider_class = provider_map.get(config.provider_type)
+    if provider_class is None:
+        raise ConfigError(f"Unknown provider type: '{config.provider_type}'")
+
+    kwargs: dict[str, str | int | None] = {
+        "base_url": config.base_url,
+        "model": config.model,
+        "api_key": config.api_key,
+        "timeout": config.timeout,
+    }
+
+    # OpenRouterProvider also accepts site_url and app_name.
+    # Type ignores: mypy can't infer concrete provider types from
+    # the runtime mapping, and **kwargs unpacking is too dynamic.
+    if config.provider_type == "openrouter":
+        return provider_class(**kwargs, site_url=None, app_name=None)  # type: ignore[call-arg, abstract, arg-type]
+
+    return provider_class(**kwargs)  # type: ignore[abstract, arg-type]

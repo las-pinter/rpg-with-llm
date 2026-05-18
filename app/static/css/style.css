@@ -373,6 +373,45 @@ select {
     margin-top: 0.75rem;
 }
 
+/* ----- Per-Agent Provider Config (Advanced) ----- */
+.advanced-toggle {
+    background: none;
+    border: 1px solid var(--accent-gold, #d4a547);
+    color: var(--accent-gold, #d4a547);
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9em;
+    margin-top: 16px;
+    border-radius: 4px;
+    width: 100%;
+    text-align: center;
+}
+
+.advanced-toggle:hover {
+    background: rgba(212, 165, 71, 0.1);
+}
+
+#advanced-section {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+#advanced-section h3 {
+    margin: 12px 0 8px;
+    font-size: 0.95em;
+    color: var(--accent-gold, #d4a547);
+    text-transform: none;
+    letter-spacing: 0.03em;
+}
+
+#advanced-section h3:first-child {
+    margin-top: 0;
+}
+
 /* ============================================================
    CHARACTER VIEW
    ============================================================ */
