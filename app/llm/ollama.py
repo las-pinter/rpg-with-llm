@@ -21,6 +21,7 @@ from app.llm.base import (
     LLMConnectionError,
     LLMProvider,
     LLMTimeoutError,
+    ModelInfo,
     ProviderError,
 )
 
@@ -194,6 +195,33 @@ class OllamaProvider(LLMProvider):
             raise LLMConnectionError(f"Stream connection lost: {e}") from e
         except requests.exceptions.RequestException as e:
             raise ProviderError(f"Stream error: {e}") from e
+
+    def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from the Ollama server.
+
+        GETs ``{base_url}/api/tags`` and parses the ``models`` array.
+        Always returns a list — never raises.
+
+        Returns
+        -------
+        list[ModelInfo]
+            Available models, or empty list on failure.
+        """
+        url = f"{self.base_url}/api/tags"
+        try:
+            response = requests.get(url, timeout=self.timeout)
+            if not response.ok:
+                return []
+            data = response.json()
+        except Exception:
+            return []
+
+        models: list[ModelInfo] = []
+        for m in data.get("models", []):
+            name = m.get("name", "")
+            if name:
+                models.append(ModelInfo(id=name, name=name, provider="ollama"))
+        return models
 
     def health(self) -> HealthResult:
         """Check if the Ollama server is reachable.

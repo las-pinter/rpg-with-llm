@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.character.creation import CharacterStorage
+from app.llm.base import ModelInfo, _model_cache
 from app.server import app
 from app.world.persistence import WorldStorage
 
@@ -23,6 +24,12 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     with app.test_client() as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Clear the model cache before each test to avoid cross-test pollution."""
+    _model_cache.clear()
 
 
 class TestHealthEndpoint:
@@ -336,6 +343,358 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# Model List Endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestModelsEndpoint:
+    """Tests for POST /api/models."""
+
+    def test_list_models_success(self, client):
+        """POST with valid config returns models list."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.list_models.return_value = [
+                ModelInfo(id="model-1", name="Model 1", provider="ollama"),
+                ModelInfo(id="model-2", name="Model 2", provider="ollama"),
+            ]
+
+            resp = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert len(data["models"]) == 2
+        assert data["models"][0] == {
+            "id": "model-1",
+            "name": "Model 1",
+            "provider": "ollama",
+        }
+        assert data["models"][1] == {
+            "id": "model-2",
+            "name": "Model 2",
+            "provider": "ollama",
+        }
+
+    def test_list_models_missing_fields(self, client):
+        """POST missing base_url and model returns 400."""
+        resp = client.post("/api/models", json={})
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert data["error"] == "base_url and model are required"
+
+    def test_list_models_invalid_json(self, client):
+        """POST with non-JSON body returns 400."""
+        resp = client.post(
+            "/api/models",
+            data="not json",
+            content_type="text/plain",
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert data["error"] == "Invalid JSON body"
+
+    def test_list_models_unknown_provider_type(self, client):
+        """POST with unknown provider_type returns error."""
+        resp = client.post(
+            "/api/models",
+            json={
+                "base_url": "http://localhost:11434",
+                "model": "llama3.2",
+                "provider_type": "nonexistent",
+            },
+        )
+        assert resp.status_code == 200  # Returns 200 with error in body
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "error" in data
+        assert "Failed to fetch models" in data["error"]
+
+    def test_list_models_caching(self, client):
+        """Subsequent calls with same config should use cache."""
+        model_list = [ModelInfo(id="cached-model", provider="ollama")]
+
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.list_models.return_value = model_list
+
+            # First call — cache miss
+            resp1 = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+            # Second call — should be cached, provider.list_models not called again
+            resp2 = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        data1 = resp1.get_json()
+        data2 = resp2.get_json()
+        assert data1["ok"] is True
+        assert data2["ok"] is True
+        assert data2["models"][0]["id"] == "cached-model"
+        # create_provider should only have been called once (first call only)
+        mock_create.assert_called_once()
+
+    def test_list_models_cache_isolation(self, client):
+        """Different base URLs should not share cache."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+
+            def side_effect(*args, **kwargs):
+                return mock_prov
+
+            mock_create.side_effect = side_effect
+
+            mock_prov.list_models.return_value = [
+                ModelInfo(id="model-a", provider="ollama"),
+            ]
+
+            # Call with different configs
+            client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+            client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://other:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+            # create_provider should be called twice (different cache keys)
+            assert mock_create.call_count == 2
+
+    def test_list_models_empty_result(self, client):
+        """Provider returning empty list should work."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.list_models.return_value = []
+
+            resp = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["models"] == []
+
+    def test_list_models_provider_exception(self, client):
+        """When provider raises, returns 200 with error in body."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.list_models.side_effect = RuntimeError("Something broke")
+
+            resp = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "Something broke" in data["error"]
+
+    # ------------------------------------------------------------------
+    # Edge cases — input validation
+    # ------------------------------------------------------------------
+
+    def test_list_models_malformed_json_with_json_content_type(self, client):
+        """POST with malformed JSON but correct content-type returns 400."""
+        resp = client.post(
+            "/api/models",
+            data="not valid json at all",
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert data["error"] == "Invalid JSON body"
+
+    def test_list_models_null_base_url(self, client):
+        """POST with null base_url returns 400."""
+        resp = client.post(
+            "/api/models",
+            json={"base_url": None, "model": "llama3.2"},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "base_url and model are required" in data["error"]
+
+    def test_list_models_null_model(self, client):
+        """POST with null model returns 400."""
+        resp = client.post(
+            "/api/models",
+            json={"base_url": "http://localhost:11434", "model": None},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+
+    def test_list_models_whitespace_base_url(self, client):
+        """POST with whitespace-only base_url returns 400."""
+        resp = client.post(
+            "/api/models",
+            json={"base_url": "   ", "model": "llama3.2"},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "base_url and model are required" in data["error"]
+
+    def test_list_models_whitespace_model(self, client):
+        """POST with whitespace-only model returns 400."""
+        resp = client.post(
+            "/api/models",
+            json={"base_url": "http://localhost:11434", "model": "   "},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "base_url and model are required" in data["error"]
+
+    # ------------------------------------------------------------------
+    # Edge cases — provider_type handling
+    # ------------------------------------------------------------------
+
+    def test_list_models_empty_provider_type_defaults_to_ollama(self, client):
+        """POST with empty provider_type defaults to ollama."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.list_models.return_value = [
+                ModelInfo(id="test-model", provider="ollama"),
+            ]
+
+            resp = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                    "provider_type": "",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        # Verify create_provider was called with provider_type="ollama"
+        config_arg = mock_create.call_args[0][0]
+        assert config_arg.provider_type == "ollama"
+
+    # ------------------------------------------------------------------
+    # Edge cases — cache behaviour
+    # ------------------------------------------------------------------
+
+    def test_list_models_cache_isolation_by_provider_type(self, client):
+        """Different provider types with same base URL should not share cache."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+
+            mock_prov.list_models.return_value = [
+                ModelInfo(id="ollama-model", provider="ollama"),
+            ]
+
+            # First call with ollama (default)
+            client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                },
+            )
+
+            # Second call with groq but same base URL
+            # We need a new mock response for the second call
+            mock_prov.list_models.return_value = [
+                ModelInfo(id="groq-model", provider="groq"),
+            ]
+
+            resp2 = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                    "provider_type": "groq",
+                },
+            )
+
+        # create_provider should be called twice (different provider types)
+        assert mock_create.call_count == 2
+        assert resp2.status_code == 200
+        data2 = resp2.get_json()
+        assert data2["ok"] is True
+        # Should get the groq model (fresh fetch, not cached ollama)
+        assert data2["models"][0]["id"] == "groq-model"
+
+    # ------------------------------------------------------------------
+    # Edge cases — body structure
+    # ------------------------------------------------------------------
+
+    def test_list_models_extra_unexpected_fields(self, client):
+        """POST with unexpected fields ignores them and succeeds."""
+        with patch("app.server.create_provider") as mock_create:
+            mock_prov = MagicMock()
+            mock_create.return_value = mock_prov
+            mock_prov.list_models.return_value = [
+                ModelInfo(id="model-1", provider="ollama"),
+            ]
+
+            resp = client.post(
+                "/api/models",
+                json={
+                    "base_url": "http://localhost:11434",
+                    "model": "llama3.2",
+                    "extra_field": "should_be_ignored",
+                    "another_one": 42,
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert len(data["models"]) == 1
 
 
 # ---------------------------------------------------------------------------

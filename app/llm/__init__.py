@@ -5,6 +5,7 @@ from app.llm.base import (
     LLMError,
     LLMProvider,
     LLMTimeoutError,
+    ModelInfo,
     ProviderConfig,
     ProviderError,
 )

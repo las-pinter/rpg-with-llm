@@ -20,7 +20,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 6 | Frontend UI | ✅ Complete |
 | 7 | NPC Subagents | ✅ Complete |
 | 8 | Memory Summarization | ✅ Complete |
-| 9 | Additional LLM Providers | 🟡 In progress (Groq ✅, OpenRouter ✅, Unsloth ✅, llama.cpp ✅, Multi-Provider Config ✅) |
+| 9 | Additional LLM Providers | 🟡 In progress (Groq ✅, OpenRouter ✅, Unsloth ✅, llama.cpp ✅, Multi-Provider Config ✅, Model List Fetching ✅) |
 | 10 | Platform Startup Scripts | ⬜ Not started |
 
 ---
@@ -73,6 +73,7 @@ The server starts on `http://localhost:5000`. Open it in your browser to access 
 | `POST` | `/api/character/generate` | Generate a character via DM-assisted creation |
 | `POST` | `/api/character/save` | Save a generated character |
 | `GET`  | `/api/characters` | List saved characters |
+| `POST` | `/api/models` | Fetch available models from a provider (takes `base_url`, `model`, `provider_type`, optional `api_key`) |
 
 ---
 
@@ -133,6 +134,7 @@ rpg-with-llm/
 | **Unsloth** | Local (GPU) | `unsloth/Qwen3.6-27B-GGUF` |
 | **Groq** | Cloud (fast inference) | `llama3-70b-8192` |
 | **OpenRouter** | Cloud (model aggregator) | `mistralai/mistral-7b-instruct:free` |
+| **llama.cpp** | Local | `default` |
 
 ---
 
