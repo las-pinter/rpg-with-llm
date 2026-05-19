@@ -79,6 +79,13 @@ const ConnectionView = {
             summarizerModelInput: document.getElementById(
                 "summarizer-model-input",
             ),
+            // NPC/Summarizer enable checkboxes and config groups
+            npcEnabled: document.getElementById("npc-enabled"),
+            npcConfigGroup: document.getElementById("npc-config-group"),
+            summarizerEnabled: document.getElementById("summarizer-enabled"),
+            summarizerConfigGroup: document.getElementById(
+                "summarizer-config-group",
+            ),
         };
 
         // Provider change → update URL default + API key visibility
@@ -138,6 +145,32 @@ const ConnectionView = {
                 "change",
                 () => this._onAgentProviderChange("summarizer"),
             );
+        }
+
+        // NPC enable toggle
+        if (this.els.npcEnabled) {
+            this.els.npcEnabled.addEventListener("change", () => {
+                const enabled = this.els.npcEnabled.checked;
+                this.els.npcConfigGroup.style.display = enabled
+                    ? "block"
+                    : "none";
+                if (enabled) {
+                    this._populateAgentDefaults("npc");
+                }
+            });
+        }
+
+        // Summarizer enable toggle
+        if (this.els.summarizerEnabled) {
+            this.els.summarizerEnabled.addEventListener("change", () => {
+                const enabled = this.els.summarizerEnabled.checked;
+                this.els.summarizerConfigGroup.style.display = enabled
+                    ? "block"
+                    : "none";
+                if (enabled) {
+                    this._populateAgentDefaults("summarizer");
+                }
+            });
         }
 
         // Set initial provider state
@@ -206,6 +239,34 @@ const ConnectionView = {
         } else {
             apiKeyGroup.style.display = "none";
             if (apiKeyInput) apiKeyInput.value = "";
+        }
+    },
+
+    /** Populate per-agent provider fields from the main provider's current values. */
+    _populateAgentDefaults(prefix) {
+        const mainType = this.els.providerSelect.value;
+        const mainUrl = this.els.baseUrl.value;
+        const mainModel = this._getModel();
+        const mainApiKey = this.els.apiKey.value;
+
+        const typeSelect = this.els[prefix + "ProviderSelect"];
+        const urlInput = this.els[prefix + "BaseUrl"];
+        const modelInput = this.els[prefix + "ModelInput"];
+        const apiKeyInput = this.els[prefix + "ApiKey"];
+        const apiKeyGroup = this.els[prefix + "ApiKeyGroup"];
+
+        if (typeSelect) typeSelect.value = mainType;
+        if (urlInput) urlInput.value = mainUrl;
+        if (modelInput) modelInput.value = mainModel;
+        if (apiKeyInput) apiKeyInput.value = mainApiKey;
+
+        // Show/hide API key based on the selected provider type
+        const provider = this.providers[mainType];
+        if (apiKeyGroup && provider) {
+            apiKeyGroup.style.display = provider.needsKey ? "block" : "none";
+            if (!provider.needsKey && apiKeyInput) {
+                apiKeyInput.value = "";
+            }
         }
     },
 
@@ -392,11 +453,9 @@ const ConnectionView = {
 
     /** Build a provider config for a per-agent (npc / summarizer), or null. */
     _buildAgentProvider(prefix) {
-        // If advanced section never expanded — not configured
-        if (
-            !this.els.advancedSection ||
-            this.els.advancedSection.style.display === "none"
-        ) {
+        const enabledCheckbox = this.els[prefix + "Enabled"];
+        // If not enabled, return null (use main provider)
+        if (!enabledCheckbox || !enabledCheckbox.checked) {
             return null;
         }
 
@@ -454,6 +513,12 @@ const ConnectionView = {
                 summarizerProvider: App.state.summarizerProvider || null,
                 baseUrl: this.els.baseUrl.value,
                 model: this._getModel(),
+                npcEnabled: this.els.npcEnabled
+                    ? this.els.npcEnabled.checked
+                    : false,
+                summarizerEnabled: this.els.summarizerEnabled
+                    ? this.els.summarizerEnabled.checked
+                    : false,
             };
             localStorage.setItem("rpg_connection", JSON.stringify(data));
         } catch (e) {
@@ -466,6 +531,8 @@ const ConnectionView = {
             const raw = localStorage.getItem("rpg_connection");
             if (!raw) return;
             const data = JSON.parse(raw);
+
+            // Restore App.state
             if (data.provider) {
                 App.state.provider = data.provider;
             }
@@ -474,6 +541,113 @@ const ConnectionView = {
             }
             if (data.summarizerProvider) {
                 App.state.summarizerProvider = data.summarizerProvider;
+            }
+
+            // Restore main provider type selection and refresh UI
+            if (data.provider && data.provider.provider_type) {
+                this.els.providerSelect.value =
+                    data.provider.provider_type;
+                this._onProviderChange();
+            }
+
+            // Restore base URL
+            if (data.baseUrl) {
+                this.els.baseUrl.value = data.baseUrl;
+            }
+
+            // Restore model
+            if (data.model) {
+                // Try to set the model select value first
+                const options = this.els.modelSelect.options;
+                let found = false;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === data.model) {
+                        this.els.modelSelect.value = data.model;
+                        found = true;
+                        break;
+                    }
+                }
+                this.els.modelInput.value = data.model;
+            }
+
+            // Restore API key if saved in provider
+            if (data.provider && data.provider.api_key) {
+                this.els.apiKey.value = data.provider.api_key;
+            }
+
+            // Restore NPC enabled state
+            if (data.npcEnabled && this.els.npcEnabled) {
+                this.els.npcEnabled.checked = true;
+                this.els.npcConfigGroup.style.display = "block";
+            }
+            // Restore NPC provider config values if present
+            if (
+                data.npcProvider &&
+                typeof data.npcProvider === "object" &&
+                data.npcProvider.base_url
+            ) {
+                if (
+                    this.els.npcProviderSelect &&
+                    data.npcProvider.provider_type
+                ) {
+                    this.els.npcProviderSelect.value =
+                        data.npcProvider.provider_type;
+                }
+                if (this.els.npcBaseUrl && data.npcProvider.base_url) {
+                    this.els.npcBaseUrl.value =
+                        data.npcProvider.base_url;
+                }
+                if (this.els.npcModelInput && data.npcProvider.model) {
+                    this.els.npcModelInput.value =
+                        data.npcProvider.model;
+                }
+                if (this.els.npcApiKey && data.npcProvider.api_key) {
+                    this.els.npcApiKey.value =
+                        data.npcProvider.api_key;
+                }
+                this._onAgentProviderChange("npc");
+            }
+
+            // Restore Summarizer enabled state
+            if (data.summarizerEnabled && this.els.summarizerEnabled) {
+                this.els.summarizerEnabled.checked = true;
+                this.els.summarizerConfigGroup.style.display = "block";
+            }
+            // Restore Summarizer provider config values if present
+            if (
+                data.summarizerProvider &&
+                typeof data.summarizerProvider === "object" &&
+                data.summarizerProvider.base_url
+            ) {
+                if (
+                    this.els.summarizerProviderSelect &&
+                    data.summarizerProvider.provider_type
+                ) {
+                    this.els.summarizerProviderSelect.value =
+                        data.summarizerProvider.provider_type;
+                }
+                if (
+                    this.els.summarizerBaseUrl &&
+                    data.summarizerProvider.base_url
+                ) {
+                    this.els.summarizerBaseUrl.value =
+                        data.summarizerProvider.base_url;
+                }
+                if (
+                    this.els.summarizerModelInput &&
+                    data.summarizerProvider.model
+                ) {
+                    this.els.summarizerModelInput.value =
+                        data.summarizerProvider.model;
+                }
+                if (
+                    this.els.summarizerApiKey &&
+                    data.summarizerProvider.api_key
+                ) {
+                    this.els.summarizerApiKey.value =
+                        data.summarizerProvider.api_key;
+                }
+                this._onAgentProviderChange("summarizer");
             }
         } catch (e) {
             // Corrupted data — ignore

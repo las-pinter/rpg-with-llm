@@ -66,62 +66,80 @@
                             type="button">▸ Advanced</button>
                     <div id="advanced-section" style="display: none;">
 
-                        <h3>NPC Provider (optional)</h3>
-                        <div class="form-group">
-                            <label for="npc-provider-select">Provider Type</label>
-                            <select id="npc-provider-select">
-                                <option value="ollama">Ollama</option>
-                                <option value="groq">Groq</option>
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="unsloth">Unsloth</option>
-                                <option value="llamacpp">llama.cpp</option>
-                                <option value="custom">Custom</option>
-                            </select>
+                        <h3>NPC Provider</h3>
+                        <div class="form-group toggle-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="npc-enabled">
+                                <span class="toggle-slider"></span>
+                                Override NPC provider
+                            </label>
+                            <span class="toggle-hint">When disabled, NPCs use the main provider settings</span>
                         </div>
-                        <div class="form-group">
-                            <label for="npc-base-url">Base URL</label>
-                            <input type="url" id="npc-base-url"
-                                   value="http://localhost:11434"
-                                   placeholder="http://localhost:11434">
-                        </div>
-                        <div class="form-group" id="npc-api-key-group">
-                            <label for="npc-api-key">API Key</label>
-                            <input type="password" id="npc-api-key"
-                                   placeholder="sk-... (cloud providers only)">
-                        </div>
-                        <div class="form-group">
-                            <label for="npc-model-input">Model</label>
-                            <input type="text" id="npc-model-input"
-                                   placeholder="e.g. llama3.2">
+                        <div id="npc-config-group" style="display: none;">
+                            <div class="form-group">
+                                <label for="npc-provider-select">Provider Type</label>
+                                <select id="npc-provider-select">
+                                    <option value="ollama">Ollama</option>
+                                    <option value="groq">Groq</option>
+                                    <option value="openrouter">OpenRouter</option>
+                                    <option value="unsloth">Unsloth</option>
+                                    <option value="llamacpp">llama.cpp</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="npc-base-url">Base URL</label>
+                                <input type="url" id="npc-base-url"
+                                       placeholder="http://localhost:11434">
+                            </div>
+                            <div class="form-group" id="npc-api-key-group">
+                                <label for="npc-api-key">API Key</label>
+                                <input type="password" id="npc-api-key"
+                                       placeholder="sk-... (cloud providers only)">
+                            </div>
+                            <div class="form-group">
+                                <label for="npc-model-input">Model</label>
+                                <input type="text" id="npc-model-input"
+                                       placeholder="e.g. llama3.2">
+                            </div>
                         </div>
 
-                        <h3>Summarizer Provider (optional)</h3>
-                        <div class="form-group">
-                            <label for="summarizer-provider-select">Provider Type</label>
-                            <select id="summarizer-provider-select">
-                                <option value="ollama">Ollama</option>
-                                <option value="groq">Groq</option>
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="unsloth">Unsloth</option>
-                                <option value="llamacpp">llama.cpp</option>
-                                <option value="custom">Custom</option>
-                            </select>
+                        <h3>Summarizer Provider</h3>
+                        <div class="form-group toggle-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="summarizer-enabled">
+                                <span class="toggle-slider"></span>
+                                Override summarizer provider
+                            </label>
+                            <span class="toggle-hint">When disabled, summarizer uses the main provider settings</span>
                         </div>
-                        <div class="form-group">
-                            <label for="summarizer-base-url">Base URL</label>
-                            <input type="url" id="summarizer-base-url"
-                                   value="http://localhost:11434"
-                                   placeholder="http://localhost:11434">
-                        </div>
-                        <div class="form-group" id="summarizer-api-key-group">
-                            <label for="summarizer-api-key">API Key</label>
-                            <input type="password" id="summarizer-api-key"
-                                   placeholder="sk-... (cloud providers only)">
-                        </div>
-                        <div class="form-group">
-                            <label for="summarizer-model-input">Model</label>
-                            <input type="text" id="summarizer-model-input"
-                                   placeholder="e.g. llama3.2">
+                        <div id="summarizer-config-group" style="display: none;">
+                            <div class="form-group">
+                                <label for="summarizer-provider-select">Provider Type</label>
+                                <select id="summarizer-provider-select">
+                                    <option value="ollama">Ollama</option>
+                                    <option value="groq">Groq</option>
+                                    <option value="openrouter">OpenRouter</option>
+                                    <option value="unsloth">Unsloth</option>
+                                    <option value="llamacpp">llama.cpp</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="summarizer-base-url">Base URL</label>
+                                <input type="url" id="summarizer-base-url"
+                                       placeholder="http://localhost:11434">
+                            </div>
+                            <div class="form-group" id="summarizer-api-key-group">
+                                <label for="summarizer-api-key">API Key</label>
+                                <input type="password" id="summarizer-api-key"
+                                       placeholder="sk-... (cloud providers only)">
+                            </div>
+                            <div class="form-group">
+                                <label for="summarizer-model-input">Model</label>
+                                <input type="text" id="summarizer-model-input"
+                                       placeholder="e.g. llama3.2">
+                            </div>
                         </div>
 
                     </div>
@@ -355,10 +373,10 @@
                     <h3>Location</h3>
                     <p class="location-text" id="location-text">—</p>
                 </div>
-
-                <button id="sidebar-collapse" class="btn btn-sm sidebar-toggle"
-                        title="Toggle sidebar">◀</button>
             </div>
+
+            <button id="sidebar-collapse" class="btn btn-sm"
+                    title="Toggle sidebar">◀</button>
 
             <!-- Input Area (bottom) -->
             <div id="input-area">
@@ -369,9 +387,12 @@
                 </div>
                 <div class="input-row-secondary">
                     <div id="quick-actions" class="quick-actions"></div>
-                    <button id="new-game-btn" class="btn btn-sm btn-danger">
-                        New Game
-                    </button>
+                    <div>
+                        <button id="save-game-btn" class="btn btn-sm">Save Game</button>
+                        <button id="new-game-btn" class="btn btn-sm btn-danger">
+                            New Game
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

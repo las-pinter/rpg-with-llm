@@ -209,7 +209,7 @@ class OllamaProvider(LLMProvider):
         """
         url = f"{self.base_url}/api/tags"
         try:
-            response = requests.get(url, timeout=self.timeout)
+            response = requests.get(url, headers=self._headers(), timeout=self.timeout)
             if not response.ok:
                 return []
             data = response.json()

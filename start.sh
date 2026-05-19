@@ -12,16 +12,16 @@ set -euo pipefail
 # Color helpers
 # ---------------------------------------------------------------------------
 RED='\033[0;31m'
-GREEN='\033[0;32m'
+GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
-info()    { printf "${CYAN}%s${NC}\n" "$*"; }
+info() { printf "${CYAN}%s${NC}\n" "$*"; }
 success() { printf "${GREEN}%s${NC}\n" "$*"; }
-warn()    { printf "${YELLOW}%s${NC}\n" "$*"; }
-error()   { printf "${RED}%s${NC}\n" "$*" >&2; }
+warn() { printf "${YELLOW}%s${NC}\n" "$*"; }
+error() { printf "${RED}%s${NC}\n" "$*" >&2; }
 
 # ---------------------------------------------------------------------------
 # Config
@@ -38,9 +38,9 @@ URL="http://localhost:${PORT}"
 # Root user check (Flask dev server warns against running as root)
 # ---------------------------------------------------------------------------
 if [ "$(id -u)" = "0" ]; then
-    warn "⚠ Running as root is not recommended. Flask's development server"
-    warn "  warns against running with root privileges. Consider using a"
-    warn "  non-root user if possible."
+	warn "⚠ Running as root is not recommended. Flask's development server"
+	warn "  warns against running with root privileges. Consider using a"
+	warn "  non-root user if possible."
 fi
 
 # ---------------------------------------------------------------------------
@@ -49,15 +49,15 @@ fi
 info "🔍 Checking Python version..."
 PYTHON=""
 for candidate in python3 python; do
-    if command -v "$candidate" &>/dev/null; then
-        PYTHON="$candidate"
-        break
-    fi
+	if command -v "$candidate" &>/dev/null; then
+		PYTHON="$candidate"
+		break
+	fi
 done
 
 if [ -z "$PYTHON" ]; then
-    error "❌ Python not found! Please install Python 3.10 or later."
-    exit 1
+	error "❌ Python not found! Please install Python 3.10 or later."
+	exit 1
 fi
 
 PY_VER="$($PYTHON --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')"
@@ -65,8 +65,8 @@ PY_MAJOR="${PY_VER%%.*}"
 PY_MINOR="${PY_VER#*.}"
 
 if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
-    error "❌ Python 3.10+ required, found $($PYTHON --version 2>&1)"
-    exit 1
+	error "❌ Python 3.10+ required, found $($PYTHON --version 2>&1)"
+	exit 1
 fi
 
 success "✓ Found $($PYTHON --version 2>&1)"
@@ -75,11 +75,11 @@ success "✓ Found $($PYTHON --version 2>&1)"
 # Step 2: Create virtual environment if missing
 # ---------------------------------------------------------------------------
 if [ ! -d "$VENV_DIR" ]; then
-    info "📦 Creating virtual environment in ${VENV_DIR}..."
-    $PYTHON -m venv "$VENV_DIR"
-    success "✓ Virtual environment created."
+	info "📦 Creating virtual environment in ${VENV_DIR}..."
+	$PYTHON -m venv "$VENV_DIR"
+	success "✓ Virtual environment created."
 else
-    info "✓ Virtual environment already exists."
+	info "✓ Virtual environment already exists."
 fi
 
 # ---------------------------------------------------------------------------
@@ -88,18 +88,18 @@ fi
 info "🔧 Activating virtual environment..."
 # shellcheck disable=SC1091
 source "${VENV_DIR}/bin/activate" || {
-    error "❌ Failed to activate virtual environment at ${VENV_DIR}."
-    error "  The venv may be corrupted. Try removing ${VENV_DIR} and re-running."
-    exit 1
+	error "❌ Failed to activate virtual environment at ${VENV_DIR}."
+	error "  The venv may be corrupted. Try removing ${VENV_DIR} and re-running."
+	exit 1
 }
 
 if [ -f "$REQUIREMENTS" ]; then
-    info "📥 Installing dependencies from requirements.txt..."
-    pip install --quiet --upgrade pip
-    pip install --quiet -r "$REQUIREMENTS"
-    success "✓ Dependencies installed."
+	info "📥 Installing dependencies from requirements.txt..."
+	pip install --quiet --upgrade pip
+	pip install --quiet -r "$REQUIREMENTS"
+	success "✓ Dependencies installed."
 else
-    warn "⚠ No requirements.txt found at ${REQUIREMENTS}, skipping."
+	warn "⚠ No requirements.txt found at ${REQUIREMENTS}, skipping."
 fi
 
 # ---------------------------------------------------------------------------
@@ -111,12 +111,12 @@ SERVER_PID=$!
 
 # Make sure we clean up the server process on exit
 cleanup() {
-    if kill -0 "$SERVER_PID" 2>/dev/null; then
-        info "🛑 Shutting down server (PID ${SERVER_PID})..."
-        kill "$SERVER_PID" 2>/dev/null
-        wait "$SERVER_PID" 2>/dev/null || true
-        success "✓ Server stopped."
-    fi
+	if kill -0 "$SERVER_PID" 2>/dev/null; then
+		info "🛑 Shutting down server (PID ${SERVER_PID})..."
+		kill "$SERVER_PID" 2>/dev/null
+		wait "$SERVER_PID" 2>/dev/null || true
+		success "✓ Server stopped."
+	fi
 }
 trap cleanup EXIT INT TERM
 
@@ -126,25 +126,25 @@ trap cleanup EXIT INT TERM
 info "⏳ Waiting for server to become ready..."
 
 if command -v curl &>/dev/null; then
-    MAX_RETRIES=30
-    RETRY_COUNT=0
+	MAX_RETRIES=30
+	RETRY_COUNT=0
 
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if curl -s --max-time 2 "http://localhost:${PORT}/api/health" >/dev/null 2>&1; then
-            success "✓ Server is ready!"
-            break
-        fi
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        sleep 1
-    done
+	while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+		if curl -s --max-time 2 "http://localhost:${PORT}/api/health" >/dev/null 2>&1; then
+			success "✓ Server is ready!"
+			break
+		fi
+		RETRY_COUNT=$((RETRY_COUNT + 1))
+		sleep 1
+	done
 
-    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-        warn "⚠ Server may not be fully started yet (health check timed out)."
-        warn "  Check ${URL} manually."
-    fi
+	if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+		warn "⚠ Server may not be fully started yet (health check timed out)."
+		warn "  Check ${URL} manually."
+	fi
 else
-    warn "⚠ curl not found — skipping health check. Waiting 3 seconds..."
-    sleep 3
+	warn "⚠ curl not found — skipping health check. Waiting 3 seconds..."
+	sleep 3
 fi
 
 # ---------------------------------------------------------------------------
@@ -152,24 +152,25 @@ fi
 # ---------------------------------------------------------------------------
 info "🌐 Opening browser to ${URL}..."
 if command -v xdg-open &>/dev/null; then
-    xdg-open "$URL" &>/dev/null &
+	xdg-open "$URL" &>/dev/null &
 elif command -v open &>/dev/null; then
-    open "$URL" &>/dev/null &
+	open "$URL" &>/dev/null &
 elif command -v sensible-browser &>/dev/null; then
-    sensible-browser "$URL" &>/dev/null &
+	sensible-browser "$URL" &>/dev/null &
 else
-    warn "⚠ Could not find xdg-open or sensible-browser."
-    warn "  Please open ${URL} manually in your browser."
+	warn "⚠ Could not find xdg-open or sensible-browser."
+	warn "  Please open ${URL} manually in your browser."
 fi
 
 # ---------------------------------------------------------------------------
 # Step 7: Follow server logs
 # ---------------------------------------------------------------------------
 echo ""
-success "${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
-success "${BOLD}║  🎲  LLM-Powered RPG is running at ${URL}  ║${NC}"
-success "${BOLD}║  Press Ctrl+C to stop the server.                       ║${NC}"
-success "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
+success "╔══════════════════════════════════════════════════════════╗"
+success "║              LLM-Powered RPG is running.                 ║"
+success "║           Press Ctrl+C to stop the server.               ║"
+success "╚══════════════════════════════════════════════════════════╝"
+success "${URL}"
 echo ""
 
 # Wait for the server process so logs stream to terminal
