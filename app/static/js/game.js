@@ -197,42 +197,42 @@ const GameView = {
             };
 
             SSEClient.connect(input, App.state.provider, {
-                onToken(token) {
+                onToken: ((token) => {
                     tokenBuffer += token;
                     streamP.textContent = tokenBuffer;
                     // Throttle scroll to avoid layout thrash on fast streams
                     if (tokenBuffer.length % 32 < token.length) {
                         this._scrollToBottom();
                     }
-                }.bind(this),
+                }).bind(this),
 
-                onNpcThinking(npcData) {
+                onNpcThinking: ((npcData) => {
                     this._showNpcThinking(npcData);
-                }.bind(this),
+                }).bind(this),
 
-                onNarrative(narrative) {
+                onNarrative: ((narrative) => {
                     // Replace streaming content with the properly
                     // formatted narrative (paragraphs, etc.)
                     this._hideNpcThinking();
                     removeStreamDiv();
                     this._addNarrative(narrative);
                     this._scrollToBottom();
-                }.bind(this),
+                }).bind(this),
 
-                onDone(turnCount) {
+                onDone: ((turnCount) => {
                     this._hideNpcThinking();
                     this.state.turnCount = turnCount ?? this.state.turnCount + 1;
                     this._renderSidebar();
                     this._addTurnSeparator();
                     resolve();
-                }.bind(this),
+                }).bind(this),
 
-                onError(msg) {
+                onError: ((msg) => {
                     this._hideNpcThinking();
                     SSEClient.disconnect();
                     removeStreamDiv();
                     reject(new Error(msg || "SSE connection failed"));
-                }.bind(this),
+                }).bind(this),
             });
         });
     },
@@ -298,8 +298,7 @@ const GameView = {
             this._addTurnSeparator();
         } else {
             this._addNarrative(
-                `[The fabric of reality wavers... An error occurred: ${
-                    data.error || "Unknown error"
+                `[The fabric of reality wavers... An error occurred: ${data.error || "Unknown error"
                 }]`,
                 { isError: true },
             );

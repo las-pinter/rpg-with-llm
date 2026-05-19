@@ -93,7 +93,7 @@ def health_check():
 
     api_key = data.get("api_key")
     provider_type = str(data.get("provider_type") or "").strip() or "ollama"
-
+    print(provider_type)
     config = ProviderConfig(
         base_url=base_url,
         model=model,

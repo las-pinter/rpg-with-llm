@@ -219,10 +219,6 @@ const ConnectionView = {
         const model = this._getModel();
         const apiKey = this.els.apiKey.value.trim() || undefined;
 
-        if (!model) {
-            this._setStatus("error", "Please select or enter a model first");
-            return;
-        }
         if (!baseUrl) {
             this._setStatus("error", "Base URL is required to fetch models");
             return;
@@ -322,6 +318,7 @@ const ConnectionView = {
                     base_url: baseUrl,
                     model: model,
                     api_key: apiKey,
+                    provider_type: this.els.providerSelect.value,
                 }),
                 signal: AbortSignal.timeout(15000),
             });
