@@ -21,7 +21,7 @@ Built entirely in Python, the game connects to any OpenAI-compatible LLM provide
 | 7 | NPC Subagents | ✅ Complete |
 | 8 | Memory Summarization | ✅ Complete |
 | 9 | Additional LLM Providers | ✅ Complete |
-| 10 | Platform Startup Scripts | ⬜ Not started |
+| 10 | Platform Startup Scripts | 🔄 In progress (Subphase 10A: Linux + Windows scripts done) |
 
 ---
 
@@ -57,7 +57,19 @@ pip install -r requirements.txt
 python run.py
 ```
 
-The server starts on `http://localhost:5000`. Open it in your browser to access the UI (once the frontend is implemented in Phase 6).
+Or use the one-command startup scripts:
+
+**Linux/macOS:**
+```bash
+./start.sh
+```
+
+**Windows:**
+```cmd
+start.bat
+```
+
+The server starts on `http://localhost:5000`. Open it in your browser to access the UI.
 
 ### API Endpoints
 
