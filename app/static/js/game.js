@@ -47,6 +47,7 @@ const GameView = {
             submitBtn: document.getElementById("submit-action"),
             quickActions: document.getElementById("quick-actions"),
             newGameBtn: document.getElementById("new-game-btn"),
+            saveGameBtn: document.getElementById("save-game-btn"),
         };
 
         // Submit action
@@ -61,11 +62,18 @@ const GameView = {
         // New Game button
         this.els.newGameBtn.addEventListener("click", () => this._newGame());
 
-        // Sidebar collapse (mobile)
+        // Save Game button
+        this.els.saveGameBtn.addEventListener("click", () => this._saveGame());
+
+        // Sidebar collapse
         this.els.collapseBtn.addEventListener("click", () => {
             const sidebar = document.getElementById("status-sidebar");
-            const isNowVisible = sidebar.classList.toggle("visible");
-            this.els.collapseBtn.textContent = isNowVisible ? "\u25C0" : "\u25B6";
+            sidebar.classList.toggle("collapsed");
+            this.els.collapseBtn.textContent = sidebar.classList.contains("collapsed") ? "\u25B6" : "\u25C0";
+
+            // Toggle game grid layout
+            const gameView = document.getElementById("view-game");
+            gameView.classList.toggle("sidebar-collapsed");
         });
 
         // Auto-scroll detection — pause on manual scroll-up
@@ -199,7 +207,7 @@ const GameView = {
             SSEClient.connect(input, App.state.provider, {
                 onToken: ((token) => {
                     tokenBuffer += token;
-                    streamP.textContent = tokenBuffer;
+                    streamP.textContent = this._stripXmlTags(tokenBuffer);
                     // Throttle scroll to avoid layout thrash on fast streams
                     if (tokenBuffer.length % 32 < token.length) {
                         this._scrollToBottom();
@@ -598,6 +606,44 @@ const GameView = {
         App.navigate("character");
     },
 
+    /** Save the current game state via the server. */
+    async _saveGame() {
+        if (this.state.isThinking) return;
+        this.els.saveGameBtn.disabled = true;
+        this.els.saveGameBtn.textContent = "Saving...";
+
+        try {
+            const resp = await fetch("/api/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    state: this.state.worldState || {},
+                    name: "manual-save",
+                }),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                this.els.saveGameBtn.textContent = "\u2713 Saved";
+                setTimeout(() => {
+                    this.els.saveGameBtn.textContent = "Save Game";
+                    this.els.saveGameBtn.disabled = false;
+                }, 2000);
+            } else {
+                this.els.saveGameBtn.textContent = "\u2717 Failed";
+                setTimeout(() => {
+                    this.els.saveGameBtn.textContent = "Save Game";
+                    this.els.saveGameBtn.disabled = false;
+                }, 2000);
+            }
+        } catch (e) {
+            this.els.saveGameBtn.textContent = "\u2717 Error";
+            setTimeout(() => {
+                this.els.saveGameBtn.textContent = "Save Game";
+                this.els.saveGameBtn.disabled = false;
+            }, 2000);
+        }
+    },
+
     // ------------------------------------------------------------------
     // Utilities
     // ------------------------------------------------------------------
@@ -618,6 +664,11 @@ const GameView = {
         const div = document.createElement("div");
         div.textContent = str;
         return div.innerHTML;
+    },
+
+    /** Strip XML/HTML-like tags from a string. */
+    _stripXmlTags(str) {
+        return str.replace(/<\/?[a-zA-Z_][^>]*>/g, '');
     },
 };
 

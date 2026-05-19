@@ -794,7 +794,7 @@ select {
 
 /* ----- Streaming Narrative (SSE token display) ----- */
 .turn-streaming p::after {
-    content: '\u258C';
+    content: '|';
     animation: blinkCursor 0.8s step-end infinite;
     color: var(--accent-gold);
     margin-left: 0.1em;
@@ -1027,11 +1027,31 @@ select {
     font-style: italic;
 }
 
-/* ----- Sidebar Toggle ----- */
-.sidebar-toggle {
-    align-self: flex-end;
+/* Sidebar collapsed state (all screen sizes) */
+#status-sidebar.collapsed {
+    display: none;
+}
+
+#view-game.sidebar-collapsed {
+    grid-template-columns: 1fr;
+}
+#view-game.sidebar-collapsed #status-sidebar {
+    display: none;
+}
+
+/* Sidebar collapse button - fixed at the border between narrative pane and sidebar */
+#sidebar-collapse {
+    position: fixed;
+    top: 0.5rem;
+    right: calc(280px + 0.5rem);
+    z-index: 50;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
+    transition: right var(--transition);
+}
+
+#view-game.sidebar-collapsed #sidebar-collapse {
+    right: 0.5rem;
 }
 
 /* ----- Input Area ----- */
@@ -1102,6 +1122,9 @@ select {
     }
     #status-sidebar {
         display: none;
+    }
+    #sidebar-collapse {
+        right: 0.5rem;
     }
     #status-sidebar.visible {
         display: flex;
