@@ -14,7 +14,7 @@ const ConnectionView = {
             label: "Ollama",
         },
         groq: {
-            url: "https://api.groq.com/openai/v1",
+            url: "https://api.groq.com/openai",
             needsKey: true,
             label: "Groq",
         },
