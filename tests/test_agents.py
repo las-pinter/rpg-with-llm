@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
 
 # ---------------------------------------------------------------------------
@@ -223,6 +225,7 @@ class TestDungeonMasterProcessTurn:
             "ok",
             "error",
             "warnings",
+            "token_usage",
         }
         assert set(result.keys()) == expected_keys
 
@@ -810,3 +813,352 @@ class TestDungeonMasterMaybeSummarize:
         # Summary should remain unchanged after failure
         assert dm.history.compressed_summary == ""
         assert dm.history.get_summary() == ""
+
+
+# ===========================================================================
+# Token Usage
+# ===========================================================================
+
+
+class TestDungeonMasterTokenUsage:
+    """Tests for DM token usage accumulation and reporting."""
+
+    def test_token_usage_starts_at_zero(self) -> None:
+        """token_usage should start with all zeros."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        assert dm.token_usage == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    def test_token_usage_accumulates_across_turns(self) -> None:
+        """Each process_turn call should add usage to the running total."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>Test</narrative>",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        dm.process_turn("First")
+        dm.process_turn("Second")
+        assert dm.token_usage["prompt_tokens"] == 20
+        assert dm.token_usage["completion_tokens"] == 10
+        assert dm.token_usage["total_tokens"] == 30
+
+    def test_process_turn_returns_token_usage(self) -> None:
+        """process_turn() should include accumulated token_usage in its dict."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>Test</narrative>",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        result = dm.process_turn("Hello")
+        assert "token_usage" in result
+        assert result["token_usage"]["prompt_tokens"] == 10
+        assert result["token_usage"]["total_tokens"] == 15
+
+    def test_call_llm_raises_on_empty_content(self) -> None:
+        """_call_llm should raise RuntimeError when provider returns empty content."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        with pytest.raises(RuntimeError, match="empty content"):
+            dm._call_llm([{"role": "user", "content": "Hi"}])
+
+    def test_token_usage_missing_usage_field(self) -> None:
+        """Missing usage field should not crash and should not accumulate."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>Test</narrative>",
+            "finish_reason": "stop",
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        dm.process_turn("Hello")
+        assert dm.token_usage["total_tokens"] == 0
+
+    def test_token_usage_with_non_dict_usage(self) -> None:
+        """Non-dict usage should not crash."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>Test</narrative>",
+            "finish_reason": "stop",
+            "usage": "not_a_dict",
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        dm.process_turn("Hello")
+        assert dm.token_usage["total_tokens"] == 0
+
+    def test_token_usage_with_invalid_token_values(self) -> None:
+        """Non-integer token values should not crash (coverage for except)."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>Test</narrative>",
+            "finish_reason": "stop",
+            "usage": {
+                "prompt_tokens": "abc",
+                "completion_tokens": "xyz",
+                "total_tokens": None,
+            },
+        }
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=None,
+        )
+        # Should not raise despite bad token values
+        dm.process_turn("Hello")
+        assert dm.token_usage["total_tokens"] == 0
+
+
+# ===========================================================================
+# _sync_npcs_to_world_state
+# ===========================================================================
+
+
+class TestDungeonMasterSyncNPCs:
+    """Tests for DM._sync_npcs_to_world_state()."""
+
+    def test_sync_npcs_does_nothing_when_world_state_none(self) -> None:
+        """When world_state is None, sync should return early without error."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        dm.npcs["rat"] = {"identity": "Rat King", "personality": "sneaky"}
+        # Should not raise
+        dm._sync_npcs_to_world_state()
+
+    def test_sync_npcs_adds_new_npc(self) -> None:
+        """A new NPC should be added to active_npcs with correct fields."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.turn_count = 3
+        dm.npcs["rat_king"] = {"identity": "Rat King", "personality": "vicious"}
+        dm._sync_npcs_to_world_state()
+        assert "rat_king" in ws.active_npcs
+        entry = ws.active_npcs["rat_king"]
+        assert entry["name"] == "Rat King"
+        assert entry["personality"] == "vicious"
+        assert entry["first_seen_turn"] == 3
+        assert entry["last_seen_turn"] == 3
+
+    def test_sync_npcs_updates_existing_npc_last_seen(self) -> None:
+        """Existing NPC's last_seen_turn should update on subsequent sync."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.active_npcs["goblin"] = {
+            "name": "Gribbits",
+            "personality": "",
+            "first_seen_turn": 1,
+            "last_seen_turn": 1,
+        }
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.turn_count = 5
+        dm.npcs["goblin"] = {"identity": "Gribbits", "personality": "sneaky"}
+        dm._sync_npcs_to_world_state()
+        assert ws.active_npcs["goblin"]["last_seen_turn"] == 5
+        assert ws.active_npcs["goblin"]["first_seen_turn"] == 1
+
+    def test_sync_npcs_merges_new_personality(self) -> None:
+        """Personality should be merged when existing entry lacks it."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.active_npcs["goblin"] = {
+            "name": "Gribbits",
+            # no personality key
+            "first_seen_turn": 1,
+            "last_seen_turn": 1,
+        }
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.npcs["goblin"] = {"identity": "Gribbits", "personality": "sneaky"}
+        dm._sync_npcs_to_world_state()
+        assert ws.active_npcs["goblin"].get("personality") == "sneaky"
+
+    def test_sync_npcs_does_not_overwrite_personality(self) -> None:
+        """Existing personality should not be overwritten by empty data."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.active_npcs["goblin"] = {
+            "name": "Gribbits",
+            "personality": "grumpy",
+            "first_seen_turn": 1,
+            "last_seen_turn": 1,
+        }
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.npcs["goblin"] = {"identity": "Gribbits", "personality": ""}
+        dm._sync_npcs_to_world_state()
+        assert ws.active_npcs["goblin"]["personality"] == "grumpy"
+
+
+# ===========================================================================
+# NPC Agent spawning in process_turn
+# ===========================================================================
+
+
+class TestDungeonMasterNPCSpawning:
+    """Tests for NPC spawning during process_turn."""
+
+    def test_process_turn_with_npc_requests(self) -> None:
+        """process_turn should handle NPCAgent requests and sync NPCs to world."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        mock_provider = MagicMock()
+        # First call returns response with npc_request tag
+        # Second call (after NPC injection) returns final narrative
+        mock_provider.call.side_effect = [
+            {
+                "content": (
+                    "<narrative>\nTavern scene.\n</narrative>\n"
+                    '<npc_request npc_id="tavern_keep" '
+                    'context="asks about drink" />'
+                ),
+                "finish_reason": "stop",
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            },
+            {
+                "content": ("<narrative>\nThe barkeep grunts.\n</narrative>\n"),
+                "finish_reason": "stop",
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 10,
+                    "total_tokens": 30,
+                },
+            },
+        ]
+
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=ws,
+            character=None,
+        )
+
+        with patch("app.agents.dm.NPCAgent") as mock_npc_agent_cls:
+            mock_npc_instance = MagicMock()
+            mock_npc_instance.process.return_value = {
+                "dialogue": "What'll it be?",
+                "action": "wipes a glass",
+                "emotional_state": "neutral",
+                "tool_request": None,
+            }
+            mock_npc_agent_cls.return_value = mock_npc_instance
+
+            result = dm.process_turn("I order a drink")
+
+        assert result["ok"] is True
+        # NPC should be tracked in dm.npcs
+        assert "tavern_keep" in dm.npcs
+        # NPC should be synced to world state
+        assert "tavern_keep" in ws.active_npcs
+        assert ws.active_npcs["tavern_keep"]["name"] == "tavern_keep"
+
+
+# ===========================================================================
+# _spawn_npcs edge cases
+# ===========================================================================
+
+
+class TestDungeonMasterSpawnNPCsEdgeCases:
+    """Tests for _spawn_npcs error handling paths."""
+
+    def test_spawn_npcs_returns_empty_for_empty_requests(self) -> None:
+        """Empty npc_requests list should return empty results."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        results = dm._spawn_npcs([], "hello")
+        assert results == []
+
+    def test_spawn_npcs_handles_npc_agent_failure(self) -> None:
+        """When NPCAgent fails, _spawn_npcs should return error entry."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=ws,
+            character=None,
+        )
+
+        with patch("app.agents.dm.NPCAgent") as mock_npc_agent_cls:
+            mock_npc = MagicMock()
+            mock_npc.process.side_effect = ValueError("NPC crashed")
+            mock_npc_agent_cls.return_value = mock_npc
+
+            results = dm._spawn_npcs(
+                [{"npc_id": "tavern_keep", "context": "greeting"}],
+                "hello",
+            )
+
+        assert len(results) == 1
+        assert results[0]["npc_id"] == "tavern_keep"
+        assert results[0]["error"] == "NPC processing failed"
+
+    def test_spawn_npcs_syncs_to_world_state(self) -> None:
+        """NPCs should appear in world_state.active_npcs after spawning."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=ws,
+            character=None,
+        )
+
+        with patch("app.agents.dm.NPCAgent") as mock_npc_agent_cls:
+            mock_npc = MagicMock()
+            mock_npc.process.return_value = {
+                "dialogue": "Hello!",
+                "action": "waves",
+                "emotional_state": "friendly",
+                "tool_request": None,
+            }
+            mock_npc_agent_cls.return_value = mock_npc
+
+            dm._spawn_npcs(
+                [{"npc_id": "innkeeper", "context": "greeting"}],
+                "hello",
+            )
+
+        # After spawning, calling _sync_npcs_to_world_state should persist
+        dm._sync_npcs_to_world_state()
+        assert "innkeeper" in ws.active_npcs
+        assert ws.active_npcs["innkeeper"]["name"] == "innkeeper"

@@ -61,6 +61,9 @@ def parse_dm_response(response_text: str) -> dict[str, Any]:
         return _empty_result()
 
     narrative = _extract_narrative(response_text)
+    # Strip any residual XML tags that the LLM may have generated
+    # inside the narrative content (e.g. <output name='Dialogue'/>).
+    narrative = re.sub(r"<[^>]*>", "", narrative)
     tool_requests = _extract_tool_requests(response_text)
     state_changes = _extract_state_changes(response_text)
     npc_requests = _extract_npc_requests(response_text)

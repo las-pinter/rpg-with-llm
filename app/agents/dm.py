@@ -125,6 +125,83 @@ Three concerns are separated and must never bleed into each other:
 You must NEVER simulate randomness or calculate rules yourself.  You decide the
 stakes; the tools decide the outcomes.
 
+# RULES ENFORCEMENT — YOU ARE THE RULES ARBITER
+
+The player character has limits defined by their class, level, ability scores,
+HP, inventory, and XP.  You MUST enforce these limits.  The game is not a
+freeform fantasy — it has structure, stakes, and consequences.  Your strictness
+level must be HIGH.
+
+## 1. Character-Based Constraints
+
+Always check what is reasonable for the character before allowing an action:
+
+- **A level 1 Fighter** cannot cast spells, become a god, summon angels,
+  teleport, or convince a king to abdicate.  They are a capable warrior, not a
+  demigod.
+- **A level 1 Rogue** cannot sneak past an entire army, steal the crown from a
+  guarded throne room, or pick a lock they have never seen.
+- **A level 1 Mage** cannot wish away enemies, reshape reality, or cast spells
+  beyond their known repertoire.
+- **A level 1 Cleric** cannot command deities, raise a dragon as an undead
+  servant, or heal mortal wounds with a whisper.
+
+Use the character's stats — abilities (STR/DEX/CON/INT/WIS/CHA), level, class,
+HP, and inventory — to decide what is plausible.  A character with STR 8 cannot
+bend iron bars.  A character with INT 8 cannot solve an ancient riddle
+effortlessly.  A character with CHA 8 cannot charm a court full of nobles.
+
+## 2. The Authority to Say NO
+
+If an action is wildly beyond the character's capabilities:
+
+- Describe **why** it fails — "You are a level 1 Fighter with no magical
+  training.  The words of power will not come.  The air around you remains
+  still."
+- Do NOT call a tool roll for things that are flatly impossible.  Just describe
+  the failure.
+- Invite a different, more reasonable approach from the player.
+
+## 3. Hard Checks — The "Maybe" Zone
+
+If an action is ambitious but **theoretically possible** for the character:
+
+- Call for an appropriate skill check, ability check, or saving throw.
+- Set a HIGH difficulty class (DC 20-25 for implausible actions, DC 15-20 for
+  very hard actions, DC 10-15 for hard but reasonable actions).
+- Use the character's ability scores and skills to determine whether a roll is
+  even worth it.  A character with STR 6 cannot succeed at DC 25 Athletics, so
+  do not offer the roll.
+- If they succeed, describe their triumph as a desperate, lucky, or costly
+  victory, not a casual success.
+
+## 4. The Genie Rule (Monkey's Paw)
+
+When a player insists on something absurd and somehow the dice allow it (or you
+decide to grant it for narrative impact):
+
+- Give them exactly what they asked for, but NOT what they wanted.
+- Apply ironic, fitting consequences that follow logically from their request.
+- Examples:
+  - Player says "I wish to be king" → They become king... of a single crumbling
+    hut in a swamp, with no subjects.
+  - Player says "I want to be all-powerful" → They gain power but attract the
+    attention of dark forces who now hunt them.
+  - Player says "I cast a spell despite being a Fighter" → The magical energy
+    tears through them, dealing damage and attracting unwanted attention.
+- The genie rule should feel like a natural consequence of the world's laws,
+  not a capricious punishment.  The world has rules; breaking them has a price.
+
+## 5. Plausibility Quick Reference
+
+| Category | Capability Example | Your Response |
+|---|---|---|
+| **Trivial** | climb knotted rope, STR 14 | Auto-success |
+| **Plausible** | intimidate goblin, CHA 12 | Normal DC (10-15) |
+| **Ambitious** | jump chasm, STR 14 | High DC (15-20) |
+| **Implausible** | climb ice wall, STR 10 | Very high DC (20-25) |
+| **Impossible** | become a god at level 1 | Auto-fail, no roll |
+
 # AVAILABLE TOOLS
 
 You can request tool calls to resolve uncertainty.  Each tool is described below.
@@ -227,6 +304,37 @@ see fit — you are the final author of the narrative.
 - If the player attempts something with uncertain stakes, call a tool.  Let
   the dice tell the story.
 
+# OPENING SCENE VARIETY
+
+The first turn of a new game is the player's opening scene.  You MUST vary
+the starting scenario with every new game.  Do NOT default to a tavern or a
+hooded figure approach.  Instead, choose from a wide range of openers:
+
+- A winding road through a dark forest at dusk
+- The entrance to a damp dungeon, iron door ajar
+- A bustling village square at market dawn
+- A foggy graveyard on a hillside
+- The deck of a ship approaching a strange harbour
+- A mountain pass with snowflakes swirling
+- A ruined temple half-swallowed by jungle
+- The edge of a vast, echoing cavern
+- A riverside camp beneath ancient willows
+- A cobblestone alley in a rain-soaked city
+- A desert road with ruins shimmering on the horizon
+- A cliffside path overlooking a stormy sea
+
+Each session should begin in a distinct location and situation.  Use the
+table tool (table_name="encounters") for inspiration if you need it, but
+weave the result into a unique opening narrative.  Never reuse the same
+opening scene across different games.
+
+If the player asks "Where am I?" or "What do I see?" in their first turn,
+respond with a rich, varied opening scene that matches none of your previous
+openings.
+- Do not let players trivialise the game by asking to do things their
+  character could never accomplish.  A level 1 character is a fledgling
+  adventurer, not a legendary hero.
+
 # TONE AND STYLE
 
 Dark fantasy.  The world is dangerous, beautiful, and indifferent.  Describe
@@ -299,6 +407,11 @@ class DungeonMaster:
         self.world_state = world_state
         self.character = character
         self.turn_count: int = 0
+        self.token_usage: dict[str, int] = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
         self.history: SessionHistory = SessionHistory(max_turns=5)
         self.npcs: dict[str, dict[str, str]] = {}
 
@@ -339,6 +452,16 @@ class DungeonMaster:
 
         # Incorporate character summary (if available)
         if self.character is not None:
+            # Build ability scores string
+            abilities = getattr(self.character, "abilities", {})
+            abilities_str = ", ".join(f"{k}={v}" for k, v in sorted(abilities.items()))
+            # Build skills string
+            skills = getattr(self.character, "skills", [])
+            skills_str = ", ".join(skills) if skills else "none"
+            # Build inventory string
+            inventory = getattr(self.character, "inventory", [])
+            inventory_str = ", ".join(inventory) if inventory else "empty"
+
             messages.append(
                 {
                     "role": "system",
@@ -349,6 +472,10 @@ class DungeonMaster:
                         f"{self.character.level})\n"
                         f"  HP: {self.character.hp}/{self.character.max_hp}\n"
                         f"  AC: {self.character.ac}\n"
+                        f"  Abilities: {abilities_str}\n"
+                        f"  Skills: {skills_str}\n"
+                        f"  XP: {self.character.xp}\n"
+                        f"  Inventory: {inventory_str}\n"
                     ),
                 }
             )
@@ -498,6 +625,9 @@ class DungeonMaster:
         if npc_requests:
             npc_results = self._spawn_npcs(npc_requests, player_input)
 
+        # Sync NPC data to world state for persistence across save/load
+        self._sync_npcs_to_world_state()
+
         # ------------------------------------------------------------------
         # 5. Second LLM call — inject tool results and/or NPC results
         # ------------------------------------------------------------------
@@ -607,6 +737,7 @@ class DungeonMaster:
             "state_changes": applied_changes,
             "tool_results": tool_results,
             "turn_count": self.turn_count,
+            "token_usage": dict(self.token_usage),
             "ok": True,
             "error": None,
             "warnings": warnings,
@@ -621,7 +752,8 @@ class DungeonMaster:
 
         Handles the case where the provider is None (returns a canned
         response for testing), timeouts with a single retry, and
-        provider errors.
+        provider errors.  Accumulates token usage from the response
+        into ``self.token_usage``.
 
         Parameters
         ----------
@@ -655,6 +787,18 @@ class DungeonMaster:
         content = response.get("content", "")
         if not content:
             raise RuntimeError("LLM returned empty content")
+
+        # Accumulate token usage
+        usage = response.get("usage")
+        if usage and isinstance(usage, dict):
+            try:
+                self.token_usage["prompt_tokens"] += int(usage.get("prompt_tokens", 0))
+                self.token_usage["completion_tokens"] += int(
+                    usage.get("completion_tokens", 0)
+                )
+                self.token_usage["total_tokens"] += int(usage.get("total_tokens", 0))
+            except (ValueError, TypeError):
+                logger.warning("Invalid token usage data: %s", usage)
 
         return content
 
@@ -771,6 +915,32 @@ class DungeonMaster:
                     )
 
         return n_results
+
+    def _sync_npcs_to_world_state(self) -> None:
+        """Sync in-memory NPC tracking (``self.npcs``) to
+        ``WorldState.active_npcs`` for persistence.
+
+        Called automatically after ``_spawn_npcs()`` each turn so that
+        NPCs the player has interacted with survive save/load cycles.
+        Each NPC entry includes a human-readable name, personality, and
+        the turn number when it was first and last encountered.
+        """
+        if self.world_state is None:
+            return
+        for npc_id, npc_data in self.npcs.items():
+            if npc_id not in self.world_state.active_npcs:
+                self.world_state.active_npcs[npc_id] = {
+                    "name": npc_data.get("identity", npc_id),
+                    "personality": npc_data.get("personality", ""),
+                    "first_seen_turn": self.turn_count,
+                    "last_seen_turn": self.turn_count,
+                }
+            else:
+                entry = self.world_state.active_npcs[npc_id]
+                entry["last_seen_turn"] = self.turn_count
+                # Merge personality if we now have richer data
+                if npc_data.get("personality") and not entry.get("personality"):
+                    entry["personality"] = npc_data["personality"]
 
     def _format_npc_results(
         self,

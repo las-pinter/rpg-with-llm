@@ -1027,6 +1027,84 @@ select {
     font-style: italic;
 }
 
+/* ----- NPC List (Sidebar) ----- */
+.npc-list {
+    list-style: none;
+}
+.npc-list li {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 0.25rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+.npc-list li::before {
+    content: '◆';
+    font-size: 0.55rem;
+    color: var(--accent-amber);
+    opacity: 0.6;
+    margin-right: 0.3rem;
+}
+.npc-list .npc-last-seen {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+    white-space: nowrap;
+}
+.npc-list .empty-state::before {
+    content: none;
+}
+
+/* ----- Token Usage (Sidebar) ----- */
+.token-toggle-row {
+    margin-bottom: 0.5rem;
+}
+.btn-token-toggle {
+    width: 100%;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+.btn-token-toggle:hover {
+    color: var(--accent-gold);
+    border-color: var(--accent-border);
+}
+.token-display {
+    animation: fadeIn 0.3s ease;
+}
+.token-display.hidden {
+    display: none;
+}
+.token-stats {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.25rem;
+}
+.token-stats li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.15rem;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+}
+.token-label {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.65rem;
+}
+.token-value {
+    color: var(--accent-gold);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
 /* Sidebar collapsed state (all screen sizes) */
 #status-sidebar.collapsed {
     display: none;

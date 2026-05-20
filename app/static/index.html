@@ -373,6 +373,38 @@
                     <h3>Location</h3>
                     <p class="location-text" id="location-text">—</p>
                 </div>
+
+                <div class="sidebar-section">
+                    <h3>Known NPCs</h3>
+                    <ul class="npc-list" id="npc-list">
+                        <li class="empty-state">None yet</li>
+                    </ul>
+                </div>
+
+                <!-- Token Usage — toggleable -->
+                <div class="sidebar-section token-section">
+                    <div class="token-toggle-row">
+                        <button id="token-toggle" class="btn btn-sm btn-token-toggle">
+                            Show Tokens
+                        </button>
+                    </div>
+                    <div id="token-display" class="token-display hidden">
+                        <ul class="token-stats">
+                            <li>
+                                <span class="token-label">Prompt</span>
+                                <span class="token-value" id="token-prompt">0</span>
+                            </li>
+                            <li>
+                                <span class="token-label">Output</span>
+                                <span class="token-value" id="token-completion">0</span>
+                            </li>
+                            <li>
+                                <span class="token-label">Total</span>
+                                <span class="token-value" id="token-total">0</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </div>
 
             <button id="sidebar-collapse" class="btn btn-sm"

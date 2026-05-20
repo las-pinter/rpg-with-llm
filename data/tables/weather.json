@@ -2,11 +2,25 @@
   "name": "weather",
   "die": "1d20",
   "entries": [
-    {"range": [1, 3], "result": "Blazing sun scorches the landscape. Heat shimmers dance on the horizon. Drink water or suffer."},
-    {"range": [4, 7], "result": "Overcast sky with a cool breeze. Comfortable travel weather — almost pleasant."},
-    {"range": [8, 12], "result": "Light drizzle and drifting fog. Visibility is poor; sounds are muffled and strange."},
-    {"range": [13, 16], "result": "Heavy downpour! Thunder crashes and lightning splits the sky. Seek shelter or get soaked."},
-    {"range": [17, 19], "result": "Howling blizzard whips snow and ice across the land. Frozen winds cut through any cloak."},
-    {"range": [20, 20], "result": "An arcane storm! Purple lightning arcs between clouds, strange symbols flicker in the sky, and the air hums with wild magic."}
+    {"range": [1, 1], "result": "Blazing sun scorches the landscape. Heat shimmers dance on the horizon. Drink water or suffer."},
+    {"range": [2, 2], "result": "Overcast sky with a cool breeze. Comfortable travel weather — almost pleasant."},
+    {"range": [3, 3], "result": "Light drizzle and drifting fog. Visibility is poor; sounds are muffled and strange."},
+    {"range": [4, 4], "result": "Heavy downpour! Thunder crashes and lightning splits the sky. Seek shelter or get soaked."},
+    {"range": [5, 5], "result": "Howling blizzard whips snow and ice across the land. Frozen winds cut through any cloak."},
+    {"range": [6, 6], "result": "An arcane storm! Purple lightning arcs between clouds, strange symbols flicker in the sky, and the air hums with wild magic."},
+    {"range": [7, 7], "result": "Thick fog rolls in, reducing visibility to mere feet. Shapes move in the periphery."},
+    {"range": [8, 8], "result": "Gentle snowfall carpets the world in white. An eerie quiet settles over everything."},
+    {"range": [9, 9], "result": "Perfectly clear sky. The stars burn bright above, and a gentle breeze carries the scent of wildflowers."},
+    {"range": [10, 10], "result": "Volcanic ash drifts down like grey snow. The air tastes of sulfur, and the sun is a dim orange disc."},
+    {"range": [11, 11], "result": "Humid air thick with swarming insects. Midges and mosquitoes bite at every patch of exposed skin."},
+    {"range": [12, 12], "result": "Heavy humidity presses down. Dark thunderheads gather on the horizon, threatening worse to come."},
+    {"range": [13, 13], "result": "Strong gusting winds bend trees and whip loose objects through the air. Difficult travel conditions."},
+    {"range": [14, 14], "result": "A misty morning with heavy dew. Every blade of grass glistens, and the world feels fresh and new."},
+    {"range": [15, 15], "result": "A sudden hailstorm pounds the ground with icy pellets the size of grapes."},
+    {"range": [16, 16], "result": "A dust storm rises from nowhere, scouring the land with grit and reducing sight to a few feet."},
+    {"range": [17, 17], "result": "A brilliant rainbow arches across the sky after a short, fierce shower. A moment of rare beauty."},
+    {"range": [18, 18], "result": "Unseasonable heat wave. The air shimmers, sweat pours, and even the birds have gone silent."},
+    {"range": [19, 19], "result": "An eerie, dead calm. The air is perfectly still, no birds sing, and the silence presses in like a physical weight."},
+    {"range": [20, 20], "result": "The sky turns an ominous blood-red as strange winds howl across the land. Something is very wrong with the world."}
   ]
 }
