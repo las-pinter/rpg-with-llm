@@ -179,6 +179,9 @@ class GroqProvider(LLMProvider):
                     raise ProviderError(
                         f"Invalid JSON in Groq stream chunk: {e}"
                     ) from e
+                # Capture usage data from the final streaming chunk
+                if "usage" in chunk:
+                    self._last_stream_usage = chunk["usage"]
                 choices = chunk.get("choices")
                 if not choices:
                     continue

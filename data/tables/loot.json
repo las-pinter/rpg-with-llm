@@ -2,12 +2,22 @@
   "name": "loot",
   "die": "1d100",
   "entries": [
-    {"range": [1, 40], "result": "A handful of rusty copper coins and a chipped dagger. Barely worth the pocket lint."},
-    {"range": [41, 60], "result": "A small leather pouch containing a few silver coins and a tarnished silver locket."},
-    {"range": [61, 75], "result": "A semi-precious gemstone (garnet or turquoise) wrapped in stained cloth."},
-    {"range": [76, 85], "result": "A scroll case containing a spell scroll (single-use, random minor spell)."},
-    {"range": [86, 93], "result": "A finely crafted elven shortsword with faintly glowing runes along the blade."},
-    {"range": [94, 98], "result": "A potion of healing in a crystal vial, shimmering with a soft golden light."},
-    {"range": [99, 100], "result": "A legendary amulet of the lost dwarf-king, pulsing with ancient power."}
+    {"range": [1, 18], "result": "A handful of rusty copper coins and a chipped dagger. Barely worth the pocket lint."},
+    {"range": [19, 26], "result": "A worn leather pouch containing a few copper coins and a rusty iron key."},
+    {"range": [27, 34], "result": "A small bag of mixed copper and silver coins jingles with modest weight."},
+    {"range": [35, 42], "result": "A dented tankard and a half-burnt candle stub. Someone's lost dinner supplies."},
+    {"range": [43, 50], "result": "A small leather pouch containing a few silver coins and a tarnished silver locket with a portrait inside."},
+    {"range": [51, 57], "result": "A merchant's ledger filled with coded entries and a hidden compartment containing a gold coin."},
+    {"range": [58, 63], "result": "An ornate quill and inkwell set made of polished obsidian, worth something to a collector."},
+    {"range": [64, 70], "result": "A semi-precious gemstone (garnet or turquoise) wrapped in stained cloth."},
+    {"range": [71, 76], "result": "A scroll case containing a spell scroll (single-use, random minor spell)."},
+    {"range": [77, 81], "result": "A torn map fragment showing a hidden location marked with a blood-red 'X'."},
+    {"range": [82, 87], "result": "A finely crafted elven shortsword with faintly glowing runes along the blade."},
+    {"range": [88, 91], "result": "A potion of healing in a crystal vial, shimmering with a soft golden light."},
+    {"range": [92, 94], "result": "A ring of minor protection — a simple silver band that feels unnaturally warm."},
+    {"range": [95, 96], "result": "A small bag of holding containing a random assortment of previous owner's belongings."},
+    {"range": [97, 98], "result": "A mysterious crystal that pulses with a soft inner light and hums faintly."},
+    {"range": [99, 99], "result": "A dragon-scale cloak, light as silk but tough as leather, shimmering with iridescent colours."},
+    {"range": [100, 100], "result": "A legendary amulet of the lost dwarf-king, pulsing with ancient power and etched with dwarven runes of kingship."}
   ]
 }

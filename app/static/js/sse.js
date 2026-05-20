@@ -16,6 +16,7 @@ const SSEClient = {
      * @param {function} callbacks.onNarrative - Called with the final narrative.
      * @param {function} callbacks.onNpcThinking - Called with {npc_id, hint} on NPC processing.
      * @param {function} callbacks.onDone - Called with turn_count on completion.
+     * @param {function} callbacks.onTokenUsage - Called with {usage: {prompt_tokens, completion_tokens, total_tokens}}.
      * @param {function} callbacks.onError - Called with an error message.
      */
     connect(input, provider, callbacks) {
@@ -59,6 +60,13 @@ const SSEClient = {
                 if (callbacks.onDone) callbacks.onDone(data.turn_count);
             } catch (_) { /* skip malformed events */ }
             this.disconnect();
+        });
+
+        this.eventSource.addEventListener("token_usage", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (callbacks.onTokenUsage) callbacks.onTokenUsage(data.usage);
+            } catch (_) { /* skip malformed events */ }
         });
 
         this.eventSource.onerror = () => {

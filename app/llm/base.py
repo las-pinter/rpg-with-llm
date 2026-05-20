@@ -169,6 +169,13 @@ class LLMProvider(abc.ABC):
     connection pooling internally.
     """
 
+    _last_stream_usage: dict | None = None
+    """Token usage from the most recent streaming response, if available.
+
+    Populated by ``stream()`` when the provider includes usage data
+    in the final chunk before ``[DONE]``.
+    """
+
     @abc.abstractmethod
     def call(self, messages: list[dict]) -> dict:
         """Send a non-streaming chat completion request.

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Generator
 from pathlib import Path
 
@@ -632,6 +633,9 @@ def game_stream():
         collected_tokens: list[str] = []
 
         if dm.llm_provider is not None:
+            # Reset streaming usage tracker
+            dm.llm_provider._last_stream_usage = None
+
             # Stream tokens from the LLM
             try:
                 for token in dm.llm_provider.stream(messages):
@@ -649,6 +653,21 @@ def game_stream():
                 return
 
             full_response = "".join(collected_tokens)
+
+            # Accumulate usage from streaming response, if available
+            if dm.llm_provider._last_stream_usage:
+                try:
+                    su = dm.llm_provider._last_stream_usage
+                    dm.token_usage["prompt_tokens"] += int(su.get("prompt_tokens", 0))
+                    dm.token_usage["completion_tokens"] += int(
+                        su.get("completion_tokens", 0)
+                    )
+                    dm.token_usage["total_tokens"] += int(su.get("total_tokens", 0))
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "Invalid stream token usage: %s",
+                        dm.llm_provider._last_stream_usage,
+                    )
         else:
             # No provider configured — use canned response
             full_response = "<narrative>\nThe scene unfolds before you.\n</narrative>"
@@ -733,6 +752,24 @@ def game_stream():
                     second_response = dm.llm_provider.call(messages)
                     if second_response:
                         second_text = second_response.get("content", "")
+                        # Accumulate usage from second call
+                        usage2 = second_response.get("usage")
+                        if usage2 and isinstance(usage2, dict):
+                            try:
+                                dm.token_usage["prompt_tokens"] += int(
+                                    usage2.get("prompt_tokens", 0)
+                                )
+                                dm.token_usage["completion_tokens"] += int(
+                                    usage2.get("completion_tokens", 0)
+                                )
+                                dm.token_usage["total_tokens"] += int(
+                                    usage2.get("total_tokens", 0)
+                                )
+                            except (ValueError, TypeError):
+                                logger.warning(
+                                    "Invalid second-call token usage: %s",
+                                    usage2,
+                                )
                         parsed2 = parse_dm_response(second_text)
                         narrative = parsed2.get("narrative", narrative)
                         state_changes = parsed2.get("state_changes", state_changes)
@@ -749,10 +786,18 @@ def game_stream():
                 except Exception as e:
                     logger.warning("Failed to apply state changes in stream: %s", e)
 
+        # Strip any residual XML tags as a final safety net
+        narrative = re.sub(r"<[^>]*>", "", narrative)
+
         # Yield narrative
         yield (
             f"event: narrative\n"
             f"data: {json.dumps({'type': 'narrative', 'content': narrative})}\n\n"
+        )
+        # Yield token usage event BEFORE done so the SSE client receives it
+        yield (
+            f"event: token_usage\n"
+            f"data: {json.dumps({'type': 'token_usage', 'usage': dm.token_usage})}\n\n"
         )
         yield (
             f"event: done\n"

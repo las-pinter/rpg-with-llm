@@ -12,6 +12,8 @@ const GameView = {
         isThinking: false,
         hasStarted: false,
         autoScroll: true,
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        showTokens: false,
     },
 
     /** DOM element references. */
@@ -40,7 +42,15 @@ const GameView = {
             statsList: document.getElementById("stats-list"),
             inventoryList: document.getElementById("inventory-list"),
             locationText: document.getElementById("location-text"),
+            npcList: document.getElementById("npc-list"),
             collapseBtn: document.getElementById("sidebar-collapse"),
+
+            // Token Usage
+            tokenToggle: document.getElementById("token-toggle"),
+            tokenDisplay: document.getElementById("token-display"),
+            tokenPrompt: document.getElementById("token-prompt"),
+            tokenCompletion: document.getElementById("token-completion"),
+            tokenTotal: document.getElementById("token-total"),
 
             // Input
             playerInput: document.getElementById("player-input"),
@@ -74,6 +84,13 @@ const GameView = {
             // Toggle game grid layout
             const gameView = document.getElementById("view-game");
             gameView.classList.toggle("sidebar-collapsed");
+        });
+
+        // Token usage toggle
+        this.els.tokenToggle.addEventListener("click", () => {
+            this.state.showTokens = !this.state.showTokens;
+            this.els.tokenDisplay.classList.toggle("hidden", !this.state.showTokens);
+            this.els.tokenToggle.textContent = this.state.showTokens ? "Hide Tokens" : "Show Tokens";
         });
 
         // Auto-scroll detection — pause on manual scroll-up
@@ -221,9 +238,11 @@ const GameView = {
                 onNarrative: ((narrative) => {
                     // Replace streaming content with the properly
                     // formatted narrative (paragraphs, etc.)
+                    // Add the narrative content BEFORE removing the
+                    // streaming div to prevent a flash of emptiness.
                     this._hideNpcThinking();
-                    removeStreamDiv();
                     this._addNarrative(narrative);
+                    removeStreamDiv();
                     this._scrollToBottom();
                 }).bind(this),
 
@@ -233,6 +252,18 @@ const GameView = {
                     this._renderSidebar();
                     this._addTurnSeparator();
                     resolve();
+                }).bind(this),
+
+                onTokenUsage: ((usage) => {
+                    if (usage) {
+                        this.state.tokenUsage = {
+                            prompt_tokens: usage.prompt_tokens || 0,
+                            completion_tokens: usage.completion_tokens || 0,
+                            total_tokens: usage.total_tokens || 0,
+                        };
+                    }
+                    // Re-render sidebar to update token display
+                    this._renderSidebar();
                 }).bind(this),
 
                 onError: ((msg) => {
@@ -301,6 +332,15 @@ const GameView = {
                 this._showToolResults(data.tool_results);
             }
 
+            // Capture token usage from POST response
+            if (data.token_usage) {
+                this.state.tokenUsage = {
+                    prompt_tokens: data.token_usage.prompt_tokens || 0,
+                    completion_tokens: data.token_usage.completion_tokens || 0,
+                    total_tokens: data.token_usage.total_tokens || 0,
+                };
+            }
+
             this.state.turnCount = data.turn_count ?? this.state.turnCount + 1;
             this._renderSidebar();
             this._addTurnSeparator();
@@ -330,6 +370,10 @@ const GameView = {
     /** Append DM narrative text to the narrative pane. */
     _addNarrative(text, opts) {
         opts = opts || {};
+        // Strip any residual XML tags from the narrative text
+        // Use a safe regex requiring closing '>' since text is fully formed
+        // (the streaming path uses the more aggressive _stripXmlTags)
+        text = text.replace(/<[^>]*>/g, '');
         const div = document.createElement("div");
         div.className = "turn-narrative";
 
@@ -456,8 +500,9 @@ const GameView = {
             )
             .join("");
 
-        // Inventory
-        const inv = chara.inventory || [];
+        // Inventory — read from worldState, not character (character is the
+        // template, worldState is the live game state updated via state_change)
+        const inv = (this.state.worldState && this.state.worldState.inventory) || [];
         if (inv.length === 0) {
             this.els.inventoryList.innerHTML =
                 '<li class="empty-state">Empty</li>';
@@ -474,6 +519,36 @@ const GameView = {
         this.els.locationText.textContent =
             loc.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ||
             "—";
+
+        // Known NPCs
+        const npcs = (this.state.worldState && this.state.worldState.active_npcs)
+            || {};
+        const npcIds = Object.keys(npcs);
+        if (npcIds.length === 0) {
+            this.els.npcList.innerHTML =
+                '<li class="empty-state">None yet</li>';
+        } else {
+            this.els.npcList.innerHTML = npcIds
+                .map((id) => {
+                    const npc = npcs[id] || {};
+                    const name = npc.name || id;
+                    const lastSeen = npc.last_seen_turn;
+                    let label = this._esc(name);
+                    if (lastSeen != null) {
+                        label +=
+                            ` <span class="npc-last-seen">` +
+                            `(turn ${this._esc(String(lastSeen))})</span>`;
+                    }
+                    return `<li>${label}</li>`;
+                })
+                .join("");
+        }
+
+        // Token usage
+        const tu = this.state.tokenUsage || {};
+        this.els.tokenPrompt.textContent = tu.prompt_tokens ?? 0;
+        this.els.tokenCompletion.textContent = tu.completion_tokens ?? 0;
+        this.els.tokenTotal.textContent = tu.total_tokens ?? 0;
     },
 
     // ------------------------------------------------------------------
@@ -511,7 +586,23 @@ const GameView = {
                     arr.push(value);
                 }
             } else if (action === "remove" && path) {
-                this._setNested(this.state.worldState, path, undefined);
+                const current = this._getNested(this.state.worldState, path);
+                if (Array.isArray(current)) {
+                    // Remove all occurrences of the value from the list
+                    // (mirrors backend: apply_changes in world/validator.py)
+                    this._setNested(
+                        this.state.worldState,
+                        path,
+                        current.filter((item) => item !== value),
+                    );
+                } else if (typeof current === 'object' && current !== null) {
+                    // Remove a key from a dict (mirrors backend:
+                    // apply_changes in world/validator.py)
+                    delete current[value];
+                } else {
+                    // Fall back to deleting the property for non-list fields
+                    this._setNested(this.state.worldState, path, undefined);
+                }
             }
         }
     },
@@ -587,6 +678,13 @@ const GameView = {
                 turn_count: 0,
             };
         }
+
+        // Seed worldState inventory with the character's starting equipment
+        // so initial gear shows up in the sidebar.  From this point on,
+        // state_change tags (append/remove) manage inventory live.
+        if (App.state.character && App.state.character.inventory) {
+            this.state.worldState.inventory = [...App.state.character.inventory];
+        }
     },
 
     /** Start a new game — clear state and return to character view. */
@@ -598,6 +696,7 @@ const GameView = {
         this.state.worldState = null;
         this.state.turnCount = 0;
         this.state.hasStarted = false;
+        this.state.tokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
         // Clear the narrative
         this.els.narrativeContent.innerHTML =
@@ -668,7 +767,8 @@ const GameView = {
 
     /** Strip XML/HTML-like tags from a string. */
     _stripXmlTags(str) {
-        return str.replace(/<\/?[a-zA-Z_][^>]*>/g, '');
+        if (typeof str !== "string") return "";
+        return str.replace(/<[^>]*>?/g, '');
     },
 };
 
