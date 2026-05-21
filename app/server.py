@@ -846,6 +846,10 @@ def game_stream():
                         "Invalid stream token usage: %s",
                         dm.llm_provider._last_stream_usage,
                     )
+
+            # Fallback: if streaming didn't yield usage, log it — don't guess
+            if dm.llm_provider._last_stream_usage is None:
+                logger.debug("No token usage from streaming provider for this turn")
         else:
             # No provider configured — use canned response
             full_response = "<narrative>\nThe scene unfolds before you.\n</narrative>"

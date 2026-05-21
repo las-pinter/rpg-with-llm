@@ -8,9 +8,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.agents.dm import DungeonMaster
 from app.character.creation import CharacterStorage
-from app.llm.base import ModelInfo, _model_cache
+from app.llm.base import LLMProvider, ModelInfo, _model_cache
 from app.server import app
+from app.world.model import WorldState
 from app.world.persistence import WorldStorage
 
 
@@ -989,6 +991,93 @@ class TestGameStreamEndpoint:
         assert "ancient " in raw
         assert "gate " in raw
         assert "opens." in raw
+
+
+# ---------------------------------------------------------------------------
+# Token Usage Accumulation
+# ---------------------------------------------------------------------------
+
+
+class TestTokenUsage:
+    """Tests for server-side token usage accumulation."""
+
+    def test_token_usage_accumulates_across_llm_calls(self):
+        """Token usage should accumulate when _call_llm is called multiple
+        times — simulating multiple LLM calls within a single turn."""
+        mock_provider = MagicMock(spec=LLMProvider)
+        mock_provider.call.return_value = {
+            "content": "<narrative>Test narrative.</narrative>",
+            "finish_reason": "stop",
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=WorldState(),
+            character=None,
+        )
+
+        # First call
+        dm._call_llm([{"role": "user", "content": "Hello"}])
+        assert dm.token_usage["prompt_tokens"] == 10
+        assert dm.token_usage["completion_tokens"] == 5
+        assert dm.token_usage["total_tokens"] == 15
+
+        # Second call — should accumulate
+        dm._call_llm([{"role": "user", "content": "Again"}])
+        assert dm.token_usage["prompt_tokens"] == 20
+        assert dm.token_usage["completion_tokens"] == 10
+        assert dm.token_usage["total_tokens"] == 30
+
+    def test_token_usage_in_turn_response(self, client):
+        """The /api/turn response should include token_usage when a
+        provider returns usage data."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": "<narrative>A dark forest stretches before you.</narrative>",
+            "finish_reason": "stop",
+            "usage": {
+                "prompt_tokens": 25,
+                "completion_tokens": 15,
+                "total_tokens": 40,
+            },
+        }
+
+        with patch("app.server.create_provider", return_value=mock_provider):
+            resp = client.post(
+                "/api/turn",
+                json={
+                    "input": "I look around.",
+                    "provider": {
+                        "base_url": "http://localhost:11434",
+                        "model": "test-model",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "token_usage" in data
+        assert data["token_usage"]["prompt_tokens"] == 25
+        assert data["token_usage"]["completion_tokens"] == 15
+        assert data["token_usage"]["total_tokens"] == 40
+
+    def test_token_usage_no_provider_returns_zero(self, client):
+        """Without a provider, token_usage should be all zeros."""
+        resp = client.post(
+            "/api/turn",
+            json={"input": "Hello"},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "token_usage" in data
+        assert data["token_usage"]["prompt_tokens"] == 0
+        assert data["token_usage"]["completion_tokens"] == 0
+        assert data["token_usage"]["total_tokens"] == 0
 
 
 # ---------------------------------------------------------------------------
