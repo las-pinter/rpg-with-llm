@@ -366,6 +366,7 @@ class TestCharacterModel:
             "max_hp",
             "ac",
             "inventory",
+            "gold",
         ):
             assert field_name in data, f"Field {field_name!r} missing from to_dict()"
 
@@ -394,6 +395,7 @@ class TestCharacterModel:
             "max_hp",
             "ac",
             "inventory",
+            "gold",
         ):
             assert getattr(restored, field_name) == getattr(original, field_name), (
                 f"Field {field_name!r} differs after round-trip"
@@ -502,6 +504,28 @@ class TestCharacterModel:
         with pytest.raises(TypeError, match="missing.*required.*argument.*name"):
             Character.from_dict({})
 
+    def test_character_gold_default(self) -> None:
+        """gold must default to 0."""
+        char = _make_minimal_character()
+        assert char.gold == 0
+
+    def test_character_gold_serialization(self) -> None:
+        """gold must survive to_dict/from_dict round-trip."""
+        original = Character.create_default("Glimli", "Fighter")
+        assert original.gold == 10  # Fighters get 10gp
+        data = original.to_dict()
+        assert "gold" in data
+        assert data["gold"] == 10
+        restored = Character.from_dict(data)
+        assert restored.gold == 10
+
+    def test_character_gold_custom_value(self) -> None:
+        """gold can be set to any non-negative integer."""
+        char = _make_minimal_character(gold=50)
+        assert char.gold == 50
+        char2 = _make_minimal_character(gold=0)
+        assert char2.gold == 0
+
 
 class TestCharacterPersistence:
     """Tests for CharacterStorage."""
@@ -553,6 +577,7 @@ class TestCharacterPersistence:
         assert restored.max_hp == original.max_hp
         assert restored.ac == original.ac
         assert restored.inventory == original.inventory
+        assert restored.gold == original.gold
         assert restored.hooks == original.hooks
         assert restored is not original
 

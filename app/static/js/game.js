@@ -41,6 +41,8 @@ const GameView = {
             hpFill: document.getElementById("hp-fill"),
             hpText: document.getElementById("hp-text"),
             statsList: document.getElementById("stats-list"),
+            goldDisplay: document.getElementById("gold-display"),
+            goldAmount: document.getElementById("gold-amount"),
             inventoryList: document.getElementById("inventory-list"),
             locationText: document.getElementById("location-text"),
             npcList: document.getElementById("npc-list"),
@@ -533,6 +535,10 @@ const GameView = {
             )
             .join("");
 
+        // Gold — read from worldState
+        const gold = (this.state.worldState && this.state.worldState.gold) || 0;
+        this.els.goldAmount.textContent = gold;
+
         // Inventory — read from worldState, not character
         const inv = (this.state.worldState && this.state.worldState.inventory) || [];
         if (inv.length === 0) {
@@ -600,6 +606,7 @@ const GameView = {
                 faction_standings: {},
                 active_npcs: {},
                 inventory: [],
+                gold: 0,
                 dm_notes: { plot_threads: [], secrets: [], future_plans: [] },
             };
         }
@@ -611,6 +618,11 @@ const GameView = {
 
             if (action === "set" && path) {
                 this._setNested(this.state.worldState, path, value);
+            } else if (action === "add" && path && value !== undefined) {
+                const current = this._getNested(this.state.worldState, path);
+                if (typeof current === "number") {
+                    this._setNested(this.state.worldState, path, current + Number(value));
+                }
             } else if (action === "append" && path && value !== undefined) {
                 const arr = this._getNested(this.state.worldState, path);
                 if (Array.isArray(arr)) {
@@ -702,12 +714,18 @@ const GameView = {
             this.state.worldState = {
                 current_location: "unknown",
                 turn_count: 0,
+                gold: 0,
             };
         }
 
-        // Seed worldState inventory with the character's starting equipment
-        if (App.state.character && App.state.character.inventory) {
-            this.state.worldState.inventory = [...App.state.character.inventory];
+        // Seed worldState with character's starting equipment and gold
+        if (App.state.character) {
+            if (App.state.character.inventory) {
+                this.state.worldState.inventory = [...App.state.character.inventory];
+            }
+            if (App.state.character.gold != null) {
+                this.state.worldState.gold = App.state.character.gold;
+            }
         }
     },
 

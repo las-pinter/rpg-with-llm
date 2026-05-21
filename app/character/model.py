@@ -33,6 +33,7 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
         "ac": 18,
         "skills": ["Athletics", "Perception"],
         "inventory": ["Longsword", "Chain Mail", "Shield", "Explorer's Pack"],
+        "gold": 10,
     },
     "Rogue": {
         "abilities": {"STR": 8, "DEX": 15, "CON": 13, "INT": 14, "WIS": 12, "CHA": 10},
@@ -45,6 +46,7 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
             "Thieves' Tools",
             "Burglar's Pack",
         ],
+        "gold": 15,
     },
     "Mage": {
         "abilities": {"STR": 8, "DEX": 13, "CON": 14, "INT": 15, "WIS": 12, "CHA": 10},
@@ -52,6 +54,7 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
         "ac": 12,
         "skills": ["Arcana", "Investigation"],
         "inventory": ["Spellbook", "Arcane Focus", "Scholar's Pack"],
+        "gold": 20,
     },
     "Cleric": {
         "abilities": {"WIS": 15, "CON": 14, "STR": 13, "CHA": 12, "INT": 10, "DEX": 8},
@@ -59,6 +62,7 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
         "ac": 16,
         "skills": ["Religion", "Medicine"],
         "inventory": ["Mace", "Chain Mail", "Shield", "Priest's Pack"],
+        "gold": 10,
     },
 }
 
@@ -101,6 +105,7 @@ class Character:
     max_hp: int = 10
     ac: int = 10
     inventory: list[str] = field(default_factory=list)
+    gold: int = 0
 
     # ------------------------------------------------------------------
     # Validation
@@ -156,6 +161,8 @@ class Character:
             filtered["max_hp"] = _coerce_int(filtered["max_hp"], 10)
         if "ac" in filtered:
             filtered["ac"] = _coerce_int(filtered["ac"], 10)
+        if "gold" in filtered:
+            filtered["gold"] = _coerce_int(filtered["gold"], 0)
 
         # Guard container fields against non-list values
         if not isinstance(filtered.get("skills"), list):
@@ -207,6 +214,7 @@ class Character:
             max_hp=tmpl["hp"],
             ac=tmpl["ac"],
             inventory=list(tmpl["inventory"]),
+            gold=tmpl["gold"],
         )
 
 

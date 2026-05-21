@@ -85,6 +85,12 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "mutable",
         "description": "DM secret notes — plot_threads, secrets, future_plans",
     },
+    "gold": {
+        "type": int,
+        "mutability": "settable",
+        "description": "Player's gold pieces (GP)",
+        "supports_add": True,
+    },
     "turn_count": {
         "type": int,
         "mutability": "settable",
@@ -203,25 +209,36 @@ def validate_state_changes(
                 continue
 
         elif action == "add":
-            if mutability != "mutable":
-                errors.append(
-                    f"Change #{i}: cannot add to non-mutable field {field_name!r}"
-                )
-                continue
+            # Arithmetic "add" for numeric fields that declare supports_add
+            supports_add: bool = field_schema.get("supports_add", False)
 
-            if field_type is not dict and field_type is not DMNotes:
-                errors.append(
-                    f"Change #{i}: field {field_name!r} is not a dict or "
-                    f"DMNotes, cannot use 'add'"
-                )
-                continue
+            if supports_add:
+                if not isinstance(value, (int, float)):
+                    errors.append(
+                        f"Change #{i}: 'add' on field {field_name!r} requires a "
+                        f"numeric value, got {type(value).__name__}"
+                    )
+                    continue
+            else:
+                if mutability != "mutable":
+                    errors.append(
+                        f"Change #{i}: cannot add to non-mutable field {field_name!r}"
+                    )
+                    continue
 
-            if not isinstance(value, dict):
-                errors.append(
-                    f"Change #{i}: 'add' requires a dict value, "
-                    f"got {type(value).__name__}"
-                )
-                continue
+                if field_type is not dict and field_type is not DMNotes:
+                    errors.append(
+                        f"Change #{i}: field {field_name!r} is not a dict or "
+                        f"DMNotes, cannot use 'add'"
+                    )
+                    continue
+
+                if not isinstance(value, dict):
+                    errors.append(
+                        f"Change #{i}: 'add' requires a dict value, "
+                        f"got {type(value).__name__}"
+                    )
+                    continue
 
         elif action == "remove":
             if mutability != "mutable":
@@ -321,8 +338,12 @@ def apply_changes(state: WorldState, changes: list[dict[str, Any]]) -> WorldStat
             result = dataclasses.replace(result, **{field_name: value})  # type: ignore[arg-type]
 
         elif action == "add":
-            # dm_notes is a dataclass, handle specially to preserve type
-            if field_name == "dm_notes":
+            # Arithmetic addition for numeric fields
+            field_schema = FIELD_SCHEMA.get(field_name, {})
+            supports_add = bool(field_schema.get("supports_add", False))
+            if supports_add and isinstance(current, (int, float)):
+                new_value: Any = current + value
+            elif field_name == "dm_notes":
                 current_dm: DMNotes = current
                 merged: dict[str, Any] = {
                     "plot_threads": list(current_dm.plot_threads),
@@ -339,7 +360,7 @@ def apply_changes(state: WorldState, changes: list[dict[str, Any]]) -> WorldStat
                             merged[k].extend(v)
                         else:
                             merged[k] = v
-                new_value: Any = DMNotes(**merged)
+                new_value = DMNotes(**merged)
             elif isinstance(current, dict):
                 new_value = {**current, **value}
             else:

@@ -1488,6 +1488,24 @@ select {
 }
 
 /* ============================================================
+   GOLD DISPLAY
+   ============================================================ */
+.gold-display {
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.gold-icon {
+    color: #ffd700;
+    font-size: 1.2rem;
+}
+#gold-amount {
+    font-weight: bold;
+    color: var(--accent-gold);
+}
+
+/* ============================================================
     ACCESSIBILITY — Reduced Motion
     ============================================================ */
 @keyframes modalSlideIn {
