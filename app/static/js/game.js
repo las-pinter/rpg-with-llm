@@ -290,11 +290,9 @@ const GameView = {
 
                     onTokenUsage: ((usage) => {
                         if (usage) {
-                            this.state.tokenUsage = {
-                                prompt_tokens: usage.prompt_tokens || 0,
-                                completion_tokens: usage.completion_tokens || 0,
-                                total_tokens: usage.total_tokens || 0,
-                            };
+                            this.state.tokenUsage.prompt_tokens += usage.prompt_tokens || 0;
+                            this.state.tokenUsage.completion_tokens += usage.completion_tokens || 0;
+                            this.state.tokenUsage.total_tokens += usage.total_tokens || 0;
                         }
                         this._renderSidebar();
                     }).bind(this),
@@ -371,13 +369,11 @@ const GameView = {
                 this._showToolResults(data.tool_results);
             }
 
-            // Capture token usage from POST response
+            // Accumulate token usage from POST response
             if (data.token_usage) {
-                this.state.tokenUsage = {
-                    prompt_tokens: data.token_usage.prompt_tokens || 0,
-                    completion_tokens: data.token_usage.completion_tokens || 0,
-                    total_tokens: data.token_usage.total_tokens || 0,
-                };
+                this.state.tokenUsage.prompt_tokens += data.token_usage.prompt_tokens || 0;
+                this.state.tokenUsage.completion_tokens += data.token_usage.completion_tokens || 0;
+                this.state.tokenUsage.total_tokens += data.token_usage.total_tokens || 0;
             }
 
             this.state.turnCount = data.turn_count ?? this.state.turnCount + 1;

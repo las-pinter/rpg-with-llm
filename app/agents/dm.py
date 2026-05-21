@@ -803,6 +803,13 @@ class DungeonMaster:
         # Check if summarization should trigger
         self._maybe_summarize()
 
+        logger.debug(
+            "Token usage after turn: prompt=%s, completion=%s, total=%s",
+            self.token_usage["prompt_tokens"],
+            self.token_usage["completion_tokens"],
+            self.token_usage["total_tokens"],
+        )
+
         return {
             "narrative": narrative,
             "state_changes": applied_changes,
