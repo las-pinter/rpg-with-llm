@@ -177,6 +177,13 @@ new one. Goblin-made, but we try our best!
 
 ---
 
+## 🧌 Made by Goblins
+
+Crafted by **Bossnik's Goblin Horde** under the Dark One's command, powered by
+the **[Persona Agents](https://github.com/las-pinter/persona-agents)** framework.
+
+---
+
 ## 📜 License
 
 MIT License. See [LICENSE](LICENSE) for the fine print.
