@@ -64,6 +64,10 @@ def parse_dm_response(response_text: str) -> dict[str, Any]:
     # Strip any residual XML tags that the LLM may have generated
     # inside the narrative content (e.g. <output name='Dialogue'/>).
     narrative = re.sub(r"<[^>]*>", "", narrative)
+    # Strip leaked markdown bold artifacts (**narrative**, **tool_request**, etc.)
+    narrative = _strip_markdown_bold(narrative)
+    # Strip leaked backtick-wrapped state change attributes
+    narrative = _strip_backtick_state_attrs(narrative)
     tool_requests = _extract_tool_requests(response_text)
     state_changes = _extract_state_changes(response_text)
     npc_requests = _extract_npc_requests(response_text)
@@ -224,3 +228,32 @@ def _try_parse_json(value: str) -> Any:
         return json.loads(value)
     except (json.JSONDecodeError, ValueError):
         return value
+
+
+# Regex for markdown bold patterns like **narrative**, **tool_request**, etc.
+_MARKDOWN_BOLD_RE = re.compile(r"\*\*[a-zA-Z_]+\*\*")
+
+
+def _strip_markdown_bold(text: str) -> str:
+    """Strip leaked markdown bold artifacts from narrative text.
+
+    The DM sometimes wraps tag-like names in markdown bold markers,
+    e.g. **narrative**, **tool_request**.  These are not intentional
+    markdown formatting — strip them entirely.
+    """
+    return _MARKDOWN_BOLD_RE.sub("", text)
+
+
+# Regex for backtick-wrapped state change attributes like
+# `action="set" path="location" value="village_street"`
+_BACKTICK_STATE_ATTR_RE = re.compile(r"`[^`]*?(?:action=|path=|value=)[^`]*`")
+
+
+def _strip_backtick_state_attrs(text: str) -> str:
+    """Strip leaked backtick-wrapped state change attributes from narrative.
+
+    The DM sometimes outputs raw state change attributes inside backticks,
+    e.g. `action="set" path="location" value="village_street"`.  These
+    leak through if they appear outside of XML tags.
+    """
+    return _BACKTICK_STATE_ATTR_RE.sub("", text)

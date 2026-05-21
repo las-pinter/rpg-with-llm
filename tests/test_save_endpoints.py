@@ -42,7 +42,7 @@ class TestSaveEndpoint:
         assert data["timestamp"] == "20260514_120000_000000"
 
     def test_save_autosave_default_name(self, client):
-        """POST with state but no name defaults to 'autosave'."""
+        """POST with state but no name defaults to a timestamped adventure name."""
         with patch("app.server._storage.save", return_value="20260514_120000_000000"):
             resp = client.post(
                 "/api/save",
@@ -52,7 +52,7 @@ class TestSaveEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
-        assert data["name"] == "autosave"
+        assert data["name"].startswith("Adventure - ")
 
     def test_save_missing_state(self, client):
         """POST without 'state' returns 400."""
@@ -272,6 +272,16 @@ class TestResetEndpoint:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def real_storage() -> WorldStorage:
+    """Create a real WorldStorage in a temporary directory.
+
+    Each test invocation gets its own isolated directory.
+    """
+    tmp_dir = tempfile.mkdtemp()
+    return WorldStorage(tmp_dir)
+
+
 class TestSaveLoadIntegration:
     """Integration tests exercising real storage through Flask endpoints.
 
@@ -279,15 +289,6 @@ class TestSaveLoadIntegration:
     real :class:`WorldStorage` backed by a temporary directory, verifying
     the full request -> JSON -> persistence -> response round-trip.
     """
-
-    @pytest.fixture
-    def real_storage(self) -> WorldStorage:
-        """Create a real WorldStorage in a temporary directory.
-
-        Each test invocation gets its own isolated directory.
-        """
-        tmp_dir = tempfile.mkdtemp()
-        return WorldStorage(tmp_dir)
 
     # ------------------------------------------------------------------
     # Save -> List -> Load round-trip
@@ -383,10 +384,10 @@ class TestSaveLoadIntegration:
     # ------------------------------------------------------------------
 
     def test_save_default_name_with_real_storage(self, client, real_storage):
-        """Save without a name defaults to 'autosave' with real storage."""
+        """Save without a name defaults to a timestamped adventure name."""
         with patch("app.server._storage", real_storage):
             resp = client.post("/api/save", json={"state": {}})
-            assert resp.get_json()["name"] == "autosave"
+            assert resp.get_json()["name"].startswith("Adventure - ")
 
             resp = client.get("/api/saves")
             assert len(resp.get_json()["saves"]) == 1
@@ -404,3 +405,63 @@ class TestSaveLoadIntegration:
             data = resp.get_json()
             assert data["ok"] is False
             assert "not found" in data["error"]
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/delete/<name>
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteSaveEndpoint:
+    """Tests for DELETE /api/delete/<name>."""
+
+    def test_delete_success(self, client, real_storage):
+        """Deleting an existing save returns 200 with ok=True."""
+        with patch("app.server._storage", real_storage):
+            # First save something
+            client.post(
+                "/api/save",
+                json={"state": {"version": "1.0"}, "name": "to_delete"},
+            )
+
+            resp = client.delete("/api/delete/to_delete")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+        # Verify it's actually deleted
+        with patch("app.server._storage", real_storage):
+            resp2 = client.get("/api/saves")
+            assert len(resp2.get_json()["saves"]) == 0
+
+    def test_delete_not_found(self, client, real_storage):
+        """Deleting a non-existent save returns 404."""
+        with patch("app.server._storage", real_storage):
+            resp = client.delete("/api/delete/ghost")
+
+        assert resp.status_code == 404
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "not found" in data["error"]
+
+    def test_delete_with_real_storage_round_trip(self, client, real_storage):
+        """Save, list, delete, list again — save should disappear."""
+        with patch("app.server._storage", real_storage):
+            client.post(
+                "/api/save",
+                json={"state": {"version": "1.0", "turn_count": 5}, "name": "del_test"},
+            )
+
+            # Verify save exists
+            resp = client.get("/api/saves")
+            assert len(resp.get_json()["saves"]) == 1
+
+            # Delete it
+            resp = client.delete("/api/delete/del_test")
+            assert resp.status_code == 200
+            assert resp.get_json()["ok"] is True
+
+            # Verify save is gone
+            resp = client.get("/api/saves")
+            assert len(resp.get_json()["saves"]) == 0

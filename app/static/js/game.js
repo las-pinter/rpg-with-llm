@@ -2,7 +2,8 @@
  * LLM-Powered RPG — Game View
  *
  * The main gameplay interface: narrative display, status sidebar, and
- * action input.  Communicates with the DM backend via POST /api/turn.
+ * action input.  Communicates with the DM backend via POST /api/turn
+ * and GET /api/game/stream (SSE).
  */
 const GameView = {
     /** Runtime game state. */
@@ -58,6 +59,15 @@ const GameView = {
             quickActions: document.getElementById("quick-actions"),
             newGameBtn: document.getElementById("new-game-btn"),
             saveGameBtn: document.getElementById("save-game-btn"),
+            loadGameBtn: document.getElementById("load-game-btn"),
+
+            // Save modal
+            saveModal: document.getElementById("save-modal"),
+            saveModalOverlay: document.getElementById("save-modal-overlay"),
+            saveNameInput: document.getElementById("save-name-input"),
+            saveConfirmBtn: document.getElementById("save-confirm"),
+            saveCancelBtn: document.getElementById("save-cancel"),
+            saveStatus: document.getElementById("save-status"),
         };
 
         // Submit action
@@ -73,7 +83,23 @@ const GameView = {
         this.els.newGameBtn.addEventListener("click", () => this._newGame());
 
         // Save Game button
-        this.els.saveGameBtn.addEventListener("click", () => this._saveGame());
+        this.els.saveGameBtn.addEventListener("click", () => this._showSaveModal());
+
+        // Load Game button
+        if (this.els.loadGameBtn) {
+            this.els.loadGameBtn.addEventListener("click", () => this._showLoadModal());
+        }
+
+        // Save modal controls
+        this.els.saveConfirmBtn.addEventListener("click", () => this._confirmSave());
+        this.els.saveCancelBtn.addEventListener("click", () => this._hideSaveModal());
+        this.els.saveModalOverlay.addEventListener("click", () => this._hideSaveModal());
+        this.els.saveNameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                this._confirmSave();
+            }
+        });
 
         // Sidebar collapse
         this.els.collapseBtn.addEventListener("click", () => {
@@ -221,58 +247,71 @@ const GameView = {
                 }
             };
 
-            SSEClient.connect(input, App.state.provider, {
-                onToken: ((token) => {
-                    tokenBuffer += token;
-                    streamP.textContent = this._stripXmlTags(tokenBuffer);
-                    // Throttle scroll to avoid layout thrash on fast streams
-                    if (tokenBuffer.length % 32 < token.length) {
+            SSEClient.connect(
+                input,
+                App.state.provider,
+                {
+                    onToken: ((token) => {
+                        tokenBuffer += token;
+                        streamP.textContent = this._stripXmlTags(tokenBuffer);
+                        // Throttle scroll to avoid layout thrash on fast streams
+                        if (tokenBuffer.length % 32 < token.length) {
+                            this._scrollToBottom();
+                        }
+                    }).bind(this),
+
+                    onNpcThinking: ((npcData) => {
+                        this._showNpcThinking(npcData);
+                    }).bind(this),
+
+                    onStateUpdate: ((update) => {
+                        if (update && update.state) {
+                            this.state.worldState = update.state;
+                            this.state.turnCount = update.turn_count || this.state.turnCount + 1;
+                        }
+                    }).bind(this),
+
+                    onNarrative: ((narrative) => {
+                        // Replace streaming content with the properly
+                        // formatted narrative (paragraphs, etc.)
+                        this._hideNpcThinking();
+                        this._addNarrative(narrative);
+                        removeStreamDiv();
                         this._scrollToBottom();
-                    }
-                }).bind(this),
+                    }).bind(this),
 
-                onNpcThinking: ((npcData) => {
-                    this._showNpcThinking(npcData);
-                }).bind(this),
+                    onDone: ((turnCount) => {
+                        this._hideNpcThinking();
+                        this.state.turnCount = turnCount ?? this.state.turnCount + 1;
+                        this._renderSidebar();
+                        this._addTurnSeparator();
+                        resolve();
+                    }).bind(this),
 
-                onNarrative: ((narrative) => {
-                    // Replace streaming content with the properly
-                    // formatted narrative (paragraphs, etc.)
-                    // Add the narrative content BEFORE removing the
-                    // streaming div to prevent a flash of emptiness.
-                    this._hideNpcThinking();
-                    this._addNarrative(narrative);
-                    removeStreamDiv();
-                    this._scrollToBottom();
-                }).bind(this),
+                    onTokenUsage: ((usage) => {
+                        if (usage) {
+                            this.state.tokenUsage = {
+                                prompt_tokens: usage.prompt_tokens || 0,
+                                completion_tokens: usage.completion_tokens || 0,
+                                total_tokens: usage.total_tokens || 0,
+                            };
+                        }
+                        this._renderSidebar();
+                    }).bind(this),
 
-                onDone: ((turnCount) => {
-                    this._hideNpcThinking();
-                    this.state.turnCount = turnCount ?? this.state.turnCount + 1;
-                    this._renderSidebar();
-                    this._addTurnSeparator();
-                    resolve();
-                }).bind(this),
-
-                onTokenUsage: ((usage) => {
-                    if (usage) {
-                        this.state.tokenUsage = {
-                            prompt_tokens: usage.prompt_tokens || 0,
-                            completion_tokens: usage.completion_tokens || 0,
-                            total_tokens: usage.total_tokens || 0,
-                        };
-                    }
-                    // Re-render sidebar to update token display
-                    this._renderSidebar();
-                }).bind(this),
-
-                onError: ((msg) => {
-                    this._hideNpcThinking();
-                    SSEClient.disconnect();
-                    removeStreamDiv();
-                    reject(new Error(msg || "SSE connection failed"));
-                }).bind(this),
-            });
+                    onError: ((msg) => {
+                        this._hideNpcThinking();
+                        SSEClient.disconnect();
+                        removeStreamDiv();
+                        reject(new Error(msg || "SSE connection failed"));
+                    }).bind(this),
+                },
+                // Pass state and character for continuity
+                this.state.worldState,
+                App.state.character,
+                App.state.npcProvider,
+                App.state.summarizerProvider,
+            );
         });
     },
 
@@ -371,8 +410,6 @@ const GameView = {
     _addNarrative(text, opts) {
         opts = opts || {};
         // Strip any residual XML tags from the narrative text
-        // Use a safe regex requiring closing '>' since text is fully formed
-        // (the streaming path uses the more aggressive _stripXmlTags)
         text = text.replace(/<[^>]*>/g, '');
         const div = document.createElement("div");
         div.className = "turn-narrative";
@@ -500,8 +537,7 @@ const GameView = {
             )
             .join("");
 
-        // Inventory — read from worldState, not character (character is the
-        // template, worldState is the live game state updated via state_change)
+        // Inventory — read from worldState, not character
         const inv = (this.state.worldState && this.state.worldState.inventory) || [];
         if (inv.length === 0) {
             this.els.inventoryList.innerHTML =
@@ -521,8 +557,7 @@ const GameView = {
             "—";
 
         // Known NPCs
-        const npcs = (this.state.worldState && this.state.worldState.active_npcs)
-            || {};
+        const npcs = (this.state.worldState && this.state.worldState.active_npcs) || {};
         const npcIds = Object.keys(npcs);
         if (npcIds.length === 0) {
             this.els.npcList.innerHTML =
@@ -588,19 +623,14 @@ const GameView = {
             } else if (action === "remove" && path) {
                 const current = this._getNested(this.state.worldState, path);
                 if (Array.isArray(current)) {
-                    // Remove all occurrences of the value from the list
-                    // (mirrors backend: apply_changes in world/validator.py)
                     this._setNested(
                         this.state.worldState,
                         path,
                         current.filter((item) => item !== value),
                     );
                 } else if (typeof current === 'object' && current !== null) {
-                    // Remove a key from a dict (mirrors backend:
-                    // apply_changes in world/validator.py)
                     delete current[value];
                 } else {
-                    // Fall back to deleting the property for non-list fields
                     this._setNested(this.state.worldState, path, undefined);
                 }
             }
@@ -680,8 +710,6 @@ const GameView = {
         }
 
         // Seed worldState inventory with the character's starting equipment
-        // so initial gear shows up in the sidebar.  From this point on,
-        // state_change tags (append/remove) manage inventory live.
         if (App.state.character && App.state.character.inventory) {
             this.state.worldState.inventory = [...App.state.character.inventory];
         }
@@ -690,7 +718,6 @@ const GameView = {
     /** Start a new game — clear state and return to character view. */
     _newGame() {
         if (this.state.isThinking) return;
-        // Confirm with the user
         if (!confirm("Start a new game? Progress will be lost.")) return;
 
         this.state.worldState = null;
@@ -705,11 +732,45 @@ const GameView = {
         App.navigate("character");
     },
 
-    /** Save the current game state via the server. */
-    async _saveGame() {
+    // ------------------------------------------------------------------
+    // Save Modal
+    // ------------------------------------------------------------------
+
+    /** Show the save game modal with autogenerated name. */
+    _showSaveModal() {
         if (this.state.isThinking) return;
-        this.els.saveGameBtn.disabled = true;
-        this.els.saveGameBtn.textContent = "Saving...";
+
+        // Auto-generate a suggested name
+        const charName = App.state.character ? App.state.character.name : "Adventure";
+        const date = new Date().toLocaleString();
+        this.els.saveNameInput.value = `${charName} - ${date}`;
+        this.els.saveStatus.textContent = "";
+        this.els.saveStatus.className = "save-status";
+        this.els.saveModal.classList.remove("hidden");
+        this.els.saveModalOverlay.classList.remove("hidden");
+        this.els.saveNameInput.focus();
+        this.els.saveNameInput.select();
+    },
+
+    /** Hide the save modal. */
+    _hideSaveModal() {
+        this.els.saveModal.classList.add("hidden");
+        this.els.saveModalOverlay.classList.add("hidden");
+    },
+
+    /** Confirm and execute the save. */
+    async _confirmSave() {
+        const name = this.els.saveNameInput.value.trim();
+        if (!name) {
+            this.els.saveStatus.textContent = "Please enter a save name.";
+            this.els.saveStatus.className = "save-status save-status-error";
+            return;
+        }
+
+        this.els.saveConfirmBtn.disabled = true;
+        this.els.saveConfirmBtn.textContent = "Saving...";
+        this.els.saveStatus.textContent = "";
+        this.els.saveStatus.className = "save-status";
 
         try {
             const resp = await fetch("/api/save", {
@@ -717,30 +778,162 @@ const GameView = {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     state: this.state.worldState || {},
-                    name: "manual-save",
+                    character: App.state.character || undefined,
+                    name: name,
                 }),
             });
             const data = await resp.json();
             if (data.ok) {
-                this.els.saveGameBtn.textContent = "\u2713 Saved";
-                setTimeout(() => {
-                    this.els.saveGameBtn.textContent = "Save Game";
-                    this.els.saveGameBtn.disabled = false;
-                }, 2000);
+                this.els.saveStatus.textContent = `✓ Saved as "${data.name}"`;
+                this.els.saveStatus.className = "save-status save-status-ok";
+                setTimeout(() => this._hideSaveModal(), 1500);
             } else {
-                this.els.saveGameBtn.textContent = "\u2717 Failed";
-                setTimeout(() => {
-                    this.els.saveGameBtn.textContent = "Save Game";
-                    this.els.saveGameBtn.disabled = false;
-                }, 2000);
+                this.els.saveStatus.textContent = `✗ Failed: ${data.error || "Unknown error"}`;
+                this.els.saveStatus.className = "save-status save-status-error";
             }
         } catch (e) {
-            this.els.saveGameBtn.textContent = "\u2717 Error";
-            setTimeout(() => {
-                this.els.saveGameBtn.textContent = "Save Game";
-                this.els.saveGameBtn.disabled = false;
-            }, 2000);
+            this.els.saveStatus.textContent = `✗ Error: ${e.message}`;
+            this.els.saveStatus.className = "save-status save-status-error";
+        } finally {
+            this.els.saveConfirmBtn.disabled = false;
+            this.els.saveConfirmBtn.textContent = "Save";
         }
+    },
+
+    // ------------------------------------------------------------------
+    // Load Game
+    // ------------------------------------------------------------------
+
+    /** Show the load game modal. */
+    async _showLoadModal() {
+        const loadModal = document.getElementById("load-modal");
+        const loadOverlay = document.getElementById("load-modal-overlay");
+        const loadList = document.getElementById("load-list");
+
+        if (!loadModal || !loadList) return;
+
+        loadList.innerHTML = '<p class="empty-state">Loading saves...</p>';
+        loadModal.classList.remove("hidden");
+        loadOverlay.classList.remove("hidden");
+
+        try {
+            const resp = await fetch("/api/saves");
+            const data = await resp.json();
+            const saves = data.saves || [];
+
+            if (saves.length === 0) {
+                loadList.innerHTML = '<p class="empty-state">No saved games found.</p>';
+                return;
+            }
+
+            loadList.innerHTML = saves
+                .map(
+                    (s) => `
+                <div class="save-card" data-name="${this._esc(s.name || s.character_name || "Unknown")}">
+                    <div class="save-info">
+                        <h3>${this._esc(s.character_name || "Unknown")}</h3>
+                        <p class="save-meta">
+                            Turn ${s.turn_count ?? "?"} · ${s.timestamp ? this._formatTimestamp(s.timestamp) : ""}
+                        </p>
+                    </div>
+                    <div class="save-actions">
+                        <button class="btn btn-sm btn-load-save">Load</button>
+                        <button class="btn btn-sm btn-danger btn-delete-save">Del</button>
+                    </div>
+                </div>
+            `,
+                )
+                .join("");
+
+            // Bind load buttons
+            loadList.querySelectorAll(".btn-load-save").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const card = btn.closest(".save-card");
+                    const saveName = card.dataset.name;
+                    this._loadGame(saveName);
+                });
+            });
+
+            // Bind delete buttons
+            loadList.querySelectorAll(".btn-delete-save").forEach((btn) => {
+                btn.addEventListener("click", async () => {
+                    const card = btn.closest(".save-card");
+                    const saveName = card.dataset.name;
+                    if (!confirm(`Delete save "${saveName}"?`)) return;
+                    try {
+                        await fetch(`/api/delete/${encodeURIComponent(saveName)}`, { method: "DELETE" });
+                    } catch (_) { /* ignore */ }
+                    this._showLoadModal(); // Refresh list
+                });
+            });
+        } catch (e) {
+            loadList.innerHTML = `<p class="empty-state">Error loading saves: ${e.message}</p>`;
+        }
+
+        // Close handlers
+        const closeModal = () => {
+            loadModal.classList.add("hidden");
+            loadOverlay.classList.add("hidden");
+        };
+        loadOverlay.onclick = closeModal;
+        const closeBtn = loadModal.querySelector(".modal-close");
+        if (closeBtn) closeBtn.onclick = closeModal;
+    },
+
+    /** Load a saved game: fetch state + character, restore them, and enter game. */
+    async _loadGame(saveName) {
+        const loadModal = document.getElementById("load-modal");
+        const loadOverlay = document.getElementById("load-modal-overlay");
+
+        try {
+            const resp = await fetch(`/api/load/${encodeURIComponent(saveName)}`, { method: "POST" });
+            const data = await resp.json();
+
+            if (data.ok) {
+                // Restore world state
+                this.state.worldState = data.state;
+                this.state.turnCount = data.state.turn_count || 0;
+                this.state.hasStarted = true;
+
+                // Restore character if companion data exists
+                if (data.character) {
+                    App.state.character = data.character;
+                }
+
+                // Clear and rebuild narrative
+                this.els.narrativeContent.innerHTML =
+                    '<p class="narrative-welcome">Loading saved game...</p>';
+
+                // Hide modal
+                loadModal.classList.add("hidden");
+                loadOverlay.classList.add("hidden");
+
+                // Add a brief load message
+                this._addNarrative(`[Game loaded: "${saveName}"]`, {});
+                this._addTurnSeparator();
+                this._renderSidebar();
+                this._enableInput();
+            } else {
+                alert(`Failed to load save: ${data.error || "Unknown error"}`);
+            }
+        } catch (e) {
+            alert(`Failed to load save: ${e.message}`);
+        }
+    },
+
+    /** Format a timestamp string for display. */
+    _formatTimestamp(ts) {
+        if (!ts) return "";
+        // Try parsing YYYYMMDD_HHMMSS_ffffff format
+        const m = ts.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+        if (m) {
+            const date = new Date(
+                parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]),
+                parseInt(m[4]), parseInt(m[5]), parseInt(m[6]),
+            );
+            return date.toLocaleString();
+        }
+        return ts;
     },
 
     // ------------------------------------------------------------------
@@ -750,7 +943,6 @@ const GameView = {
     /** Scroll the narrative pane to the bottom. */
     _scrollToBottom() {
         if (!this.state.autoScroll) return;
-        // Use a small delay to let the DOM update
         requestAnimationFrame(() => {
             this.els.narrativePane.scrollTop =
                 this.els.narrativePane.scrollHeight;
@@ -765,10 +957,13 @@ const GameView = {
         return div.innerHTML;
     },
 
-    /** Strip XML/HTML-like tags from a string. */
+    /** Strip XML/HTML-like tags, markdown bold artifacts, and backtick state-change attributes. */
     _stripXmlTags(str) {
         if (typeof str !== "string") return "";
-        return str.replace(/<[^>]*>?/g, '');
+        let clean = str.replace(/<[^>]*>?/g, '');
+        clean = clean.replace(/\*\*[a-zA-Z_]+\*\*/g, '');
+        clean = clean.replace(/`[^`]*?(?:action=|path=|value=)[^`]*`/g, '');
+        return clean;
     },
 };
 

@@ -77,10 +77,26 @@ def table_lookup(params: dict[str, Any]) -> dict[str, Any]:
     try:
         from pathlib import Path
 
+        # Validate that the table file exists before attempting lookup
+        table_path = Path("data/tables") / f"{table_name}.json"
+        if not table_path.exists():
+            logger.warning(
+                "Table '%s' not found — no file at %s. "
+                "The DM should narratively create a custom result.",
+                table_name,
+                table_path,
+            )
+            return {
+                "ok": False,
+                "error": f"Table '{table_name}' does not exist. "
+                f"Create a custom narrative result instead.",
+            }
+
         table = RandomTable(data_dir=Path("data/tables"))
         result = table.lookup(table_name)
         return {"ok": True, "result": result}
     except (FileNotFoundError, ValueError, KeyError) as e:
+        logger.warning("Table lookup failed for '%s': %s", table_name, e)
         return {"ok": False, "error": f"Table lookup failed: {e}"}
 
 

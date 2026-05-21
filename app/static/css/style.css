@@ -1251,8 +1251,172 @@ select {
 }
 
 /* ============================================================
-   ACCESSIBILITY — Reduced Motion
-   ============================================================ */
+    MODAL — Save / Load overlays
+    ============================================================ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+.modal-overlay.hidden {
+    display: none;
+}
+
+  .modal {
+    position: fixed;
+    z-index: 210;
+    width: 90%;
+    max-width: 480px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    animation: modalSlideIn 0.25s ease;
+}
+.modal-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.modal.modal-lg {
+    max-width: 600px;
+}
+.modal.hidden {
+    display: none;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.modal-header h2 {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.25rem;
+    transition: color var(--transition);
+}
+.modal-close:hover {
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.25rem;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+}
+
+/* Save status messages */
+.save-status {
+    font-size: 0.85rem;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    border-radius: var(--radius);
+    min-height: 1.5rem;
+}
+.save-status-ok {
+    color: var(--success);
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+}
+.save-status-error {
+    color: var(--danger);
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+}
+
+/* Save list (load modal) */
+.save-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.save-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color var(--transition);
+}
+.save-card:hover {
+    border-color: var(--accent-gold);
+}
+
+.save-info h3 {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin: 0 0 0.15rem;
+    text-transform: none;
+    letter-spacing: normal;
+}
+.save-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.save-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.btn-load-save {
+    background: var(--accent-amber);
+    color: var(--text-inverse);
+    border-color: var(--accent-gold);
+}
+.btn-load-save:hover:not(:disabled) {
+    background: var(--accent-gold);
+}
+
+.btn-delete-save {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+/* ============================================================
+    ACCESSIBILITY — Reduced Motion
+    ============================================================ */
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

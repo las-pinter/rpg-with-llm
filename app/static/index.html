@@ -431,6 +431,53 @@
 
     </div><!-- /app -->
 
+    <!-- ============================================================
+         SAVE MODAL
+         ============================================================ -->
+    <div id="save-modal-overlay" class="modal-overlay hidden"></div>
+    <div id="save-modal" class="modal hidden" role="dialog"
+         aria-labelledby="save-modal-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="save-modal-title">Save Game</h2>
+                <button class="modal-close" aria-label="Close"
+                        id="save-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="save-name-input">Save Name</label>
+                    <input type="text" id="save-name-input"
+                           placeholder="Enter a name for this save">
+                </div>
+                <div id="save-status" class="save-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="save-cancel">Cancel</button>
+                <button class="btn btn-primary" id="save-confirm">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         LOAD MODAL
+         ============================================================ -->
+    <div id="load-modal-overlay" class="modal-overlay hidden"></div>
+    <div id="load-modal" class="modal hidden" role="dialog"
+         aria-labelledby="load-modal-title">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2 id="load-modal-title">Load Game</h2>
+                <button class="modal-close" aria-label="Close"
+                        id="load-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="load-list" class="save-list">
+                    <p class="empty-state">Loading saves...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script defer src="/static/js/app.js"></script>
     <script defer src="/static/js/connection.js"></script>
     <script defer src="/static/js/character.js"></script>

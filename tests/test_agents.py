@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
+from app.character.model import Character
 
 # ---------------------------------------------------------------------------
 # DM_SYSTEM_PROMPT
@@ -347,6 +348,103 @@ class TestDungeonMasterProcessTurn:
         assert result["ok"] is True
         # The invalid change should be skipped
         assert len(result["state_changes"]) == 0
+
+
+class TestDungeonMasterPlausibility:
+    """Tests for plausibility integration in process_turn."""
+
+    def _make_fighter(self) -> Character:
+        """Create a default level 1 Fighter for testing."""
+        return Character.create_default("Test Fighter", "Fighter")
+
+    def test_impossible_action_short_circuits(self) -> None:
+        """Impossible actions should skip the LLM and return auto-fail."""
+        char = self._make_fighter()
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
+        # A Fighter trying to cast a spell is impossible
+        result = dm.process_turn("I cast fireball at the goblins")
+        assert result["ok"] is True
+        assert len(result["tool_results"]) == 0
+        assert len(result["state_changes"]) == 0
+        assert "beyond" in result["narrative"].lower() or (
+            "cannot" in result["narrative"].lower()
+        )
+        assert "warnings" in result
+        assert any("impossible" in w.lower() for w in result["warnings"])
+
+    def test_impossible_action_skips_llm_call(self) -> None:
+        """When action is impossible, the LLM provider should NOT be called."""
+        from unittest.mock import MagicMock
+
+        char = self._make_fighter()
+        mock_provider = MagicMock()
+        dm = DungeonMaster(
+            llm_provider=mock_provider,
+            world_state=None,
+            character=char,
+        )
+        dm.process_turn("I cast a spell of lightning")
+        mock_provider.call.assert_not_called()
+
+    def test_impossible_action_records_history(self) -> None:
+        """Impossible actions should still be recorded in session history."""
+        char = self._make_fighter()
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
+        dm.process_turn("I teleport to the dragon's lair")
+        msgs = dm.history.get_context_messages()
+        assert len(msgs) == 2
+        assert msgs[0]["content"] == "I teleport to the dragon's lair"
+
+    def test_plausible_action_calls_llm_normally(self) -> None:
+        """Plausible actions should proceed to the LLM call."""
+        char = self._make_fighter()
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
+        # A Fighter lifting something is plausible
+        result = dm.process_turn("I lift the heavy portcullis")
+        assert result["ok"] is True
+        # With None provider, it should return canned narrative
+        assert len(result["narrative"]) > 0
+
+    def test_implausible_action_injects_note(self) -> None:
+        """Implausible actions should inject a plausibility note into context."""
+        from app.character.model import Character
+
+        # A character with very low STR attempting a STR action
+        weak_char = Character(
+            name="Weakling",
+            character_class="Fighter",
+            level=1,
+            hp=10,
+            max_hp=10,
+            ac=10,
+            abilities={"STR": 6, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10},
+        )
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=weak_char)
+        context = dm._build_context("I lift the massive stone gate")
+        # Should contain a plausibility note from the classification
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) >= 1
+        assert "implausible" in note_msgs[0]["content"].lower()
+
+    def test_ambitious_action_injects_note(self) -> None:
+        """Ambitious actions should inject a plausibility note into context."""
+        from app.character.model import Character
+
+        # Character with low CHA attempting a social action
+        low_cha_char = Character(
+            name="Brusque",
+            character_class="Fighter",
+            level=1,
+            hp=12,
+            max_hp=12,
+            ac=18,
+            abilities={"STR": 15, "DEX": 10, "CON": 14, "INT": 10, "WIS": 10, "CHA": 8},
+        )
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=low_cha_char)
+        context = dm._build_context("I persuade the king to give me his crown")
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) >= 1
+        assert "ambitious" in note_msgs[0]["content"].lower()
 
 
 # ---------------------------------------------------------------------------
