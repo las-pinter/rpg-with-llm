@@ -1269,8 +1269,6 @@ select {
 }
 
   .modal {
-    position: fixed;
-    z-index: 210;
     width: 90%;
     max-width: 480px;
     max-height: 85vh;
