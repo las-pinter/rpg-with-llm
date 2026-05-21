@@ -510,17 +510,18 @@ const GameView = {
 
     /** Set a value at a dot-separated path in an object. */
     _setNested(obj, path, value) {
+        if (typeof path !== "string" || path.length === 0) return;
         const keys = path.split(".");
         const blocked = new Set(["__proto__", "constructor", "prototype"]);
         let current = obj;
         for (let i = 0; i < keys.length - 1; i++) {
             const key = keys[i];
-            if (blocked.has(key)) return;
+            if (!key || blocked.has(key)) return;
             if (current == null || typeof current !== "object") return;
 
             const hasOwn = Object.prototype.hasOwnProperty.call(current, key);
             if (!hasOwn) {
-                current[key] = {};
+                current[key] = Object.create(null);
             } else if (current[key] == null || typeof current[key] !== "object") {
                 return;
             }
@@ -528,7 +529,7 @@ const GameView = {
         }
 
         const last = keys[keys.length - 1];
-        if (blocked.has(last)) return;
+        if (!last || blocked.has(last)) return;
         if (current == null || typeof current !== "object") return;
 
         if (value === undefined) {
