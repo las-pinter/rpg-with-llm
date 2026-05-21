@@ -504,6 +504,40 @@ class TestCharacterModel:
         with pytest.raises(TypeError, match="missing.*required.*argument.*name"):
             Character.from_dict({})
 
+    def test_from_dict_missing_abilities_uses_defaults(self) -> None:
+        """Omitting abilities entirely must default to all scores of 10."""
+        data: dict[str, object] = {
+            "name": "NoAbilities",
+            "character_class": "Fighter",
+            "hp": 10,
+            "max_hp": 10,
+            "ac": 10,
+        }
+        char = Character.from_dict(data)
+        for abil in STANDARD_ABILITIES:
+            assert char.abilities[abil] == 10, (
+                f"Ability {abil} should default to 10 when abilities dict is missing"
+            )
+
+    def test_from_dict_incomplete_abilities_fills_missing(self) -> None:
+        """Partial abilities must preserve given values and default missing to 10."""
+        data: dict[str, object] = {
+            "name": "PartialAbilities",
+            "character_class": "Rogue",
+            "abilities": {"STR": 15, "DEX": 14},
+            "hp": 9,
+            "max_hp": 9,
+            "ac": 14,
+        }
+        char = Character.from_dict(data)
+        assert char.abilities["STR"] == 15
+        assert char.abilities["DEX"] == 14
+        for abil in STANDARD_ABILITIES:
+            if abil not in ("STR", "DEX"):
+                assert char.abilities[abil] == 10, (
+                    f"Ability {abil} should default to 10 when not provided"
+                )
+
     def test_character_gold_default(self) -> None:
         """gold must default to 0."""
         char = _make_minimal_character()

@@ -172,6 +172,14 @@ class Character:
         if not isinstance(filtered.get("hooks"), list):
             filtered["hooks"] = []
 
+        # Guard abilities against missing/incomplete dict
+        if not isinstance(filtered.get("abilities"), dict):
+            filtered["abilities"] = {abil: 10 for abil in STANDARD_ABILITIES}
+        else:
+            for abil in STANDARD_ABILITIES:
+                if abil not in filtered["abilities"]:
+                    filtered["abilities"][abil] = 10
+
         return cls(**filtered)
 
     # ------------------------------------------------------------------
