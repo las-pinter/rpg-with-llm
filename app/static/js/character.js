@@ -348,7 +348,7 @@ const CharacterView = {
         }
     },
 
-    /** Save a character to localStorage. */
+    /** Save a character to localStorage and fire-and-forget to server. */
     _saveCharacter(char) {
         const chars = this._getSavedCharacters();
         // Replace if name already exists
@@ -363,10 +363,22 @@ const CharacterView = {
         } catch (e) {
             // localStorage full — silently fail
         }
+
+        // Fire-and-forget server save — don't block navigation
+        try {
+            fetch("/api/character/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ character: char }),
+            }).catch(() => {});  // ignore network errors
+        } catch (_e) {
+            // Server unreachable — no harm, localStorage has it
+        }
     },
 
-    /** Delete a character from localStorage by name. */
+    /** Delete a character from localStorage and server by name. */
     _deleteCharacter(name) {
+        // Delete from localStorage
         let chars = this._getSavedCharacters();
         chars = chars.filter((c) => c.name !== name);
         try {
@@ -374,6 +386,16 @@ const CharacterView = {
         } catch (e) {
             // ignore
         }
+
+        // Fire-and-forget DELETE to server — don't block UI
+        try {
+            fetch(`/api/character/delete/${encodeURIComponent(name)}`, {
+                method: "DELETE",
+            }).catch(() => {});  // ignore network errors
+        } catch (_e) {
+            // Server unreachable
+        }
+
         this._renderLoadList();
     },
 
@@ -382,17 +404,40 @@ const CharacterView = {
     // ------------------------------------------------------------------
 
     /** Render the list of saved characters in the Load tab. */
-    _renderLoadList() {
-        const chars = this._getSavedCharacters();
+    async _renderLoadList() {
         const container = this.els.characterList;
 
-        if (chars.length === 0) {
+        // Show loading state while fetching from server
+        container.innerHTML =
+            '<p class="empty-state">Loading characters...</p>';
+
+        // Get local characters immediately
+        const localChars = this._getSavedCharacters();
+
+        // Fetch server characters (non-blocking — failures use local only)
+        let serverChars = [];
+        try {
+            const resp = await fetch("/api/characters");
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.ok && Array.isArray(data.characters)) {
+                    serverChars = data.characters;
+                }
+            }
+        } catch (_e) {
+            // Server unreachable — use local only, no harm done
+        }
+
+        // Merge: deduplicate by name, prefer localStorage (most recent data)
+        const merged = this._mergeCharacterLists(localChars, serverChars);
+
+        if (merged.length === 0) {
             container.innerHTML =
                 '<p class="empty-state">No saved characters yet. Create one!</p>';
             return;
         }
 
-        container.innerHTML = chars
+        container.innerHTML = merged
             .map(
                 (c) => `
             <div class="char-card">
@@ -425,14 +470,64 @@ const CharacterView = {
         });
     },
 
-    /** Load a character from localStorage into App state and navigate. */
-    _loadCharacter(name) {
-        const chars = this._getSavedCharacters();
-        const char = chars.find((c) => c.name === name);
-        if (!char) return;
+    /**
+     * Merge localStorage and server character lists.
+     *
+     * Server metadata uses `class` instead of `character_class` and
+     * `timestamp` instead of `created`.  This normalises both to a
+     * common shape and deduplicates by name, preferring the localStorage
+     * version since it has the most recent data.
+     */
+    _mergeCharacterLists(localChars, serverChars) {
+        const map = new Map();
 
-        App.state.character = char;
-        App.navigate("game");
+        // Add server chars first (will be overridden by local for same name)
+        for (const c of serverChars || []) {
+            map.set(c.name, {
+                name: c.name,
+                character_class: c.class,
+                level: c.level,
+                created: c.timestamp,
+            });
+        }
+
+        // Add local chars (overrides server for matching names)
+        for (const c of localChars || []) {
+            map.set(c.name, c);
+        }
+
+        return Array.from(map.values());
+    },
+
+    /** Load a character from localStorage or server into App state and navigate. */
+    async _loadCharacter(name) {
+        // Try localStorage first (it's the primary persistence)
+        const chars = this._getSavedCharacters();
+        const localChar = chars.find((c) => c.name === name);
+        if (localChar) {
+            App.state.character = localChar;
+            App.navigate("game");
+            return;
+        }
+
+        // Not in localStorage — try loading from server
+        try {
+            const resp = await fetch(
+                `/api/character/load/${encodeURIComponent(name)}`,
+            );
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.ok && data.character) {
+                    App.state.character = data.character;
+                    App.navigate("game");
+                    return;
+                }
+            }
+        } catch (_e) {
+            // Server unreachable
+        }
+
+        console.warn(`Character "${name}" not found in localStorage or on server.`);
     },
 
     // ------------------------------------------------------------------
