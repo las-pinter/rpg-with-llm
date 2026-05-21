@@ -533,6 +533,10 @@ class DungeonMaster:
         # Add the player's input
         messages.append({"role": "user", "content": player_input})
 
+        total_chars = sum(len(m.get("content", "")) for m in messages)
+        logger.debug(
+            "_build_context: %d messages, ~%d chars", len(messages), total_chars
+        )
         return messages
 
     def process_turn(self, player_input: str) -> dict[str, Any]:
@@ -580,6 +584,12 @@ class DungeonMaster:
             }
 
         self.turn_count += 1
+        logger.debug(
+            "process_turn[%d]: input='%s' (len=%d)",
+            self.turn_count,
+            player_input[:80],
+            len(player_input),
+        )
 
         # ------------------------------------------------------------------
         # 0. Plausibility check — short-circuit impossible actions
@@ -866,6 +876,12 @@ class DungeonMaster:
         if not content:
             raise RuntimeError("LLM returned empty content")
 
+        logger.debug(
+            "_call_llm: response received — %d chars (first 200: %s...)",
+            len(content),
+            content[:200],
+        )
+
         # Accumulate token usage
         usage = response.get("usage")
         if usage and isinstance(usage, dict):
@@ -921,6 +937,7 @@ class DungeonMaster:
         if not npc_requests:
             return []
 
+        logger.debug("_spawn_npcs: %d NPC request(s) received", len(npc_requests))
         n_results: list[dict[str, Any]] = []
 
         def _run_one(req: dict[str, str]) -> dict[str, Any]:

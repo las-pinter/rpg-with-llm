@@ -229,10 +229,19 @@ def save_game():
         name = f"Adventure - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     state_dict = data["state"]
+    if isinstance(state_dict, dict):
+        logger.debug(
+            "Saving game '%s' with state keys: %s", name, list(state_dict.keys())
+        )
+    else:
+        logger.debug(
+            "Saving game '%s' with non-dict state: %s", name, type(state_dict).__name__
+        )
 
     try:
         world_state = WorldState.from_dict(state_dict)
         timestamp = _storage.save(world_state, name)
+        logger.debug("Game '%s' saved successfully at %s", name, timestamp)
     except Exception:
         logger.exception("Failed to save game '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
@@ -302,6 +311,12 @@ def load_game(name):
     """
     try:
         world_state = _storage.load(name)
+        logger.debug(
+            "Loaded game '%s' — location=%s, turn=%d",
+            name,
+            world_state.current_location,
+            world_state.turn_count,
+        )
     except FileNotFoundError:
         return jsonify({"ok": False, "error": f"Save '{name}' not found"}), 404
     except ValueError:
@@ -694,12 +709,22 @@ def game_turn():
     if not player_input:
         return jsonify({"ok": False, "error": "Missing 'input' in request body"}), 400
 
+    logger.debug(
+        "game_turn: received input='%s' (len=%d)", player_input[:80], len(player_input)
+    )
+
     dm, error = _build_dm(data)
     if error:
         return jsonify({"ok": False, "error": error}), 400
 
     try:
         result = dm.process_turn(player_input)
+        logger.debug(
+            "game_turn: turn=%d narrative_len=%d state_changes=%d",
+            result.get("turn_count", 0),
+            len(result.get("narrative", "")),
+            len(result.get("state_changes", [])),
+        )
         return jsonify(result)
     except Exception:
         logger.exception("Turn processing failed")
@@ -806,13 +831,17 @@ def game_stream():
 
     def generate() -> Generator[str, None, None]:
         """Generate SSE events for the streaming response."""
+        logger.debug("game_stream: building context for input='%s'", player_input[:80])
         messages = dm._build_context(player_input)
+        logger.debug("game_stream: context built — %d messages", len(messages))
 
         collected_tokens: list[str] = []
 
         if dm.llm_provider is not None:
             # Reset streaming usage tracker
             dm.llm_provider._last_stream_usage = None
+
+            logger.debug("game_stream: starting LLM stream")
 
             # Stream tokens from the LLM
             try:
@@ -822,6 +851,10 @@ def game_stream():
                         f"event: token\n"
                         f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
                     )
+                logger.debug(
+                    "game_stream: LLM stream finished — %d tokens collected",
+                    len(collected_tokens),
+                )
             except Exception:
                 logger.exception("Stream error")
                 error_data = json.dumps(
@@ -861,6 +894,14 @@ def game_stream():
             state_changes = parsed.get("state_changes", [])
             tool_requests = parsed.get("tool_requests", [])
             npc_requests = parsed.get("npc_requests", [])
+            logger.debug(
+                "game_stream: parsed response — narrative_len=%d "
+                "state_changes=%d tool_requests=%d npc_requests=%d",
+                len(narrative),
+                len(state_changes),
+                len(tool_requests),
+                len(npc_requests),
+            )
         except Exception:
             logger.exception("Parse error in stream response")
             yield (
@@ -872,7 +913,13 @@ def game_stream():
         # Execute tool requests
         tool_results = []
         if tool_requests:
+            logger.debug("game_stream: dispatching %d tool(s)", len(tool_requests))
             for req in tool_requests:
+                logger.debug(
+                    "game_stream: tool dispatch — name='%s' params=%s",
+                    req["name"],
+                    req.get("params", {}),
+                )
                 result = dispatch_tool(req["name"], req.get("params", {}))
                 tool_results.append(
                     {
@@ -881,10 +928,14 @@ def game_stream():
                         "result": result,
                     }
                 )
+            logger.debug(
+                "game_stream: tool dispatch complete — %d results", len(tool_results)
+            )
 
         # Spawn NPC subagents and yield npc_thinking events
         npc_results = []
         if npc_requests:
+            logger.debug("game_stream: spawning %d NPC subagent(s)", len(npc_requests))
             for nr in npc_requests:
                 npc_id = nr.get("npc_id", "unknown")
                 hint = nr.get("context", f"The {npc_id} considers...")[:60]
