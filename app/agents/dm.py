@@ -19,6 +19,7 @@ from app.agents.parser import parse_dm_response
 from app.agents.summarizer import summarize_turns
 from app.agents.tools import dispatch_tool
 from app.llm.base import LLMProvider
+from app.rules.plausibility import classify_action
 from app.world.validator import apply_changes, validate_state_changes
 
 logger = logging.getLogger(__name__)
@@ -297,6 +298,12 @@ see fit — you are the final author of the narrative.
   session unless the player explicitly asks.
 - React to both the player's input and the results of tool calls.  When a tool
   result comes back, weave it into the narrative naturally.
+- When the player asks a DIRECT QUESTION about their character, equipment,
+  surroundings, or NPCs, ANSWER IT directly before continuing the narrative.
+- If a player asks about their inventory or equipment, use the character's
+  actual inventory data to answer.
+- Player questions are opportunities for world-building, not interruptions
+  to ignore.
 - Do not break character.  You are the DM — you speak with authority about the
   world, its inhabitants, and the consequences of the player's choices.
 - If the player attempts something impossible, do not call a tool.  Describe
@@ -415,7 +422,11 @@ class DungeonMaster:
         self.history: SessionHistory = SessionHistory(max_turns=5)
         self.npcs: dict[str, dict[str, str]] = {}
 
-    def _build_context(self, player_input: str) -> list[dict[str, str]]:
+    def _build_context(
+        self,
+        player_input: str,
+        plausibility_note: str | None = None,
+    ) -> list[dict[str, str]]:
         """Build the message list for the LLM call.
 
         Constructs a conversation context starting with the DM system prompt,
@@ -426,6 +437,12 @@ class DungeonMaster:
         ----------
         player_input : str
             The player's latest action or utterance.
+        plausibility_note : str or None
+            Optional note about action plausibility to inject into the
+            context (used for implausible/ambitious actions).  When ``None``,
+            the method performs its own classification via
+            :func:`classify_action` and injects a note for
+            ``implausible``/``ambitious`` results.
 
         Returns
         -------
@@ -436,6 +453,25 @@ class DungeonMaster:
         messages: list[dict[str, str]] = [
             {"role": "system", "content": DM_SYSTEM_PROMPT},
         ]
+
+        # Auto-classify if no note was provided and we have a character
+        if plausibility_note is None and self.character is not None:
+            classification = classify_action(self.character, player_input)
+            category = classification.get("category", "plausible")
+            if category in ("implausible", "ambitious"):
+                reason = classification.get("reason", "")
+                suggested_dc = classification.get("dc", "N/A")
+                plausibility_note = (
+                    f"[PLAUSIBILITY NOTE: The player attempts something "
+                    f"{category}. {reason} "
+                    f"Suggested DC: {suggested_dc}. "
+                    f"The player must roll for this — set an appropriately "
+                    f"high DC and describe the stakes before the roll.]"
+                )
+
+        # Inject plausibility note early if provided
+        if plausibility_note:
+            messages.append({"role": "system", "content": plausibility_note})
 
         # Incorporate world state summary (if available)
         if self.world_state is not None:
@@ -546,9 +582,44 @@ class DungeonMaster:
         self.turn_count += 1
 
         # ------------------------------------------------------------------
+        # 0. Plausibility check — short-circuit impossible actions
+        # ------------------------------------------------------------------
+        plausibility_note: str | None = None
+        if self.character is not None:
+            classification = classify_action(self.character, player_input)
+            category = classification.get("category", "plausible")
+
+            if category == "impossible":
+                narrative = self._build_impossible_narrative(
+                    classification, player_input
+                )
+                self.history.add_turn(player_input, narrative)
+                return {
+                    "narrative": narrative,
+                    "state_changes": [],
+                    "tool_results": [],
+                    "turn_count": self.turn_count,
+                    "token_usage": dict(self.token_usage),
+                    "ok": True,
+                    "error": None,
+                    "warnings": ["Action classified as impossible"],
+                }
+
+            if category in ("implausible", "ambitious"):
+                reason = classification.get("reason", "")
+                suggested_dc = classification.get("dc", "N/A")
+                plausibility_note = (
+                    f"[PLAUSIBILITY NOTE: The player attempts something "
+                    f"{category}. {reason} "
+                    f"Suggested DC: {suggested_dc}. "
+                    f"The player must roll for this — set an appropriately "
+                    f"high DC and describe the stakes before the roll.]"
+                )
+
+        # ------------------------------------------------------------------
         # 1. Build context and call LLM
         # ------------------------------------------------------------------
-        messages = self._build_context(player_input)
+        messages = self._build_context(player_input, plausibility_note)
 
         try:
             first_response = self._call_llm(messages)
@@ -951,6 +1022,39 @@ class DungeonMaster:
         Delegates to the module-level :func:`format_npc_results`.
         """
         return format_npc_results(npc_results)
+
+    # ------------------------------------------------------------------
+    # Plausibility — impossible action narrative
+    # ------------------------------------------------------------------
+
+    def _build_impossible_narrative(
+        self,
+        classification: dict[str, Any],
+        player_input: str,
+    ) -> str:
+        """Build a flavorful auto-fail narrative for impossible actions.
+
+        Parameters
+        ----------
+        classification : dict
+            The result from :func:`~app.rules.plausibility.classify_action`
+            with ``category``, ``reason``, and other keys.
+        player_input : str
+            The player's action text.
+
+        Returns
+        -------
+        str
+            A narrative explaining why the action cannot succeed.
+        """
+        reason = classification.get("reason", "It is beyond your capabilities.")
+
+        return (
+            f"You reach for something beyond your grasp. "
+            f"{reason}\n\n"
+            f"The world does not bend — not yet, not like this. "
+            f"Perhaps a wiser course of action presents itself."
+        )
 
     # ------------------------------------------------------------------
     # Memory summarization

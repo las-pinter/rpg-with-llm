@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from collections.abc import Generator
 from pathlib import Path
@@ -191,11 +192,12 @@ def list_models():
 
 @app.route("/api/save", methods=["POST"])
 def save_game():
-    """Persist the current world state to disk.
+    """Persist the current world state (and optionally character) to disk.
 
     Accepts JSON body with a ``state`` dict (the serialised
-    :class:`~app.world.model.WorldState`) and an optional ``name``
-    (defaults to ``"autosave"``).
+    :class:`~app.world.model.WorldState`), an optional ``character``
+    dict (the serialised :class:`~app.character.model.Character`),
+    and an optional ``name`` (defaults to an auto-generated name).
 
     Returns
     -------
@@ -219,7 +221,13 @@ def save_game():
     if "state" not in data:
         return jsonify({"ok": False, "error": "Missing 'state' in request body"}), 400
 
-    name = data.get("name", "autosave")
+    name = data.get("name") or ""
+    if not name or not name.strip():
+        # Auto-generate a name
+        from datetime import datetime
+
+        name = f"Adventure - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
     state_dict = data["state"]
 
     try:
@@ -228,6 +236,11 @@ def save_game():
     except Exception:
         logger.exception("Failed to save game '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    # Save companion character data if provided
+    char_data = data.get("character")
+    if char_data and isinstance(char_data, dict):
+        _save_companion_character(name, char_data)
 
     return jsonify({"ok": True, "name": name, "timestamp": timestamp})
 
@@ -244,13 +257,41 @@ def list_saves():
     return jsonify({"ok": True, "saves": saves})
 
 
+def _save_companion_character(save_name: str, char_data: dict) -> None:
+    """Save companion character data alongside a world save."""
+    char_dir = Path("data") / "saves"
+    char_dir.mkdir(parents=True, exist_ok=True)
+    char_path = char_dir / f"{save_name}.char.json"
+    tmp_path = char_path.with_name(f"{save_name}.char.json.tmp")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(char_data, f, indent=2, ensure_ascii=False)
+        os.rename(tmp_path, char_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _load_companion_character(save_name: str) -> dict | None:
+    """Load companion character data for a save, or None."""
+    char_path = Path("data") / "saves" / f"{save_name}.char.json"
+    if not char_path.exists():
+        return None
+    try:
+        with open(char_path, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 @app.route("/api/load/<string:name>", methods=["POST"])
 def load_game(name):
     """Restore a previously saved world state.
 
     Returns
     -------
-    JSON with ``ok`` and the full ``state`` dict on success.
+    JSON with ``ok``, the full ``state`` dict, and optional
+    ``character`` data on success.
 
     Errors
     ------
@@ -270,7 +311,37 @@ def load_game(name):
         logger.exception("Failed to load save '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
-    return jsonify({"ok": True, "state": world_state.to_dict()})
+    char_data = _load_companion_character(name)
+    result: dict[str, object] = {"ok": True, "state": world_state.to_dict()}
+    if char_data is not None:
+        result["character"] = char_data
+    return jsonify(result)
+
+
+@app.route("/api/delete/<string:name>", methods=["DELETE"])
+def delete_save(name):
+    """Delete a saved game by name.
+
+    Returns
+    -------
+    JSON with ``ok`` on success.
+
+    Errors
+    ------
+    404
+        If no save with the given *name* exists.
+    500
+        If an internal error occurs.
+    """
+    try:
+        _storage.delete(name)
+    except FileNotFoundError:
+        return jsonify({"ok": False, "error": f"Save '{name}' not found"}), 404
+    except Exception:
+        logger.exception("Failed to delete save '%s'", name)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True})
 
 
 @app.route("/api/reset", methods=["POST"])
@@ -433,6 +504,75 @@ def list_characters():
     return jsonify({"ok": True, "characters": characters})
 
 
+@app.route("/api/character/load/<name>", methods=["GET"])
+def load_character(name: str):
+    """Load a single character's full data by name.
+
+    Parameters
+    ----------
+    name : str
+        The character's name (URL-decoded automatically by Flask).
+
+    Returns
+    -------
+    JSON with ``ok`` and the full ``character`` dict on success.
+
+    Errors
+    ------
+    404
+        If no character with the given *name* exists.
+    400
+        If the save file is corrupt or unreadable.
+    500
+        If an internal error occurs.
+    """
+    try:
+        character = _character_storage.load(name)
+    except FileNotFoundError:
+        return jsonify({"ok": False, "error": f"Character '{name}' not found"}), 404
+    except ValueError:
+        logger.warning(
+            "Invalid or corrupt character data for '%s'", name, exc_info=True
+        )
+        return jsonify({"ok": False, "error": "Invalid or corrupt character data"}), 400
+    except Exception:
+        logger.exception("Failed to load character '%s'", name)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True, "character": character.to_dict()})
+
+
+@app.route("/api/character/delete/<name>", methods=["DELETE"])
+def delete_character(name: str):
+    """Delete a saved character by name.
+
+    Parameters
+    ----------
+    name : str
+        The character's name (URL-decoded automatically by Flask).
+
+    Returns
+    -------
+    JSON with ``ok`` on success.
+
+    Errors
+    ------
+    404
+        If no character with the given *name* exists.
+    500
+        If an internal error occurs.
+    """
+    try:
+        _character_storage.delete(name)
+    except FileNotFoundError:
+        return jsonify({"ok": False, "error": f"Character '{name}' not found"}), 404
+    except Exception:
+        logger.exception("Failed to delete character '%s'", name)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True})
+
+
 # ---------------------------------------------------------------------------
 # Game Loop
 # ---------------------------------------------------------------------------
@@ -579,10 +719,13 @@ def game_turn():
 def game_stream():
     """SSE endpoint for streaming DM responses.
 
-    Accepts ``?input=player+action`` query parameter.  Creates a
-    DungeonMaster, collects the LLM streaming response, parses it,
-    executes any tool requests, spawns NPC subagents, and yields the
-    final result as SSE events.
+    Accepts ``?input=player+action`` query parameter, plus optional
+    ``state``, ``character``, ``npc_provider``, and
+    ``summarizer_provider`` (all JSON-encoded) to restore continuity.
+
+    Creates a DungeonMaster, collects the LLM streaming response,
+    parses it, executes any tool requests, spawns NPC subagents, and
+    yields the final result as SSE events.
 
     SSE events:
       ``data: {"type": "token", "content": "..."}``
@@ -591,6 +734,10 @@ def game_stream():
         Indicates an NPC agent is processing.
       ``data: {"type": "narrative", "content": "..."}``
         The final parsed narrative.
+      ``data: {"type": "state_update", "state": ..., "turn_count": N}``
+        The updated world state and turn count for the client.
+      ``data: {"type": "token_usage", "usage": ...}``
+        Token usage stats.
       ``data: {"type": "done", "turn_count": N}``
         Signals completion.
       ``data: {"type": "error", "message": "..."}``
@@ -600,30 +747,61 @@ def game_stream():
     if not player_input:
         return jsonify({"ok": False, "error": "Missing 'input' query parameter"}), 400
 
-    # Build provider config from query params
-    base_url = request.args.get("base_url", "").strip()
-    model = request.args.get("model", "").strip()
+    # Build provider configs from query params
+    def _prov_from_args(prefix: str = "") -> dict:
+        """Extra a provider config dict from query args with optional prefix."""
+        base = request.args.get(f"{prefix}base_url", "").strip()
+        model = request.args.get(f"{prefix}model", "").strip()
+        if not base or not model:
+            return {}
+        return {
+            "base_url": base,
+            "model": model,
+            "provider_type": request.args.get(f"{prefix}provider_type", "ollama"),
+            "api_key": request.args.get(f"{prefix}api_key"),
+        }
 
-    if base_url and model:
-        provider_type = str(request.args.get("provider_type") or "").strip() or "ollama"
-        config = ProviderConfig(
-            base_url=base_url,
-            model=model,
-            provider_type=provider_type,
-            api_key=request.args.get("api_key"),
-        )
-        llm_provider = create_provider(config)
-        npc_provider = llm_provider
+    dm_provider_cfg = _prov_from_args()
+    npc_provider_cfg = _prov_from_args("npc_")
+    summarizer_provider_cfg = _prov_from_args("summarizer_")
+
+    dm_provider = (
+        _build_provider_from_dict(dm_provider_cfg) if dm_provider_cfg else None
+    )
+    npc_provider = (
+        _build_provider_from_dict(npc_provider_cfg) if npc_provider_cfg else dm_provider
+    )
+    summarizer_provider = (
+        _build_provider_from_dict(summarizer_provider_cfg)
+        if summarizer_provider_cfg
+        else None
+    )
+
+    # Restore world state from query param (JSON-encoded)
+    state_raw = request.args.get("state")
+    if state_raw:
+        try:
+            world_state = WorldState.from_dict(json.loads(state_raw))
+        except (json.JSONDecodeError, Exception):
+            world_state = WorldState()
     else:
-        llm_provider = None
-        npc_provider = None
+        world_state = WorldState()
 
-    world_state = WorldState()
+    # Restore character from query param (JSON-encoded)
+    character_raw = request.args.get("character")
+    character = None
+    if character_raw:
+        try:
+            character = json.loads(character_raw)
+        except (json.JSONDecodeError, Exception):
+            character = None
+
     dm = DungeonMaster(
-        llm_provider=llm_provider,
+        llm_provider=dm_provider,
         world_state=world_state,
-        character=None,
+        character=character,
         npc_provider=npc_provider,
+        summarizer_provider=summarizer_provider,
     )
 
     def generate() -> Generator[str, None, None]:
@@ -786,9 +964,21 @@ def game_stream():
                 except Exception as e:
                     logger.warning("Failed to apply state changes in stream: %s", e)
 
-        # Strip any residual XML tags as a final safety net
+        # Strip any residual XML tags, markdown bold, and backtick
+        # state-change artifacts as a final safety net
         narrative = re.sub(r"<[^>]*>", "", narrative)
+        narrative = re.sub(r"\*\*[a-zA-Z_]+\*\*", "", narrative)
+        narrative = re.sub(r"`[^`]*?(?:action=|path=|value=)[^`]*`", "", narrative)
 
+        # Yield state update so the client can persist continuity
+        state_event = json.dumps(
+            {
+                "type": "state_update",
+                "state": dm.world_state.to_dict(),
+                "turn_count": dm.turn_count + 1,
+            }
+        )
+        yield (f"event: state_update\ndata: {state_event}\n\n")
         # Yield narrative
         yield (
             f"event: narrative\n"
