@@ -150,6 +150,7 @@ class TestWorldState:
         assert ws.quests == {}
         assert ws.faction_standings == {}
         assert ws.inventory == []
+        assert ws.gold == 0
         assert isinstance(ws.dm_notes, DMNotes)
         assert ws.turn_count == 0
 
@@ -285,6 +286,7 @@ class TestWorldState:
         assert ws.quests == {}
         assert ws.faction_standings == {}
         assert ws.inventory == []
+        assert ws.gold == 0
         assert ws.dm_notes.plot_threads == []
         assert ws.turn_count == 0
 
@@ -367,6 +369,24 @@ class TestWorldState:
         ws = WorldState.from_dict(data)
         assert "guild_01" in ws.faction_standings
         assert ws.faction_standings["guild_01"].standing == 50
+
+    def test_world_gold_default(self) -> None:
+        """gold must default to 0 in a fresh WorldState."""
+        ws = WorldState()
+        assert ws.gold == 0
+
+    def test_world_gold_serialization(self) -> None:
+        """gold must survive to_dict/from_dict round-trip."""
+        original = WorldState(
+            character_id="hero_01",
+            gold=100,
+            inventory=["sword"],
+        )
+        data = original.to_dict()
+        assert "gold" in data
+        assert data["gold"] == 100
+        restored = WorldState.from_dict(data)
+        assert restored.gold == 100
 
     def test_from_dict_with_extra_fields_in_dm_notes(self) -> None:
         """Extra fields in dm_notes dicts must be silently ignored."""

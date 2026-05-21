@@ -137,6 +137,7 @@ class WorldState:
     quests: dict[str, Quest] = field(default_factory=dict)
     faction_standings: dict[str, FactionStanding] = field(default_factory=dict)
     inventory: list[str] = field(default_factory=list)
+    gold: int = 0
     dm_notes: DMNotes = field(default_factory=DMNotes)
     turn_count: int = 0
 
@@ -213,6 +214,8 @@ class WorldState:
         turn_count = int(raw_tc) if raw_tc is not None else 0
         version_raw = data.get("version", "1.0")
         version = str(version_raw) if version_raw is not None else "1.0"
+        raw_gold = data.get("gold", 0)
+        gold = int(raw_gold) if raw_gold is not None else 0
 
         return cls(
             version=version,
@@ -223,6 +226,7 @@ class WorldState:
             quests=quests,
             faction_standings=faction_standings,
             inventory=data.get("inventory", []),
+            gold=gold,
             dm_notes=dm_notes,
             turn_count=turn_count,
         )

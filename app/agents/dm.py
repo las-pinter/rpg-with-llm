@@ -370,6 +370,22 @@ the crypt, the weight of their armour, the flicker of torchlight on stone.
   player can interact with.
 - Give the player room to breathe.  Not every scene needs to advance a plot.
   Some of the best moments happen when nothing "important" is happening.
+
+# MONEY AND SHOPPING
+
+- Money is tracked as gold pieces (GP). The player can earn gold through
+  quests, loot, and rewards.
+- When the player visits a shop, present items with prices in GP and let
+  them choose what to buy.
+- Track gold via state_change: <state_change action="set" path="gold"
+  value="50" />
+- When the player buys something, deduct gold and add the item:
+  <state_change action="set" path="gold" value="30" />
+  <state_change action="append" path="inventory" value="Potion of Healing" />
+- When the player loots gold: <state_change action="add" path="gold"
+  value="20" />
+- If the player tries to buy something they cannot afford, describe the
+  merchant refusing and let them negotiate or find another way.
 """
 
 # ---------------------------------------------------------------------------
@@ -507,6 +523,8 @@ class DungeonMaster:
             # Build inventory string
             inventory = getattr(self.character, "inventory", [])
             inventory_str = ", ".join(inventory) if inventory else "empty"
+            # Gold
+            gold = getattr(self.character, "gold", 0)
 
             messages.append(
                 {
@@ -521,6 +539,7 @@ class DungeonMaster:
                         f"  Abilities: {abilities_str}\n"
                         f"  Skills: {skills_str}\n"
                         f"  XP: {self.character.xp}\n"
+                        f"  Gold: {gold} GP\n"
                         f"  Inventory: {inventory_str}\n"
                     ),
                 }
