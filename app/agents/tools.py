@@ -94,6 +94,11 @@ def table_lookup(params: dict[str, Any]) -> dict[str, Any]:
 
         table = RandomTable(data_dir=Path("data/tables"))
         result = table.lookup(table_name)
+        logger.debug(
+            "table_lookup: '%s' -> %s",
+            table_name,
+            result.get("result", "?") if isinstance(result, dict) else "?",
+        )
         return {"ok": True, "result": result}
     except (FileNotFoundError, ValueError, KeyError) as e:
         logger.warning("Table lookup failed for '%s': %s", table_name, e)
@@ -236,6 +241,8 @@ def dispatch_tool(name: str, params: dict[str, Any]) -> dict[str, Any]:
         - **error** (``str`` | ``None``): Error message if the tool
           failed (only present on failure).
     """
+    logger.debug("dispatch_tool: name='%s' params=%s", name, params)
+
     if name not in TOOL_REGISTRY:
         return {"ok": False, "error": f"Unknown tool: '{name}'"}
 
@@ -244,7 +251,13 @@ def dispatch_tool(name: str, params: dict[str, Any]) -> dict[str, Any]:
 
     try:
         tool_fn = TOOL_REGISTRY[name]
-        return tool_fn(params)
+        result = tool_fn(params)
+        logger.debug(
+            "dispatch_tool: '%s' returned ok=%s",
+            name,
+            result.get("ok", False) if isinstance(result, dict) else "?",
+        )
+        return result
     except Exception:
         logger.exception("Tool '%s' raised unexpected exception", name)
         return {"ok": False, "error": f"Tool '{name}' failed"}

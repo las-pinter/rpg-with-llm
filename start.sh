@@ -35,6 +35,34 @@ PORT=5000
 URL="http://localhost:${PORT}"
 
 # ---------------------------------------------------------------------------
+# Parse command-line arguments
+# ---------------------------------------------------------------------------
+VERBOSE=false
+for arg in "$@"; do
+	case "$arg" in
+	-v | --verbose)
+		VERBOSE=true
+		shift
+		;;
+	-h | --help)
+		echo "Usage: $0 [-v|--verbose]"
+		echo "  -v, --verbose    Enable debug logging to logs/rpg.log"
+		exit 0
+		;;
+	*)
+		error "Unknown argument: $arg"
+		exit 1
+		;;
+	esac
+done
+
+# Set log level
+if [ "$VERBOSE" = true ]; then
+	export RPG_LOG_LEVEL=DEBUG
+	info "🔊 Verbose mode enabled — debug logs will be written to logs/rpg.log"
+fi
+
+# ---------------------------------------------------------------------------
 # Root user check (Flask dev server warns against running as root)
 # ---------------------------------------------------------------------------
 if [ "$(id -u)" = "0" ]; then

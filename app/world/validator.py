@@ -20,9 +20,12 @@ Typical usage::
 from __future__ import annotations
 
 import dataclasses
+import logging
 from typing import Any
 
 from app.world.model import DMNotes, WorldState
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -143,6 +146,8 @@ def validate_state_changes(
     """
     errors: list[str] = []
 
+    logger.debug("validate_state_changes: %d change(s) to validate", len(changes))
+
     for i, change in enumerate(changes):
         if not isinstance(change, dict):
             errors.append(f"Change #{i}: expected a dict, got {type(change).__name__}")
@@ -257,6 +262,13 @@ def validate_state_changes(
                 )
                 continue
 
+    if errors:
+        logger.debug(
+            "validate_state_changes: %d error(s) found: %s", len(errors), errors[:3]
+        )
+    else:
+        logger.debug("validate_state_changes: all %d change(s) valid", len(changes))
+
     return errors
 
 
@@ -295,6 +307,7 @@ def apply_changes(state: WorldState, changes: list[dict[str, Any]]) -> WorldStat
         A new ``WorldState`` with all changes applied.
     """
     result = state
+    logger.debug("apply_changes: applying %d change(s)", len(changes))
 
     for change in changes:
         action = change["action"]
@@ -364,6 +377,7 @@ def apply_changes(state: WorldState, changes: list[dict[str, Any]]) -> WorldStat
             new_list = list(current) + [value]
             result = dataclasses.replace(result, **{field_name: new_list})  # type: ignore[arg-type]
 
+    logger.debug("apply_changes: %d change(s) applied successfully", len(changes))
     return result
 
 
