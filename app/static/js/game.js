@@ -534,6 +534,7 @@ const GameView = {
         const last = keys[keys.length - 1];
         if (blocked.has(last)) return;
         if (current == null || typeof current !== "object") return;
+        if (!Object.prototype.hasOwnProperty.call(current, last)) return;
 
         if (value === undefined) {
             delete current[last];
