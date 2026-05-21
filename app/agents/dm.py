@@ -18,6 +18,7 @@ from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
 from app.agents.summarizer import summarize_turns
 from app.agents.tools import dispatch_tool
+from app.character.model import Character
 from app.llm.base import LLMProvider
 from app.rules.plausibility import classify_action
 from app.world.validator import apply_changes, validate_state_changes
@@ -438,6 +439,12 @@ class DungeonMaster:
             llm_provider if summarizer_provider is None else summarizer_provider
         )
         self.world_state = world_state
+
+        # Accept both Character objects and plain dicts (from JSON).
+        # Convert dicts to Character objects so downstream code can use
+        # attribute access (e.g. character.character_class).
+        if isinstance(character, dict):
+            character = Character.from_dict(character)
         self.character = character
         self.turn_count: int = 0
         self.token_usage: dict[str, int] = {
