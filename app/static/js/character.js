@@ -49,6 +49,24 @@ const CharacterView = {
     selectedClass: "Fighter",
     remainingPoints: 27,
 
+    /** Assisted creation state and questions. */
+    _assistedState: {
+        currentQuestion: 0,
+        totalQuestions: 5,
+        answers: [],
+        questions: [
+            "Where do you come from, and what was your life before" +
+                " adventure found you?",
+            "What event set you on the path of a hero — or a fool" +
+                " with a death wish?",
+            "What is your greatest strength and your deepest flaw?",
+            "What do you hope to find in the world — treasure," +
+                " knowledge, redemption, or a good death?",
+            "Tell me about a person you left behind and what they'd" +
+                " say about you now.",
+        ],
+    },
+
     /** DOM element references. */
     els: {},
 
@@ -81,6 +99,20 @@ const CharacterView = {
 
             // Load tab
             characterList: document.getElementById("character-list"),
+
+            // Assisted creation modal
+            assistedModal: document.getElementById("assisted-modal"),
+            assistedOverlay: document.getElementById("assisted-modal-overlay"),
+            assistedQuestions: document.getElementById("assisted-questions"),
+            assistedQuestionNum: document.getElementById("assisted-question-num"),
+            assistedProgressFill: document.getElementById("assisted-progress-fill"),
+            assistedQuestionText: document.getElementById("assisted-question-text"),
+            assistedAnswerInput: document.getElementById("assisted-answer-input"),
+            assistedPrevBtn: document.getElementById("assisted-prev-btn"),
+            assistedNextBtn: document.getElementById("assisted-next-btn"),
+            assistedLoading: document.getElementById("assisted-loading"),
+            assistedError: document.getElementById("assisted-error"),
+            assistedClose: document.getElementById("assisted-modal-close"),
         };
 
         // Tab switching
@@ -118,6 +150,16 @@ const CharacterView = {
             const show = this.els.assistedToggle.checked;
             this.els.assistedInfo.classList.toggle("hidden", !show);
         });
+
+        // Assisted creation modal navigation
+        this.els.assistedPrevBtn.addEventListener("click",
+            () => this._prevAssistedQuestion());
+        this.els.assistedNextBtn.addEventListener("click",
+            () => this._nextAssistedQuestion());
+        this.els.assistedClose.addEventListener("click",
+            () => this._hideAssistedModal());
+        this.els.assistedOverlay.addEventListener("click",
+            () => this._hideAssistedModal());
 
         // Create character
         this.els.createBtn.addEventListener("click", () => this._createCharacter());
@@ -274,6 +316,12 @@ const CharacterView = {
 
     /** Validate and create the character, storing in localStorage. */
     _createCharacter() {
+        // Assisted creation path
+        if (this.els.assistedToggle.checked) {
+            this._startAssistedCreation();
+            return;
+        }
+
         const name = this.els.name.value.trim();
         if (!name) {
             this._showValidation("Enter a character name.", "error");
@@ -328,6 +376,184 @@ const CharacterView = {
         el.textContent = msg;
         el.className = "validation-msg " + type;
         el.classList.remove("hidden");
+    },
+
+    // ------------------------------------------------------------------
+    // Assisted Creation Question Flow
+    // ------------------------------------------------------------------
+
+    /** Open the assisted creation modal and start the question flow. */
+    _startAssistedCreation() {
+        const state = this._assistedState;
+        state.currentQuestion = 0;
+        state.answers = [];
+
+        // Hide error and loading
+        this.els.assistedError.classList.add("hidden");
+        this.els.assistedError.textContent = "";
+        this.els.assistedLoading.classList.add("hidden");
+
+        // Reset visibility of question elements
+        this._assistedResetVisibility();
+
+        // Show modal
+        this.els.assistedOverlay.classList.remove("hidden");
+        this.els.assistedModal.classList.remove("hidden");
+
+        // Show first question
+        this._showAssistedQuestion(0);
+    },
+
+    /** Reset all visibility toggles inside the assisted modal. */
+    _assistedResetVisibility() {
+        const qs = this.els.assistedQuestions;
+        const visibleIds = [
+            "#assisted-progress",
+            "#assisted-question-text",
+            "#assisted-answer-input",
+        ];
+        visibleIds.forEach((id) => {
+            const el = qs.querySelector(id);
+            if (el) el.classList.remove("hidden");
+        });
+        const nav = qs.querySelector(".assisted-nav");
+        if (nav) nav.classList.remove("hidden");
+    },
+
+    /** Display the question at the given index. */
+    _showAssistedQuestion(index) {
+        const state = this._assistedState;
+        state.currentQuestion = index;
+
+        // Update question text
+        this.els.assistedQuestionText.textContent = state.questions[index];
+
+        // Load existing answer if typed before
+        this.els.assistedAnswerInput.value = state.answers[index] || "";
+
+        // Update progress
+        const qNum = index + 1;
+        this.els.assistedQuestionNum.textContent =
+            `Question ${qNum} of ${state.totalQuestions}`;
+        const pct = ((qNum) / state.totalQuestions) * 100;
+        this.els.assistedProgressFill.style.width = `${pct}%`;
+
+        // Update navigation buttons
+        this.els.assistedPrevBtn.disabled = index === 0;
+
+        if (index === state.totalQuestions - 1) {
+            this.els.assistedNextBtn.textContent = "Submit";
+        } else {
+            this.els.assistedNextBtn.textContent = "Next";
+        }
+
+        // Focus the textarea
+        this.els.assistedAnswerInput.focus();
+    },
+
+    /** Save current answer and advance to the next question or submit. */
+    _nextAssistedQuestion() {
+        const state = this._assistedState;
+        const index = state.currentQuestion;
+        state.answers[index] = this.els.assistedAnswerInput.value.trim();
+
+        if (index >= state.totalQuestions - 1) {
+            this._submitAssistedAnswers();
+        } else {
+            this._showAssistedQuestion(index + 1);
+        }
+    },
+
+    /** Save current answer and go back to the previous question. */
+    _prevAssistedQuestion() {
+        const state = this._assistedState;
+        const index = state.currentQuestion;
+        state.answers[index] = this.els.assistedAnswerInput.value.trim();
+        this._showAssistedQuestion(index - 1);
+    },
+
+    /** Submit answers to the backend and handle the response. */
+    async _submitAssistedAnswers() {
+        const state = this._assistedState;
+
+        // Save the last answer
+        state.answers[state.currentQuestion] =
+            this.els.assistedAnswerInput.value.trim();
+
+        // Show loading, hide question UI
+        const qs = this.els.assistedQuestions;
+        const hideIds = [
+            "#assisted-progress",
+            "#assisted-question-text",
+            "#assisted-answer-input",
+        ];
+        hideIds.forEach((id) => {
+            const el = qs.querySelector(id);
+            if (el) el.classList.add("hidden");
+        });
+        const nav = qs.querySelector(".assisted-nav");
+        if (nav) nav.classList.add("hidden");
+        this.els.assistedError.classList.add("hidden");
+        this.els.assistedLoading.classList.remove("hidden");
+
+        try {
+            // Build answers object with numeric keys
+            const answers = {};
+            for (let i = 0; i < state.answers.length; i++) {
+                answers[i] = state.answers[i] || "";
+            }
+
+            const resp = await fetch("/api/character/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    answers: answers,
+                    provider: App.state.provider,
+                }),
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok || !data.ok) {
+                throw new Error(
+                    data.error || `Server responded with ${resp.status}`,
+                );
+            }
+
+            const character = data.character;
+
+            // Store in App state
+            App.state.character = character;
+
+            // Persist to localStorage
+            this._saveCharacter(character);
+
+            // Hide modal
+            this._hideAssistedModal();
+
+            // Navigate to game
+            App.navigate("game");
+        } catch (err) {
+            // Hide loading
+            this.els.assistedLoading.classList.add("hidden");
+
+            // Restore question UI
+            this._assistedResetVisibility();
+
+            this.els.assistedError.textContent =
+                `Failed to generate character: ${err.message}. ` +
+                "Check your provider connection and try again.";
+            this.els.assistedError.classList.remove("hidden");
+        }
+    },
+
+    /** Hide the assisted creation modal and reset visibility. */
+    _hideAssistedModal() {
+        this.els.assistedOverlay.classList.add("hidden");
+        this.els.assistedModal.classList.add("hidden");
+        this.els.assistedLoading.classList.add("hidden");
+        this.els.assistedError.classList.add("hidden");
+        this._assistedResetVisibility();
     },
 
     // ------------------------------------------------------------------
