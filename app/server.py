@@ -33,6 +33,7 @@ from app.llm.base import (
     set_cached_models,
 )
 from app.llm.config import create_provider
+from app.rules.plausibility import classify_action
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
 from app.world.validator import apply_changes, validate_state_changes
@@ -831,6 +832,26 @@ def game_stream():
 
     def generate() -> Generator[str, None, None]:
         """Generate SSE events for the streaming response."""
+        # Check for impossible actions before calling LLM (same as process_turn())
+        if dm.character is not None:
+            classification = classify_action(dm.character, player_input)
+            if classification.get("category") == "impossible":
+                narrative = dm._build_impossible_narrative(classification, player_input)
+                dm.turn_count += 1
+                state_event = json.dumps(
+                    {
+                        "type": "state_update",
+                        "state": dm.world_state.to_dict(),
+                        "turn_count": dm.turn_count,
+                    }
+                )
+                yield f"event: state_update\ndata: {state_event}\n\n"
+                n_data = json.dumps({"type": "narrative", "content": narrative})
+                yield f"event: narrative\ndata: {n_data}\n\n"
+                d_data = json.dumps({"type": "done", "turn_count": dm.turn_count})
+                yield f"event: done\ndata: {d_data}\n\n"
+                return
+
         logger.debug("game_stream: building context for input='%s'", player_input[:80])
         messages = dm._build_context(player_input)
         logger.debug("game_stream: context built — %d messages", len(messages))
