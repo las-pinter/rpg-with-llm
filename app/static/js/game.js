@@ -38,6 +38,8 @@ const GameView = {
             // Sidebar
             sidebarName: document.getElementById("sidebar-name"),
             sidebarClassLevel: document.getElementById("sidebar-class-level"),
+            charAppearance: document.getElementById("char-appearance"),
+            charBackstory: document.getElementById("char-backstory"),
             hpFill: document.getElementById("hp-fill"),
             hpText: document.getElementById("hp-text"),
             statsList: document.getElementById("stats-list"),
@@ -487,6 +489,10 @@ const GameView = {
         const cls = chara.character_class || "?";
         const lvl = chara.level || 1;
         this.els.sidebarClassLevel.textContent = `${cls} · Level ${lvl}`;
+
+        // Character info — appearance & backstory
+        this.els.charAppearance.textContent = chara.appearance || "—";
+        this.els.charBackstory.textContent = chara.backstory || "—";
 
         // HP bar
         const hp = chara.hp || 0;

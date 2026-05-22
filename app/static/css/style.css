@@ -935,6 +935,39 @@ label.toggle-label {
     margin: 0.2rem 0 0;
 }
 
+/* ----- Character Info (Sidebar) ----- */
+.char-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.char-info-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.char-info-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    font-weight: 700;
+    opacity: 0.8;
+}
+.char-info-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.char-backstory-scroll {
+    max-height: 110px;
+    overflow-y: auto;
+    position: relative;
+}
+
 /* ----- HP Bar ----- */
 .hp-bar-container {
     display: flex;
