@@ -1489,13 +1489,6 @@ class TestStaticRoutes:
         assert "prefers-reduced-motion" in css
         assert "animation-duration: 0.01ms" in css
 
-    def test_css_has_streaming_indicator(self, client):
-        """CSS includes streaming text cursor animation."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert ".turn-streaming" in css
-        assert "blinkCursor" in css
-
 
 # ---------------------------------------------------------------------------
 # Character API Endpoints — Task 4.4

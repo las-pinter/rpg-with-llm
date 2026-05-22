@@ -793,17 +793,6 @@ label.toggle-label {
     50% { opacity: 1; transform: scale(1.2); }
 }
 
-/* ----- Streaming Narrative (SSE token display) ----- */
-.turn-streaming p::after {
-    content: '|';
-    animation: blinkCursor 0.8s step-end infinite;
-    color: var(--accent-gold);
-    margin-left: 0.1em;
-}
-@keyframes blinkCursor {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-}
 .turn-player {
     font-size: 0.85rem;
     color: var(--accent-gold);
