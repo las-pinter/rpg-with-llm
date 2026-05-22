@@ -24,6 +24,15 @@ Python-based LLM-powered RPG game. Phases 1-8 complete (dice, rules, tables, LLM
 - Use `from __future__ import annotations` at top of files
 - Maximum line length: 88 characters (enforced by Ruff)
 
+## Commit naming conventions
+- Use the `type: description` format (e.g., `fix:`, `feat:`, `refactor:`, `docs:`, `test:`)
+- First line is a short summary (max 72 chars) describing WHAT changed, not the ticket number
+- Body (after blank line) explains WHY the change was made, not how
+- Bad: `fix: Bug 1 — toggle CSS specificity conflict`
+- Good: `fix: toggle label text hidden behind slider due to CSS specificity conflict`
+- Use imperative mood: "fix" not "fixed", "add" not "added"
+- Keep it descriptive enough that someone reading `git log --oneline` understands the change
+
 ## Testing & quality standards
 - Every module has a `tests/test_<module>.py` file
 - Tests use `pytest` framework with `pytest.raises` for error cases
