@@ -1269,6 +1269,8 @@ label.toggle-label {
 }
 
   .modal {
+    position: relative;
+    z-index: 201;
     width: 90%;
     max-width: 480px;
     max-height: 85vh;
