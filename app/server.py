@@ -292,7 +292,15 @@ def _save_companion_character(save_name: str, char_data: dict) -> None:
 
 def _load_companion_character(save_name: str) -> dict | None:
     """Load companion character data for a save, or None."""
-    char_path = Path("data") / "saves" / f"{save_name}.char.json"
+    char_dir = (Path("data") / "saves").resolve()
+    safe_save_name = re.sub(r"[^A-Za-z0-9._ -]", "_", save_name).strip(" ._")
+    if not safe_save_name:
+        safe_save_name = "save"
+    char_path = (char_dir / f"{safe_save_name}.char.json").resolve()
+    try:
+        char_path.relative_to(char_dir)
+    except ValueError:
+        return None
     if not char_path.exists():
         return None
     try:
