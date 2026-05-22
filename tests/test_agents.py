@@ -163,10 +163,12 @@ class TestDungeonMasterBuildContext:
         ws = WorldState(current_location="old_tower", turn_count=5)
         dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
         context = dm._build_context("Hello")
-        # Should have system prompt + world state + user message
-        assert len(context) == 3
+        # Should have system prompt + world state + continuation instruction
+        # + user message (turn_count > 0 triggers the continuation message)
+        assert len(context) == 4
         assert context[1]["role"] == "system"
         assert "old_tower" in context[1]["content"]
+        assert "already in progress" in context[2]["content"]
 
     def test_includes_character_when_available(self) -> None:
         """Character info should be included when the DM has it."""
@@ -206,8 +208,9 @@ class TestDungeonMasterBuildContext:
         )
         dm = DungeonMaster(llm_provider=None, world_state=ws, character=char)
         context = dm._build_context("I sneak into the camp.")
-        # system prompt + world state + character + user input = 4 messages
-        assert len(context) == 4
+        # system prompt + world state + continuation instruction + character
+        # + user input = 5 messages (turn_count > 0 triggers continuation)
+        assert len(context) == 5
         assert context[-1]["content"] == "I sneak into the camp."
 
 
@@ -814,14 +817,15 @@ class TestDungeonMasterBuildContextSummary:
         dm.history.set_summary("Summary text here")
         context = dm._build_context("I continue forward")
 
-        # Summary should be message index 3 (0=system, 1=world, 2=character)
+        # Summary should be message index 4 (0=system, 1=world,
+        # 2=continuation instruction, 3=character, 4=summary)
         summary_idx = next(
             i
             for i, m in enumerate(context)
             if "Session summary" in m.get("content", "")
         )
-        assert summary_idx == 3, (
-            f"Expected summary at index 3, got {summary_idx}. "
+        assert summary_idx == 4, (
+            f"Expected summary at index 4, got {summary_idx}. "
             f"Messages: {[m['role'] + ':' + m['content'][:30] for m in context]}"
         )
 
