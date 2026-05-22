@@ -992,6 +992,57 @@ class TestGameStreamEndpoint:
         assert "gate " in raw
         assert "opens." in raw
 
+    # ------------------------------------------------------------------
+    # Impossible action short-circuit
+    # ------------------------------------------------------------------
+
+    def test_stream_impossible_action_returns_canned_narrative(self, client):
+        """SSE response for impossible action returns narrative WITHOUT
+        calling the LLM — no token events should appear."""
+        import urllib.parse
+
+        # A Fighter trying to cast a spell is impossible per CLASS_BLACKLIST
+        character_data = {
+            "name": "Test Fighter",
+            "character_class": "Fighter",
+            "abilities": {
+                "STR": 15,
+                "DEX": 13,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 12,
+                "CHA": 8,
+            },
+            "level": 1,
+            "hp": 12,
+            "max_hp": 12,
+            "ac": 18,
+        }
+        char_encoded = urllib.parse.quote(json.dumps(character_data))
+
+        resp = client.get(
+            f"/api/game/stream?input=I+cast+fireball&character={char_encoded}"
+        )
+
+        assert resp.status_code == 200
+        raw = resp.get_data(as_text=True)
+
+        # Must include a narrative event with impossible-action language
+        assert "event: narrative" in raw
+        assert '"type": "narrative"' in raw
+        assert "beyond" in raw.lower() or "cannot" in raw.lower(), (
+            "Impossible narrative should contain 'beyond' or 'cannot'"
+        )
+
+        # Must include state_update and done events
+        assert "event: state_update" in raw
+        assert "event: done" in raw
+
+        # Must NOT include token events — LLM was short-circuited
+        assert "event: token" not in raw, (
+            "Token events should not appear when action is impossible"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Token Usage Accumulation
