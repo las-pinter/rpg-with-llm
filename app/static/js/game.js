@@ -387,8 +387,8 @@ const GameView = {
     /** Append DM narrative text to the narrative pane. */
     _addNarrative(text, opts) {
         opts = opts || {};
-        // Strip any residual XML tags from the narrative text
-        text = text.replace(/<[^>]*>/g, '');
+        // Strip angle brackets to prevent tag-like content from surviving sanitization
+        text = text.replace(/[<>]/g, '');
         if (!text.trim()) return;  // Don't add empty narrative divs
         const div = document.createElement("div");
         div.className = "turn-narrative";
