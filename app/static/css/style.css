@@ -144,6 +144,7 @@ a:hover {
 input[type="text"],
 input[type="url"],
 input[type="password"],
+input[type="number"],
 textarea,
 select {
     width: 100%;
@@ -196,6 +197,16 @@ select {
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     padding-right: 2rem;
+}
+
+/* ----- Number Inputs ----- */
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 /* ----- Buttons ----- */

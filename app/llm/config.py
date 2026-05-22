@@ -276,11 +276,13 @@ def create_provider(config: ProviderConfig) -> LLMProvider:
     if provider_class is None:
         raise ConfigError(f"Unknown provider type: '{config.provider_type}'")
 
-    kwargs: dict[str, str | int | None] = {
+    kwargs: dict[str, str | int | float | None] = {
         "base_url": config.base_url,
         "model": config.model,
         "api_key": config.api_key,
         "timeout": config.timeout,
+        "max_tokens": config.max_tokens,
+        "temperature": config.temperature,
     }
 
     # OpenRouterProvider also accepts site_url and app_name.

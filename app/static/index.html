@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM-Powered RPG</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body>
     <div id="app">
 
@@ -32,14 +34,12 @@
                     </div>
                     <div class="form-group">
                         <label for="base-url">Base URL</label>
-                        <input type="url" id="base-url"
-                               value="http://localhost:11434"
-                               placeholder="http://localhost:11434">
+                        <input type="url" id="base-url" value="http://localhost:11434"
+                            placeholder="http://localhost:11434">
                     </div>
                     <div class="form-group" id="api-key-group">
                         <label for="api-key">API Key</label>
-                        <input type="password" id="api-key"
-                               placeholder="sk-... (cloud providers only)">
+                        <input type="password" id="api-key" placeholder="sk-... (cloud providers only)">
                     </div>
                     <div class="form-group">
                         <label for="model-select">Model</label>
@@ -47,11 +47,9 @@
                             <select id="model-select">
                                 <option value="">— Select or enter a model —</option>
                             </select>
-                            <button id="fetch-models" class="btn btn-sm"
-                                    title="Fetch available models">Fetch</button>
+                            <button id="fetch-models" class="btn btn-sm" title="Fetch available models">Fetch</button>
                         </div>
-                        <input type="text" id="model-input"
-                               placeholder="Or type a model name (e.g. llama3.2)">
+                        <input type="text" id="model-input" placeholder="Or type a model name (e.g. llama3.2)">
                     </div>
                     <div class="btn-row">
                         <button id="test-connection" class="btn">Test Connection</button>
@@ -62,9 +60,24 @@
                     </div>
 
                     <!-- Advanced — Per-Agent Provider Configuration -->
-                    <button id="advanced-toggle" class="advanced-toggle"
-                            type="button">▸ Advanced</button>
+                    <button id="advanced-toggle" class="advanced-toggle" type="button">▸ Advanced</button>
                     <div id="advanced-section" style="display: none;">
+
+                        <h3>Generation Settings</h3>
+
+                        <div class="form-group">
+                            <label for="dm-max-tokens">DM Max Tokens</label>
+                            <input type="number" id="dm-max-tokens" min="64" max="32768" step="64" value="4096"
+                                placeholder="Max tokens per response (default: 4096)">
+                            <span class="toggle-hint">Maximum number of tokens the DM can generate per turn</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="dm-temperature">DM Temperature</label>
+                            <input type="number" id="dm-temperature" min="0.0" max="2.0" step="0.05" value="0.8"
+                                placeholder="Creativity (0.0 = strict, 1.0 = creative, default: 0.8)">
+                            <span class="toggle-hint">Higher values = more creative, unpredictable storytelling</span>
+                        </div>
 
                         <h3>NPC Provider</h3>
                         <div class="form-group toggle-row">
@@ -89,18 +102,25 @@
                             </div>
                             <div class="form-group">
                                 <label for="npc-base-url">Base URL</label>
-                                <input type="url" id="npc-base-url"
-                                       placeholder="http://localhost:11434">
+                                <input type="url" id="npc-base-url" placeholder="http://localhost:11434">
                             </div>
                             <div class="form-group" id="npc-api-key-group">
                                 <label for="npc-api-key">API Key</label>
-                                <input type="password" id="npc-api-key"
-                                       placeholder="sk-... (cloud providers only)">
+                                <input type="password" id="npc-api-key" placeholder="sk-... (cloud providers only)">
                             </div>
                             <div class="form-group">
                                 <label for="npc-model-input">Model</label>
-                                <input type="text" id="npc-model-input"
-                                       placeholder="e.g. llama3.2">
+                                <input type="text" id="npc-model-input" placeholder="e.g. llama3.2">
+                            </div>
+                            <div class="form-group">
+                                <label for="npc-max-tokens">NPC Max Tokens</label>
+                                <input type="number" id="npc-max-tokens" min="64" max="16384" step="64" value="1024"
+                                    placeholder="Max tokens per NPC response">
+                            </div>
+                            <div class="form-group">
+                                <label for="npc-temperature">NPC Temperature</label>
+                                <input type="number" id="npc-temperature" min="0.0" max="2.0" step="0.05" value="0.8"
+                                    placeholder="NPC creativity">
                             </div>
                         </div>
 
@@ -127,25 +147,32 @@
                             </div>
                             <div class="form-group">
                                 <label for="summarizer-base-url">Base URL</label>
-                                <input type="url" id="summarizer-base-url"
-                                       placeholder="http://localhost:11434">
+                                <input type="url" id="summarizer-base-url" placeholder="http://localhost:11434">
                             </div>
                             <div class="form-group" id="summarizer-api-key-group">
                                 <label for="summarizer-api-key">API Key</label>
                                 <input type="password" id="summarizer-api-key"
-                                       placeholder="sk-... (cloud providers only)">
+                                    placeholder="sk-... (cloud providers only)">
                             </div>
                             <div class="form-group">
                                 <label for="summarizer-model-input">Model</label>
-                                <input type="text" id="summarizer-model-input"
-                                       placeholder="e.g. llama3.2">
+                                <input type="text" id="summarizer-model-input" placeholder="e.g. llama3.2">
+                            </div>
+                            <div class="form-group">
+                                <label for="summarizer-max-tokens">Summarizer Max Tokens</label>
+                                <input type="number" id="summarizer-max-tokens" min="64" max="16384" step="64"
+                                    value="4096" placeholder="Max tokens for summary output">
+                            </div>
+                            <div class="form-group">
+                                <label for="summarizer-temperature">Summarizer Temperature</label>
+                                <input type="number" id="summarizer-temperature" min="0.0" max="2.0" step="0.05"
+                                    value="0.3" placeholder="Summarizer creativity (lower = more factual)">
                             </div>
                         </div>
 
                     </div>
 
-                    <button id="start-adventure" class="btn btn-primary btn-block"
-                            disabled>Start Adventure</button>
+                    <button id="start-adventure" class="btn btn-primary btn-block" disabled>Start Adventure</button>
                 </div>
             </div>
         </div>
@@ -191,7 +218,7 @@
                             </span>
                         </div>
                         <p class="section-hint">Point-buy: 27 points to spend.
-                        Each score starts at 8 (max 15).</p>
+                            Each score starts at 8 (max 15).</p>
                         <div class="abilities-grid" id="abilities-grid">
                             <div class="ability-card" data-abil="STR">
                                 <span class="abil-label">Strength</span>
@@ -268,13 +295,11 @@
                     <!-- Narrative Fields -->
                     <div class="form-group">
                         <label for="char-appearance">Appearance</label>
-                        <textarea id="char-appearance"
-                                  placeholder="Describe your character's look..."></textarea>
+                        <textarea id="char-appearance" placeholder="Describe your character's look..."></textarea>
                     </div>
                     <div class="form-group">
                         <label for="char-backstory">Backstory</label>
-                        <textarea id="char-backstory"
-                                  placeholder="What past haunts or drives you?"></textarea>
+                        <textarea id="char-backstory" placeholder="What past haunts or drives you?"></textarea>
                     </div>
 
                     <!-- Assisted Creation Toggle -->
@@ -288,19 +313,18 @@
                     </div>
                     <div id="assisted-info" class="assisted-info hidden">
                         <p>Assisted creation lets the Dungeon Master guide you
-                        through 3–5 narrative questions to build your character.
-                        Turn it on and click "Create Character" to begin!</p>
+                            through 3–5 narrative questions to build your character.
+                            Turn it on and click "Create Character" to begin!</p>
                     </div>
 
                     <!-- Assisted Creation Modal -->
                     <div id="assisted-modal-overlay" class="modal-overlay hidden"></div>
-                    <div id="assisted-modal" class="modal hidden" role="dialog"
-                         aria-labelledby="assisted-modal-title">
+                    <div id="assisted-modal" class="modal hidden" role="dialog" aria-labelledby="assisted-modal-title">
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h2 id="assisted-modal-title">Create Your Character</h2>
                                 <button class="modal-close" aria-label="Close"
-                                        id="assisted-modal-close">&times;</button>
+                                    id="assisted-modal-close">&times;</button>
                             </div>
                             <div class="modal-body">
                                 <div id="assisted-questions">
@@ -308,16 +332,15 @@
                                     <div id="assisted-progress" class="assisted-progress">
                                         <span id="assisted-question-num">Question 1 of 5</span>
                                         <div class="progress-bar">
-                                            <div id="assisted-progress-fill" class="progress-fill" style="width: 20%"></div>
+                                            <div id="assisted-progress-fill" class="progress-fill" style="width: 20%">
+                                            </div>
                                         </div>
                                     </div>
                                     <!-- Question text -->
                                     <p id="assisted-question-text" class="assisted-question"></p>
                                     <!-- Answer input -->
-                                    <textarea id="assisted-answer-input"
-                                              class="assisted-answer-input"
-                                              placeholder="Type your answer here..."
-                                              rows="4"></textarea>
+                                    <textarea id="assisted-answer-input" class="assisted-answer-input"
+                                        placeholder="Type your answer here..." rows="4"></textarea>
                                     <!-- Navigation buttons -->
                                     <div class="assisted-nav">
                                         <button id="assisted-prev-btn" class="btn" disabled>Previous</button>
@@ -474,14 +497,12 @@
                 </div>
             </div>
 
-            <button id="sidebar-collapse" class="btn btn-sm"
-                    title="Toggle sidebar">◀</button>
+            <button id="sidebar-collapse" class="btn btn-sm" title="Toggle sidebar">◀</button>
 
             <!-- Input Area (bottom) -->
             <div id="input-area">
                 <div class="input-row">
-                    <input type="text" id="player-input"
-                           placeholder="What do you do?" disabled>
+                    <input type="text" id="player-input" placeholder="What do you do?" disabled>
                     <button id="submit-action" class="btn" disabled>Act</button>
                 </div>
                 <div class="input-row-secondary">
@@ -502,19 +523,16 @@
          SAVE MODAL
          ============================================================ -->
     <div id="save-modal-overlay" class="modal-overlay hidden"></div>
-    <div id="save-modal" class="modal hidden" role="dialog"
-         aria-labelledby="save-modal-title">
+    <div id="save-modal" class="modal hidden" role="dialog" aria-labelledby="save-modal-title">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="save-modal-title">Save Game</h2>
-                <button class="modal-close" aria-label="Close"
-                        id="save-modal-close">&times;</button>
+                <button class="modal-close" aria-label="Close" id="save-modal-close">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
                     <label for="save-name-input">Save Name</label>
-                    <input type="text" id="save-name-input"
-                           placeholder="Enter a name for this save">
+                    <input type="text" id="save-name-input" placeholder="Enter a name for this save">
                 </div>
                 <div id="save-status" class="save-status"></div>
             </div>
@@ -529,13 +547,11 @@
          LOAD MODAL
          ============================================================ -->
     <div id="load-modal-overlay" class="modal-overlay hidden"></div>
-    <div id="load-modal" class="modal hidden" role="dialog"
-         aria-labelledby="load-modal-title">
+    <div id="load-modal" class="modal hidden" role="dialog" aria-labelledby="load-modal-title">
         <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2 id="load-modal-title">Load Game</h2>
-                <button class="modal-close" aria-label="Close"
-                        id="load-modal-close">&times;</button>
+                <button class="modal-close" aria-label="Close" id="load-modal-close">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="load-list" class="save-list">
@@ -551,4 +567,5 @@
     <script defer src="/static/js/sse.js"></script>
     <script defer src="/static/js/game.js"></script>
 </body>
+
 </html>

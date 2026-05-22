@@ -86,6 +86,15 @@ const ConnectionView = {
             summarizerConfigGroup: document.getElementById(
                 "summarizer-config-group",
             ),
+            // Generation settings (DM)
+            dmMaxTokens: document.getElementById("dm-max-tokens"),
+            dmTemperature: document.getElementById("dm-temperature"),
+            // NPC generation settings
+            npcMaxTokens: document.getElementById("npc-max-tokens"),
+            npcTemperature: document.getElementById("npc-temperature"),
+            // Summarizer generation settings
+            summarizerMaxTokens: document.getElementById("summarizer-max-tokens"),
+            summarizerTemperature: document.getElementById("summarizer-temperature"),
         };
 
         // Provider change → update URL default + API key visibility
@@ -268,6 +277,16 @@ const ConnectionView = {
                 apiKeyInput.value = "";
             }
         }
+
+        // Also copy generation settings from DM
+        const dmMaxTokens = this.els.dmMaxTokens ? this.els.dmMaxTokens.value : undefined;
+        const dmTemp = this.els.dmTemperature ? this.els.dmTemperature.value : undefined;
+        if (dmMaxTokens && this.els[prefix + "MaxTokens"]) {
+            this.els[prefix + "MaxTokens"].value = dmMaxTokens;
+        }
+        if (dmTemp && this.els[prefix + "Temperature"]) {
+            this.els[prefix + "Temperature"].value = dmTemp;
+        }
     },
 
     // ------------------------------------------------------------------
@@ -443,6 +462,10 @@ const ConnectionView = {
             provider_type: this.els.providerSelect.value,
         };
 
+        // Add generation settings to provider config
+        App.state.provider.max_tokens = parseInt(this.els.dmMaxTokens.value, 10) || undefined;
+        App.state.provider.temperature = parseFloat(this.els.dmTemperature.value) || undefined;
+
         // Save per-agent provider configs (null = use DM provider)
         App.state.npcProvider = this._buildAgentProvider("npc");
         App.state.summarizerProvider = this._buildAgentProvider("summarizer");
@@ -475,6 +498,12 @@ const ConnectionView = {
         if (apiKey) {
             config.api_key = apiKey;
         }
+
+        // Add per-agent generation settings
+        const maxTokensEl = this.els[prefix + "MaxTokens"];
+        const tempEl = this.els[prefix + "Temperature"];
+        if (maxTokensEl) config.max_tokens = parseInt(maxTokensEl.value, 10) || undefined;
+        if (tempEl) config.temperature = parseFloat(tempEl.value) || undefined;
 
         return config;
     },
@@ -519,6 +548,12 @@ const ConnectionView = {
                 summarizerEnabled: this.els.summarizerEnabled
                     ? this.els.summarizerEnabled.checked
                     : false,
+                dmMaxTokens: this.els.dmMaxTokens ? this.els.dmMaxTokens.value : 4096,
+                dmTemperature: this.els.dmTemperature ? this.els.dmTemperature.value : 0.8,
+                npcMaxTokens: this.els.npcMaxTokens ? this.els.npcMaxTokens.value : 1024,
+                npcTemperature: this.els.npcTemperature ? this.els.npcTemperature.value : 0.8,
+                summarizerMaxTokens: this.els.summarizerMaxTokens ? this.els.summarizerMaxTokens.value : 4096,
+                summarizerTemperature: this.els.summarizerTemperature ? this.els.summarizerTemperature.value : 0.3,
             };
             localStorage.setItem("rpg_connection", JSON.stringify(data));
         } catch (e) {
@@ -648,6 +683,25 @@ const ConnectionView = {
                         data.summarizerProvider.api_key;
                 }
                 this._onAgentProviderChange("summarizer");
+            }
+            // Restore generation settings
+            if (data.dmMaxTokens && this.els.dmMaxTokens) {
+                this.els.dmMaxTokens.value = data.dmMaxTokens;
+            }
+            if (data.dmTemperature && this.els.dmTemperature) {
+                this.els.dmTemperature.value = data.dmTemperature;
+            }
+            if (data.npcMaxTokens && this.els.npcMaxTokens) {
+                this.els.npcMaxTokens.value = data.npcMaxTokens;
+            }
+            if (data.npcTemperature && this.els.npcTemperature) {
+                this.els.npcTemperature.value = data.npcTemperature;
+            }
+            if (data.summarizerMaxTokens && this.els.summarizerMaxTokens) {
+                this.els.summarizerMaxTokens.value = data.summarizerMaxTokens;
+            }
+            if (data.summarizerTemperature && this.els.summarizerTemperature) {
+                this.els.summarizerTemperature.value = data.summarizerTemperature;
             }
         } catch (e) {
             // Corrupted data — ignore

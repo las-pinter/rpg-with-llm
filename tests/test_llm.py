@@ -320,6 +320,27 @@ class TestProviderConfig:
         )
         assert cfg.provider_type == "ollama"
 
+    def test_max_tokens_defaults_to_none(self):
+        """max_tokens should default to None."""
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
+        assert cfg.max_tokens is None
+
+    def test_temperature_defaults_to_none(self):
+        """temperature should default to None."""
+        cfg = ProviderConfig(base_url="http://localhost:11434", model="llama3.2")
+        assert cfg.temperature is None
+
+    def test_custom_max_tokens_and_temperature(self):
+        """max_tokens and temperature should accept custom values."""
+        cfg = ProviderConfig(
+            base_url="http://localhost:11434",
+            model="llama3.2",
+            max_tokens=512,
+            temperature=0.7,
+        )
+        assert cfg.max_tokens == 512
+        assert cfg.temperature == 0.7
+
 
 class TestErrorHierarchy:
     """Tests for the LLM error hierarchy."""

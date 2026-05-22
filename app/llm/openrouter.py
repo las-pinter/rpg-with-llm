@@ -58,6 +58,8 @@ class OpenRouterProvider(LLMProvider):
         timeout: int = 30,
         site_url: str | None = None,
         app_name: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> None:
         self.base_url = base_url.strip().rstrip("/")
         self.model = model
@@ -65,6 +67,8 @@ class OpenRouterProvider(LLMProvider):
         self.timeout = timeout
         self.site_url = site_url
         self.app_name = app_name
+        self.max_tokens = max_tokens
+        self.temperature = temperature
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -104,6 +108,10 @@ class OpenRouterProvider(LLMProvider):
             "messages": messages,
             "stream": False,
         }
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
 
         try:
             response = requests.post(
@@ -154,6 +162,10 @@ class OpenRouterProvider(LLMProvider):
             "messages": messages,
             "stream": True,
         }
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
 
         try:
             response = requests.post(

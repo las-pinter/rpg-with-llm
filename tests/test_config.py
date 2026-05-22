@@ -50,6 +50,8 @@ class TestProviderConfig:
         assert d["base_url"] == "http://localhost:11434"
         assert d["model"] == "llama3.2"
         assert d["timeout"] == 30
+        assert d["max_tokens"] is None
+        assert d["temperature"] is None
 
     def test_to_dict_with_redaction(self):
         """to_dict(redact_api_key=True) should redact the api_key."""
@@ -84,6 +86,8 @@ class TestProviderConfig:
         assert cfg.model == "gpt-4"
         assert cfg.api_key == "sk-test"
         assert cfg.timeout == 60
+        assert cfg.max_tokens is None
+        assert cfg.temperature is None
 
     def test_from_dict_minimal(self):
         """from_dict() should apply defaults for missing optional fields."""
@@ -94,6 +98,20 @@ class TestProviderConfig:
         cfg = ProviderConfig.from_dict(data)
         assert cfg.api_key is None
         assert cfg.timeout == 30
+        assert cfg.max_tokens is None
+        assert cfg.temperature is None
+
+    def test_from_dict_with_new_fields(self):
+        """from_dict() should parse max_tokens and temperature."""
+        data = {
+            "base_url": "http://localhost:11434",
+            "model": "llama3.2",
+            "max_tokens": 1024,
+            "temperature": 0.5,
+        }
+        cfg = ProviderConfig.from_dict(data)
+        assert cfg.max_tokens == 1024
+        assert cfg.temperature == 0.5
 
     def test_round_trip(self):
         """to_dict() -> from_dict() should preserve all fields."""
@@ -106,6 +124,22 @@ class TestProviderConfig:
         data = original.to_dict()
         restored = ProviderConfig.from_dict(data)
         assert restored == original
+
+    def test_round_trip_with_new_fields(self):
+        """to_dict() -> from_dict() should preserve max_tokens and temperature."""
+        original = ProviderConfig(
+            base_url="https://api.example.com",
+            model="claude-3",
+            api_key="sk-secret",
+            timeout=120,
+            max_tokens=2048,
+            temperature=0.8,
+        )
+        data = original.to_dict()
+        restored = ProviderConfig.from_dict(data)
+        assert restored == original
+        assert restored.max_tokens == 2048
+        assert restored.temperature == 0.8
 
     def test_from_dict_missing_base_url_raises_value_error(self):
         """from_dict() should raise ValueError when base_url is missing."""
