@@ -142,8 +142,8 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Called when the game view becomes active. */
-    _onShow() {
-        this._loadState();
+    async _onShow() {
+        await this._loadState();
         this._renderSidebar();
 
         if (!this.state.hasStarted && App.state.character) {
