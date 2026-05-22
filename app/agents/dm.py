@@ -519,6 +519,23 @@ class DungeonMaster:
                 }
             )
 
+            # If the game is already in progress, tell the LLM not to generate
+            # an opening scene (since it has no conversation history, it would
+            # otherwise treat every request as the first turn)
+            if self.world_state.turn_count > 0:
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "IMPORTANT: The adventure is already in progress. "
+                            "Do NOT describe an opening scene or start a new scenario. "
+                            "Continue the current narrative naturally from where the "
+                            "player left off. The player's action is a continuation "
+                            "of the existing story — react to it directly."
+                        ),
+                    }
+                )
+
         # Incorporate character summary (if available)
         if self.character is not None:
             # Build ability scores string
