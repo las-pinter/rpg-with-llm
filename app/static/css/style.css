@@ -1291,7 +1291,10 @@ label.toggle-label {
 }
 
   .modal {
-    position: relative;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 201;
     width: 90%;
     max-width: 480px;
