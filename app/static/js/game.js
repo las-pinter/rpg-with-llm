@@ -387,6 +387,7 @@ const GameView = {
         opts = opts || {};
         // Strip any residual XML tags from the narrative text
         text = text.replace(/<[^>]*>/g, '');
+        if (!text.trim()) return;  // Don't add empty narrative divs
         const div = document.createElement("div");
         div.className = "turn-narrative";
 
