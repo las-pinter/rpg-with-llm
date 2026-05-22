@@ -233,21 +233,8 @@ const GameView = {
      */
     _sendTurnSSE(input) {
         return new Promise((resolve, reject) => {
-            // Create a streaming text element that tokens fill in real time
-            const streamDiv = document.createElement("div");
-            streamDiv.className = "turn-narrative turn-streaming";
-            const streamP = document.createElement("p");
-            streamDiv.appendChild(streamP);
-            this.els.narrativeContent.appendChild(streamDiv);
-            this._scrollToBottom();
-
+            // Keep a token buffer for internal parsing but don't display raw tokens
             let tokenBuffer = "";
-
-            const removeStreamDiv = () => {
-                if (streamDiv.parentNode) {
-                    streamDiv.parentNode.removeChild(streamDiv);
-                }
-            };
 
             SSEClient.connect(
                 input,
@@ -255,11 +242,6 @@ const GameView = {
                 {
                     onToken: ((token) => {
                         tokenBuffer += token;
-                        streamP.textContent = this._stripXmlTags(tokenBuffer);
-                        // Throttle scroll to avoid layout thrash on fast streams
-                        if (tokenBuffer.length % 32 < token.length) {
-                            this._scrollToBottom();
-                        }
                     }).bind(this),
 
                     onNpcThinking: ((npcData) => {
@@ -274,11 +256,8 @@ const GameView = {
                     }).bind(this),
 
                     onNarrative: ((narrative) => {
-                        // Replace streaming content with the properly
-                        // formatted narrative (paragraphs, etc.)
                         this._hideNpcThinking();
                         this._addNarrative(narrative);
-                        removeStreamDiv();
                         this._scrollToBottom();
                     }).bind(this),
 
@@ -302,7 +281,6 @@ const GameView = {
                     onError: ((msg) => {
                         this._hideNpcThinking();
                         SSEClient.disconnect();
-                        removeStreamDiv();
                         reject(new Error(msg || "SSE connection failed"));
                     }).bind(this),
                 },
