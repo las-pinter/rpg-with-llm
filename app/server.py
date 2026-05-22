@@ -1037,14 +1037,30 @@ def game_stream():
                 try:
                     new_state = apply_changes(world_state, state_changes)
                     dm.world_state = new_state
+                    logger.debug(
+                        "game_stream: applied %d state change(s) successfully",
+                        len(state_changes),
+                    )
                 except Exception as e:
                     logger.warning("Failed to apply state changes in stream: %s", e)
+            else:
+                logger.warning(
+                    "game_stream: %d state change validation error(s): %s",
+                    len(validation_errors),
+                    validation_errors,
+                )
 
         # Strip any residual XML tags, markdown bold, and backtick
         # state-change artifacts as a final safety net
         narrative = re.sub(r"<[^>]*>", "", narrative)
         narrative = re.sub(r"\*\*[a-zA-Z_]+\*\*", "", narrative)
         narrative = re.sub(r"`[^`]*?(?:action=|path=|value=)[^`]*`", "", narrative)
+
+        logger.debug(
+            "game_stream: final narrative — %d chars (first 200: %s...)",
+            len(narrative),
+            narrative[:200],
+        )
 
         # Yield state update so the client can persist continuity
         state_event = json.dumps(

@@ -7,8 +7,12 @@ All randomness flows through ``app.dice.roller.roll`` — no direct calls to
 
 from __future__ import annotations
 
+import logging
+
 from app.dice.parser import parse
 from app.dice.roller import roll
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Skill-to-ability mapping (D&D 5e standard)
@@ -91,8 +95,25 @@ def skill_check(
     prof = stats.get("proficiency_bonus", 0) if trained else 0
     modifier = ability_mod + prof
 
+    logger.debug(
+        "checks.skill_check: skill=%s ability=%s dc=%d mod=%d (prof=%d, trained=%s)",
+        skill,
+        ability,
+        dc,
+        modifier,
+        prof,
+        trained,
+    )
+
     result = roll(parse("1d20"))
     total = result["total"] + modifier
+
+    logger.debug(
+        "checks.skill_check: → total=%d success=%s margin=%d",
+        total,
+        total >= dc,
+        total - dc,
+    )
 
     return {
         "success": total >= dc,
@@ -125,8 +146,23 @@ def saving_throw(stats: dict, ability: str, dc: int) -> dict:
     prof = stats.get("proficiency_bonus", 0) if proficient else 0
     modifier = ability_mod + prof
 
+    logger.debug(
+        "checks.saving_throw: ability=%s dc=%d mod=%d (proficient=%s)",
+        ability,
+        dc,
+        modifier,
+        proficient,
+    )
+
     result = roll(parse("1d20"))
     total = result["total"] + modifier
+
+    logger.debug(
+        "checks.saving_throw: → total=%d success=%s margin=%d",
+        total,
+        total >= dc,
+        total - dc,
+    )
 
     return {
         "success": total >= dc,
@@ -155,8 +191,17 @@ def ability_check(stats: dict, ability: str, dc: int) -> dict:
     """
     modifier = get_ability_modifier(stats.get(ability, 10))
 
+    logger.debug("checks.ability_check: ability=%s dc=%d mod=%d", ability, dc, modifier)
+
     result = roll(parse("1d20"))
     total = result["total"] + modifier
+
+    logger.debug(
+        "checks.ability_check: → total=%d success=%s margin=%d",
+        total,
+        total >= dc,
+        total - dc,
+    )
 
     return {
         "success": total >= dc,

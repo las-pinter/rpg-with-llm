@@ -14,9 +14,12 @@ Supported notations:
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum, auto
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -121,6 +124,8 @@ def parse(notation: str) -> DiceExpression:
     if not stripped:
         raise ParseError("Dice notation must be a non-empty string")
 
+    logger.debug("parser.parse: notation='%s'", notation)
+
     # 1. Advantage / disadvantage  (most specific)
     match = _PATTERN_ADV_DIS.match(stripped)
     if match:
@@ -133,6 +138,9 @@ def parse(notation: str) -> DiceExpression:
             count = 2
         _validate_positive(count, "Number of dice")
         if mode.lower() == "advantage":
+            logger.debug(
+                "parser.parse: → advantage (count=%d, mod=%d)", count, modifier
+            )
             return DiceExpression(
                 count=count,
                 sides=20,
@@ -140,6 +148,7 @@ def parse(notation: str) -> DiceExpression:
                 keep_count=1,
                 modifier=modifier,
             )
+        logger.debug("parser.parse: → disadvantage (count=%d, mod=%d)", count, modifier)
         return DiceExpression(
             count=count,
             sides=20,
@@ -167,6 +176,13 @@ def parse(notation: str) -> DiceExpression:
             )
 
         if operator.lower() == "l":
+            logger.debug(
+                "parser.parse: → %dd%dl%d (keep lowest, mod=%d)",
+                count,
+                sides,
+                keep_n,
+                modifier,
+            )
             return DiceExpression(
                 count=count,
                 sides=sides,
@@ -175,6 +191,13 @@ def parse(notation: str) -> DiceExpression:
                 modifier=modifier,
             )
         # k, K, h, H  all mean keep-highest
+        logger.debug(
+            "parser.parse: → %dd%dk%d (keep highest, mod=%d)",
+            count,
+            sides,
+            keep_n,
+            modifier,
+        )
         return DiceExpression(
             count=count,
             sides=sides,
@@ -194,9 +217,11 @@ def parse(notation: str) -> DiceExpression:
         _validate_positive(count, "Number of dice")
         _validate_positive(sides, "Number of sides")
 
+        logger.debug("parser.parse: → %dd%d (mod=%d)", count, sides, modifier)
         return DiceExpression(count=count, sides=sides, modifier=modifier)
 
     # Nothing matched → invalid notation
+    logger.debug("parser.parse: → ParseError — invalid notation")
     raise ParseError(f"Invalid dice notation: '{notation}'")
 
 

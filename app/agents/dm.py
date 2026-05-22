@@ -873,6 +873,13 @@ class DungeonMaster:
             self.token_usage["total_tokens"],
         )
 
+        logger.debug(
+            "process_turn[%d]: final narrative — %d chars (first 200: %s...)",
+            self.turn_count,
+            len(narrative),
+            narrative[:200],
+        )
+
         return {
             "narrative": narrative,
             "state_changes": applied_changes,
@@ -1160,5 +1167,11 @@ class DungeonMaster:
                 summary = summarize_turns(turns_text, self.summarizer_provider)
                 self.history.set_summary(summary)
                 self.history.clear_turns()
+                logger.debug(
+                    "_maybe_summarize: created compressed summary — "
+                    "%d chars (was %d turns + existing summary)",
+                    len(summary),
+                    recent_count,
+                )
         except Exception:
             logger.exception("Summarization failed after turn")

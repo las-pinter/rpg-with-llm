@@ -47,12 +47,20 @@ def dice_roll(params: dict[str, Any]) -> dict[str, Any]:
     """
     formula = params.get("formula", "")
     if not formula:
+        logger.warning("dice_roll: missing 'formula' param")
         return {"ok": False, "error": "Missing required param: 'formula'"}
     try:
         expr = parse(formula)
         result = roll(expr)
+        logger.debug(
+            "dice_roll: formula=%s → total=%d rolls=%s",
+            formula,
+            result.get("total", "?"),
+            result.get("rolls", []),
+        )
         return {"ok": True, "result": result}
     except (ValueError, KeyError, ParseError) as e:
+        logger.warning("dice_roll failed: formula=%s error=%s", formula, e)
         return {"ok": False, "error": f"Dice roll failed: {e}"}
 
 
@@ -126,12 +134,21 @@ def rules_skill_check(params: dict[str, Any]) -> dict[str, Any]:
     stats = params.get("character_stats", {})
 
     if not skill:
+        logger.warning("rules_skill_check: missing 'skill' param")
         return {"ok": False, "error": "Missing required param: 'skill'"}
 
     try:
         result = skill_check(stats=stats, skill=skill, dc=int(dc), ability=ability)
+        logger.debug(
+            "rules_skill_check: skill=%s dc=%d → success=%s total=%d",
+            skill,
+            dc,
+            result.get("success", "?"),
+            result.get("total", "?"),
+        )
         return {"ok": True, "result": result}
     except (ValueError, KeyError, TypeError) as e:
+        logger.warning("rules_skill_check failed: skill=%s error=%s", skill, e)
         return {"ok": False, "error": f"Skill check failed: {e}"}
 
 
@@ -153,6 +170,7 @@ def rules_attack(params: dict[str, Any]) -> dict[str, Any]:
     defender_ac = params.get("defender_ac", 10)
 
     if not attacker_stats:
+        logger.warning("rules_attack: missing 'attacker_stats' param")
         return {"ok": False, "error": "Missing required param: 'attacker_stats'"}
 
     try:
@@ -160,8 +178,16 @@ def rules_attack(params: dict[str, Any]) -> dict[str, Any]:
             attacker_stats=attacker_stats,
             defender_ac=int(defender_ac),
         )
+        logger.debug(
+            "rules_attack: defender_ac=%d → hit=%s crit=%s total=%d",
+            defender_ac,
+            result.get("hit", "?"),
+            result.get("critical", "?"),
+            result.get("total", "?"),
+        )
         return {"ok": True, "result": result}
     except (ValueError, KeyError, TypeError) as e:
+        logger.warning("rules_attack failed: error=%s", e)
         return {"ok": False, "error": f"Attack roll failed: {e}"}
 
 
@@ -185,12 +211,21 @@ def rules_saving_throw(params: dict[str, Any]) -> dict[str, Any]:
     stats = params.get("character_stats", {})
 
     if not ability:
+        logger.warning("rules_saving_throw: missing 'ability' param")
         return {"ok": False, "error": "Missing required param: 'ability'"}
 
     try:
         result = saving_throw(stats=stats, ability=ability, dc=int(dc))
+        logger.debug(
+            "rules_saving_throw: ability=%s dc=%d → success=%s total=%d",
+            ability,
+            dc,
+            result.get("success", "?"),
+            result.get("total", "?"),
+        )
         return {"ok": True, "result": result}
     except (ValueError, KeyError, TypeError) as e:
+        logger.warning("rules_saving_throw failed: ability=%s error=%s", ability, e)
         return {"ok": False, "error": f"Saving throw failed: {e}"}
 
 

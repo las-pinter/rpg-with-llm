@@ -8,9 +8,12 @@ must flow through this module so it can be controlled, audited, and tested.
 
 from __future__ import annotations
 
+import logging
 import random
 
 from .parser import DiceExpression, KeepMode
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Randomness source — SystemRandom (cryptographic / OS entropy)
@@ -58,10 +61,24 @@ def roll(expression: DiceExpression) -> dict:
             f"dice count ({expression.count})"
         )
 
+    formula = _build_formula(expression)
+    logger.debug(
+        "roller.roll: rolling %s — count=%d sides=%d keep=%s",
+        formula,
+        expression.count,
+        expression.sides,
+        expression.keep_mode.name if expression.keep_mode else "NONE",
+    )
+
     # --- Roll every die ----------------------------------------------------
     raw_rolls = [_rng.randint(1, expression.sides) for _ in range(expression.count)]
 
     # --- Apply keep / drop rules -------------------------------------------
+    _keep_labels = {
+        KeepMode.HIGHEST: f"keep highest {expression.keep_count}",
+        KeepMode.LOWEST: f"keep lowest {expression.keep_count}",
+        KeepMode.NONE: "keep all",
+    }
     if expression.keep_mode == KeepMode.HIGHEST:
         kept = sorted(raw_rolls, reverse=True)[: expression.keep_count]
     elif expression.keep_mode == KeepMode.LOWEST:
@@ -72,11 +89,19 @@ def roll(expression: DiceExpression) -> dict:
     # --- Compute total -----------------------------------------------------
     total = sum(kept) + expression.modifier
 
+    logger.debug(
+        "roller.roll: %s → total=%d rolls=%s (%s)",
+        formula,
+        total,
+        raw_rolls,
+        _keep_labels.get(expression.keep_mode, "keep all"),
+    )
+
     return {
         "total": total,
         "rolls": raw_rolls,
         "sides": expression.sides,
-        "formula": _build_formula(expression),
+        "formula": formula,
     }
 
 
