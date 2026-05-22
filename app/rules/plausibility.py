@@ -17,9 +17,12 @@ The categories, from easiest to hardest:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.character.model import Character
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Plausibility category definitions
@@ -143,14 +146,25 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
         - **allow_roll** (bool): Whether a tool roll should be allowed.
     """
     action_lower = action.lower()
+    char_class = character.character_class
+
+    logger.debug(
+        "plausibility.classify_action: class=%s level=%d action='%s'",
+        char_class,
+        character.level,
+        action[:80],
+    )
 
     # ------------------------------------------------------------------
     # Check class blacklist first — these are always impossible
     # ------------------------------------------------------------------
-    char_class = character.character_class
     if char_class in CLASS_BLACKLIST:
         for keyword in CLASS_BLACKLIST[char_class]:
             if _matches(action_lower, keyword):
+                logger.debug(
+                    "plausibility.classify_action: → impossible (class blacklist: %s)",
+                    keyword,
+                )
                 return {
                     "category": "impossible",
                     "reason": (
@@ -182,6 +196,10 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
             "overthrow kingdom",
         ]
         if _any_match(action_lower, implausible_keywords):
+            logger.debug(
+                "plausibility.classify_action: → impossible (low level — %s)",
+                action[:80],
+            )
             return {
                 "category": "impossible",
                 "reason": (
@@ -214,6 +232,9 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
     ]
     if _any_match(action_lower, strength_keywords):
         if strength <= 8:
+            logger.debug(
+                "plausibility.classify_action: → implausible (STR=%d)", strength
+            )
             return {
                 "category": "implausible",
                 "reason": (
@@ -224,6 +245,7 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
                 "allow_roll": True,
             }
         if strength >= 14:
+            logger.debug("plausibility.classify_action: → plausible (STR=%d)", strength)
             return {
                 "category": "plausible",
                 "reason": (
@@ -248,6 +270,9 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
     ]
     if _any_match(action_lower, int_keywords):
         if intelligence < 8:
+            logger.debug(
+                "plausibility.classify_action: → implausible (INT=%d)", intelligence
+            )
             return {
                 "category": "implausible",
                 "reason": (
@@ -258,6 +283,9 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
                 "allow_roll": True,
             }
         if intelligence >= 14:
+            logger.debug(
+                "plausibility.classify_action: → plausible (INT=%d)", intelligence
+            )
             return {
                 "category": "plausible",
                 "reason": (
@@ -284,6 +312,7 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
     ]
     if _any_match(action_lower, cha_keywords):
         if charisma <= 8:
+            logger.debug("plausibility.classify_action: → ambitious (CHA=%d)", charisma)
             return {
                 "category": "ambitious",
                 "reason": (
@@ -294,6 +323,7 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
                 "allow_roll": True,
             }
         if charisma >= 14:
+            logger.debug("plausibility.classify_action: → plausible (CHA=%d)", charisma)
             return {
                 "category": "plausible",
                 "reason": (f"With CHA {charisma}, the character has natural charm."),
@@ -304,6 +334,7 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
     # ------------------------------------------------------------------
     # Default: plausible for most general actions
     # ------------------------------------------------------------------
+    logger.debug("plausibility.classify_action: → plausible (default)")
     return {
         "category": "plausible",
         "reason": "The action is reasonable for this character.",
@@ -357,6 +388,13 @@ def suggest_dc(character: Character, category: str) -> dict[str, Any]:
 
     suggested = max(base_dc + level_adj, 5)
 
+    logger.debug(
+        "plausibility.suggest_dc: category=%s base=%s level_adj=%d suggested=%d",
+        category,
+        base_dc,
+        level_adj,
+        suggested,
+    )
     return {
         "category": category,
         "base_dc": base_dc,
