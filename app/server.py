@@ -8,6 +8,7 @@ endpoints for processing player turns.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -271,11 +272,9 @@ def _save_companion_character(save_name: str, char_data: dict) -> None:
     """Save companion character data alongside a world save."""
     char_dir = (Path("data") / "saves").resolve()
     char_dir.mkdir(parents=True, exist_ok=True)
-    safe_save_name = re.sub(r"[^A-Za-z0-9._ -]", "_", save_name).strip(" ._")
-    if not safe_save_name:
-        safe_save_name = "save"
-    char_path = (char_dir / f"{safe_save_name}.char.json").resolve()
-    tmp_path = (char_dir / f"{safe_save_name}.char.json.tmp").resolve()
+    save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+    char_path = (char_dir / f"{save_key}.char.json").resolve()
+    tmp_path = (char_dir / f"{save_key}.char.json.tmp").resolve()
     try:
         char_path.relative_to(char_dir)
         tmp_path.relative_to(char_dir)
@@ -293,10 +292,8 @@ def _save_companion_character(save_name: str, char_data: dict) -> None:
 def _load_companion_character(save_name: str) -> dict | None:
     """Load companion character data for a save, or None."""
     char_dir = (Path("data") / "saves").resolve()
-    safe_save_name = re.sub(r"[^A-Za-z0-9._ -]", "_", save_name).strip(" ._")
-    if not safe_save_name:
-        safe_save_name = "save"
-    char_path = (char_dir / f"{safe_save_name}.char.json").resolve()
+    save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+    char_path = (char_dir / f"{save_key}.char.json").resolve()
     try:
         char_path.relative_to(char_dir)
     except ValueError:
