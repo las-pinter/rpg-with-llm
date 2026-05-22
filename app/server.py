@@ -271,8 +271,11 @@ def _save_companion_character(save_name: str, char_data: dict) -> None:
     """Save companion character data alongside a world save."""
     char_dir = Path("data") / "saves"
     char_dir.mkdir(parents=True, exist_ok=True)
-    char_path = char_dir / f"{save_name}.char.json"
-    tmp_path = char_path.with_name(f"{save_name}.char.json.tmp")
+    safe_save_name = re.sub(r"[^A-Za-z0-9._ -]", "_", save_name).strip(" ._")
+    if not safe_save_name:
+        safe_save_name = "save"
+    char_path = char_dir / f"{safe_save_name}.char.json"
+    tmp_path = char_path.with_name(f"{safe_save_name}.char.json.tmp")
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(char_data, f, indent=2, ensure_ascii=False)
