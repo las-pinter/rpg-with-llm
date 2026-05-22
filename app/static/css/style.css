@@ -617,7 +617,7 @@ select {
     flex-direction: column;
     gap: 0.25rem;
 }
-.toggle-label {
+label.toggle-label {
     display: flex;
     align-items: center;
     gap: 0.75rem;
