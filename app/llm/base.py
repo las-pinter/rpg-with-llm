@@ -92,6 +92,8 @@ class ProviderConfig:
         provider_type:  Provider type identifier (default "ollama").
         api_key:        Optional API key for authentication.
         timeout:        Request timeout in seconds (default 30).
+        max_tokens:     Maximum tokens in the response (default None).
+        temperature:    Sampling temperature (default None).
     """
 
     base_url: str
@@ -99,6 +101,8 @@ class ProviderConfig:
     provider_type: str = "ollama"
     api_key: str | None = None
     timeout: int = 30
+    max_tokens: int | None = None
+    temperature: float | None = None
 
     def __repr__(self) -> str:
         """Return string representation with api_key redacted."""
@@ -108,7 +112,9 @@ class ProviderConfig:
             f"model={self.model!r}, "
             f"provider_type={self.provider_type!r}, "
             f"api_key={key!r}, "
-            f"timeout={self.timeout})"
+            f"timeout={self.timeout}, "
+            f"max_tokens={self.max_tokens!r}, "
+            f"temperature={self.temperature!r})"
         )
 
     def to_dict(self, redact_api_key: bool = False) -> dict:
@@ -122,6 +128,8 @@ class ProviderConfig:
             "provider_type": self.provider_type,
             "api_key": api_key,
             "timeout": self.timeout,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
         }
 
     @classmethod
@@ -140,6 +148,8 @@ class ProviderConfig:
                 provider_type=data.get("provider_type", "ollama"),
                 api_key=data.get("api_key"),
                 timeout=data.get("timeout", 30),
+                max_tokens=data.get("max_tokens"),
+                temperature=data.get("temperature"),
             )
         except KeyError as e:
             raise ValueError(f"Missing required config field: {e}") from e

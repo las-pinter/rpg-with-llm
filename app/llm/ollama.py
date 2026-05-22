@@ -51,11 +51,15 @@ class OllamaProvider(LLMProvider):
         model: str,
         api_key: str | None = None,
         timeout: int = 30,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> None:
         self.base_url = base_url.strip().rstrip("/")
         self.model = model
         self.api_key = api_key if api_key else None
         self.timeout = timeout
+        self.max_tokens = max_tokens
+        self.temperature = temperature
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -91,6 +95,10 @@ class OllamaProvider(LLMProvider):
             "messages": messages,
             "stream": False,
         }
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
 
         try:
             response = requests.post(
@@ -141,6 +149,10 @@ class OllamaProvider(LLMProvider):
             "messages": messages,
             "stream": True,
         }
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
 
         try:
             response = requests.post(
