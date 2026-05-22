@@ -959,7 +959,12 @@ const GameView = {
     /** Strip XML/HTML-like tags, markdown bold artifacts, and backtick state-change attributes. */
     _stripXmlTags(str) {
         if (typeof str !== "string") return "";
-        let clean = str.replace(/<[^>]*>?/g, '');
+        let clean = str;
+        let previous;
+        do {
+            previous = clean;
+            clean = clean.replace(/<[^>]*>?/g, '');
+        } while (clean !== previous);
         clean = clean.replace(/\*\*[a-zA-Z_]+\*\*/g, '');
         clean = clean.replace(/`[^`]*?(?:action=|path=|value=)[^`]*`/g, '');
         return clean;
