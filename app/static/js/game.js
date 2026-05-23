@@ -314,6 +314,9 @@ const GameView = {
                         model: provider.model,
                         provider_type: provider.provider_type || "ollama",
                         api_key: provider.api_key || undefined,
+                        timeout: provider.timeout || undefined,
+                        max_tokens: provider.max_tokens || undefined,
+                        temperature: provider.temperature || undefined,
                     }
                     : undefined,
                 npc_provider: App.state.npcProvider
@@ -322,6 +325,9 @@ const GameView = {
                         model: App.state.npcProvider.model,
                         provider_type: App.state.npcProvider.provider_type || "ollama",
                         api_key: App.state.npcProvider.api_key || undefined,
+                        timeout: App.state.npcProvider.timeout || undefined,
+                        max_tokens: App.state.npcProvider.max_tokens || undefined,
+                        temperature: App.state.npcProvider.temperature || undefined,
                     }
                     : undefined,
                 summarizer_provider: App.state.summarizerProvider
@@ -330,6 +336,9 @@ const GameView = {
                         model: App.state.summarizerProvider.model,
                         provider_type: App.state.summarizerProvider.provider_type || "ollama",
                         api_key: App.state.summarizerProvider.api_key || undefined,
+                        timeout: App.state.summarizerProvider.timeout || undefined,
+                        max_tokens: App.state.summarizerProvider.max_tokens || undefined,
+                        temperature: App.state.summarizerProvider.temperature || undefined,
                     }
                     : undefined,
                 character: App.state.character || undefined,

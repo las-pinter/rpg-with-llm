@@ -39,6 +39,15 @@ const SSEClient = {
             if (provider.api_key) {
                 url += `&api_key=${encodeURIComponent(provider.api_key)}`;
             }
+            if (provider.timeout) {
+                url += `&timeout=${encodeURIComponent(provider.timeout)}`;
+            }
+            if (provider.max_tokens) {
+                url += `&max_tokens=${encodeURIComponent(provider.max_tokens)}`;
+            }
+            if (provider.temperature) {
+                url += `&temperature=${encodeURIComponent(provider.temperature)}`;
+            }
         }
 
         // NPC provider (separate agent)
@@ -49,6 +58,15 @@ const SSEClient = {
             if (npcProvider.api_key) {
                 url += `&npc_api_key=${encodeURIComponent(npcProvider.api_key)}`;
             }
+            if (npcProvider.timeout) {
+                url += `&npc_timeout=${encodeURIComponent(npcProvider.timeout)}`;
+            }
+            if (npcProvider.max_tokens) {
+                url += `&npc_max_tokens=${encodeURIComponent(npcProvider.max_tokens)}`;
+            }
+            if (npcProvider.temperature) {
+                url += `&npc_temperature=${encodeURIComponent(npcProvider.temperature)}`;
+            }
         }
 
         // Summarizer provider (separate agent)
@@ -58,6 +76,15 @@ const SSEClient = {
             url += `&summarizer_provider_type=${encodeURIComponent(summarizerProvider.provider_type || 'ollama')}`;
             if (summarizerProvider.api_key) {
                 url += `&summarizer_api_key=${encodeURIComponent(summarizerProvider.api_key)}`;
+            }
+            if (summarizerProvider.timeout) {
+                url += `&summarizer_timeout=${encodeURIComponent(summarizerProvider.timeout)}`;
+            }
+            if (summarizerProvider.max_tokens) {
+                url += `&summarizer_max_tokens=${encodeURIComponent(summarizerProvider.max_tokens)}`;
+            }
+            if (summarizerProvider.temperature) {
+                url += `&summarizer_temperature=${encodeURIComponent(summarizerProvider.temperature)}`;
             }
         }
 

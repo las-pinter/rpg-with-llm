@@ -252,10 +252,10 @@ class TestProviderConfig:
         cfg = ProviderConfig(base_url="https://api.example.com", model="gpt-4")
         assert cfg.api_key is None
 
-    def test_timeout_defaults_to_30(self):
-        """timeout should default to 30."""
+    def test_timeout_defaults_to_300(self):
+        """timeout should default to 300."""
         cfg = ProviderConfig(base_url="https://api.example.com", model="gpt-4")
-        assert cfg.timeout == 30
+        assert cfg.timeout == 300
 
     def test_custom_api_key(self):
         """api_key should accept a provided value."""
@@ -438,7 +438,7 @@ class TestOllamaProvider:
         assert provider.base_url == "http://localhost:11434"
         assert provider.model == "llama3.2"
         assert provider.api_key is None
-        assert provider.timeout == 30
+        assert provider.timeout == 300
 
     def test_initialization_custom_values(self):
         """Custom constructor arguments should be stored."""
@@ -526,7 +526,7 @@ class TestOllamaProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer sk-test",
         }
-        assert call_args[1]["timeout"] == 30
+        assert call_args[1]["timeout"] == 300
 
         # Verify the returned dict shape
         assert result == {
@@ -1209,7 +1209,7 @@ class TestGroqProvider:
         assert provider.base_url == "https://api.groq.com/openai"
         assert provider.model == "llama3-70b-8192"
         assert provider.api_key is None
-        assert provider.timeout == 30
+        assert provider.timeout == 300
 
     def test_initialization_custom_values(self):
         """Custom constructor arguments should be stored."""
@@ -1297,7 +1297,7 @@ class TestGroqProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer gsk-test",
         }
-        assert call_args[1]["timeout"] == 30
+        assert call_args[1]["timeout"] == 300
 
         # Verify the returned dict shape
         assert result == {
@@ -2399,7 +2399,7 @@ class TestOpenRouterProvider:
         assert provider.base_url == "https://openrouter.ai/api/v1"
         assert provider.model == "mistralai/mistral-7b-instruct:free"
         assert provider.api_key is None
-        assert provider.timeout == 30
+        assert provider.timeout == 300
 
     def test_initialization_custom_values(self):
         """Custom constructor arguments should be stored."""
@@ -2500,7 +2500,7 @@ class TestOpenRouterProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer sk-or-v1-test",
         }
-        assert call_args[1]["timeout"] == 30
+        assert call_args[1]["timeout"] == 300
 
         # Verify the returned dict shape
         assert result == {
@@ -3718,7 +3718,7 @@ class TestLlamacppProvider:
         assert provider.base_url == "http://localhost:8080"
         assert provider.model == "default"
         assert provider.api_key is None
-        assert provider.timeout == 30
+        assert provider.timeout == 300
 
     def test_initialization_custom_values(self):
         """Custom constructor arguments should be stored."""
@@ -3806,7 +3806,7 @@ class TestLlamacppProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer sk-llama-test",
         }
-        assert call_args[1]["timeout"] == 30
+        assert call_args[1]["timeout"] == 300
 
         # Verify the returned dict shape
         assert result == {
@@ -4985,7 +4985,7 @@ class TestUnslothProvider:
         assert provider.base_url == "http://localhost:8888"
         assert provider.model == "unsloth/Devstral-Small-2-24B-Instruct-2512"
         assert provider.api_key is None
-        assert provider.timeout == 30
+        assert provider.timeout == 300
 
     def test_initialization_custom_values(self):
         """Custom constructor arguments should be stored."""
@@ -5073,7 +5073,7 @@ class TestUnslothProvider:
             "Content-Type": "application/json",
             "Authorization": "Bearer sk-unsloth-test",
         }
-        assert call_args[1]["timeout"] == 30
+        assert call_args[1]["timeout"] == 300
 
         # Verify the returned dict shape
         assert result == {

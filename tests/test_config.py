@@ -49,7 +49,7 @@ class TestProviderConfig:
         assert d["api_key"] == "sk-abc123"
         assert d["base_url"] == "http://localhost:11434"
         assert d["model"] == "llama3.2"
-        assert d["timeout"] == 30
+        assert d["timeout"] == 300
         assert d["max_tokens"] is None
         assert d["temperature"] is None
 
@@ -97,7 +97,7 @@ class TestProviderConfig:
         }
         cfg = ProviderConfig.from_dict(data)
         assert cfg.api_key is None
-        assert cfg.timeout == 30
+        assert cfg.timeout == 300
         assert cfg.max_tokens is None
         assert cfg.temperature is None
 
@@ -183,7 +183,7 @@ class TestConfigManager:
         assert cfg.base_url == "http://localhost:11434"
         assert cfg.model == "llama3.2"
         assert cfg.api_key is None
-        assert cfg.timeout == 30
+        assert cfg.timeout == 300
 
     # ------------------------------------------------------------------
     # save_config / get_config
@@ -656,4 +656,4 @@ class TestCreateProvider:
         provider = create_provider(config)
         assert isinstance(provider, OllamaProvider)
         assert provider.api_key is None
-        assert provider.timeout == 30
+        assert provider.timeout == 300

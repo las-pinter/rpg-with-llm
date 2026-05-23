@@ -89,12 +89,15 @@ const ConnectionView = {
             // Generation settings (DM)
             dmMaxTokens: document.getElementById("dm-max-tokens"),
             dmTemperature: document.getElementById("dm-temperature"),
+            dmTimeout: document.getElementById("dm-timeout"),
             // NPC generation settings
             npcMaxTokens: document.getElementById("npc-max-tokens"),
             npcTemperature: document.getElementById("npc-temperature"),
+            npcTimeout: document.getElementById("npc-timeout"),
             // Summarizer generation settings
             summarizerMaxTokens: document.getElementById("summarizer-max-tokens"),
             summarizerTemperature: document.getElementById("summarizer-temperature"),
+            summarizerTimeout: document.getElementById("summarizer-timeout"),
         };
 
         // Provider change → update URL default + API key visibility
@@ -281,11 +284,15 @@ const ConnectionView = {
         // Also copy generation settings from DM
         const dmMaxTokens = this.els.dmMaxTokens ? this.els.dmMaxTokens.value : undefined;
         const dmTemp = this.els.dmTemperature ? this.els.dmTemperature.value : undefined;
+        const dmTimeout = this.els.dmTimeout ? this.els.dmTimeout.value : undefined;
         if (dmMaxTokens && this.els[prefix + "MaxTokens"]) {
             this.els[prefix + "MaxTokens"].value = dmMaxTokens;
         }
         if (dmTemp && this.els[prefix + "Temperature"]) {
             this.els[prefix + "Temperature"].value = dmTemp;
+        }
+        if (dmTimeout && this.els[prefix + "Timeout"]) {
+            this.els[prefix + "Timeout"].value = dmTimeout;
         }
     },
 
@@ -465,6 +472,7 @@ const ConnectionView = {
         // Add generation settings to provider config
         App.state.provider.max_tokens = parseInt(this.els.dmMaxTokens.value, 10) || undefined;
         App.state.provider.temperature = parseFloat(this.els.dmTemperature.value) || undefined;
+        App.state.provider.timeout = parseInt(this.els.dmTimeout.value, 10) || undefined;
 
         // Save per-agent provider configs (null = use DM provider)
         App.state.npcProvider = this._buildAgentProvider("npc");
@@ -502,8 +510,10 @@ const ConnectionView = {
         // Add per-agent generation settings
         const maxTokensEl = this.els[prefix + "MaxTokens"];
         const tempEl = this.els[prefix + "Temperature"];
+        const timeoutEl = this.els[prefix + "Timeout"];
         if (maxTokensEl) config.max_tokens = parseInt(maxTokensEl.value, 10) || undefined;
         if (tempEl) config.temperature = parseFloat(tempEl.value) || undefined;
+        if (timeoutEl) config.timeout = parseInt(timeoutEl.value, 10) || undefined;
 
         return config;
     },
@@ -550,10 +560,13 @@ const ConnectionView = {
                     : false,
                 dmMaxTokens: this.els.dmMaxTokens ? this.els.dmMaxTokens.value : 4096,
                 dmTemperature: this.els.dmTemperature ? this.els.dmTemperature.value : 0.8,
+                dmTimeout: this.els.dmTimeout ? this.els.dmTimeout.value : 300,
                 npcMaxTokens: this.els.npcMaxTokens ? this.els.npcMaxTokens.value : 1024,
                 npcTemperature: this.els.npcTemperature ? this.els.npcTemperature.value : 0.8,
+                npcTimeout: this.els.npcTimeout ? this.els.npcTimeout.value : 300,
                 summarizerMaxTokens: this.els.summarizerMaxTokens ? this.els.summarizerMaxTokens.value : 4096,
                 summarizerTemperature: this.els.summarizerTemperature ? this.els.summarizerTemperature.value : 0.3,
+                summarizerTimeout: this.els.summarizerTimeout ? this.els.summarizerTimeout.value : 300,
             };
             localStorage.setItem("rpg_connection", JSON.stringify(data));
         } catch (e) {
@@ -691,17 +704,26 @@ const ConnectionView = {
             if (data.dmTemperature && this.els.dmTemperature) {
                 this.els.dmTemperature.value = data.dmTemperature;
             }
+            if (data.dmTimeout && this.els.dmTimeout) {
+                this.els.dmTimeout.value = data.dmTimeout;
+            }
             if (data.npcMaxTokens && this.els.npcMaxTokens) {
                 this.els.npcMaxTokens.value = data.npcMaxTokens;
             }
             if (data.npcTemperature && this.els.npcTemperature) {
                 this.els.npcTemperature.value = data.npcTemperature;
             }
+            if (data.npcTimeout && this.els.npcTimeout) {
+                this.els.npcTimeout.value = data.npcTimeout;
+            }
             if (data.summarizerMaxTokens && this.els.summarizerMaxTokens) {
                 this.els.summarizerMaxTokens.value = data.summarizerMaxTokens;
             }
             if (data.summarizerTemperature && this.els.summarizerTemperature) {
                 this.els.summarizerTemperature.value = data.summarizerTemperature;
+            }
+            if (data.summarizerTimeout && this.els.summarizerTimeout) {
+                this.els.summarizerTimeout.value = data.summarizerTimeout;
             }
         } catch (e) {
             // Corrupted data — ignore
