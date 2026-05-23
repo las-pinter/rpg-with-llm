@@ -113,6 +113,10 @@ const CharacterView = {
             assistedLoading: document.getElementById("assisted-loading"),
             assistedError: document.getElementById("assisted-error"),
             assistedClose: document.getElementById("assisted-modal-close"),
+
+            // Full-page generating overlay
+            charGeneratingOverlay: document.getElementById("char-generating-overlay"),
+            charGeneratingText: document.getElementById("char-generating-text"),
         };
 
         // Tab switching
@@ -496,6 +500,9 @@ const CharacterView = {
         this.els.assistedError.classList.add("hidden");
         this.els.assistedLoading.classList.remove("hidden");
 
+        // Show page-level overlay for visibility even if modal is dismissed
+        this.els.charGeneratingOverlay.classList.remove("hidden");
+
         try {
             // Build answers object with numeric keys
             const answers = {};
@@ -528,13 +535,17 @@ const CharacterView = {
             // Persist to localStorage
             this._saveCharacter(character);
 
+            // Hide page-level overlay
+            this.els.charGeneratingOverlay.classList.add("hidden");
+
             // Hide modal
             this._hideAssistedModal();
 
             // Navigate to game
             App.navigate("game");
         } catch (err) {
-            // Hide loading
+            // Hide page-level overlay and modal loading
+            this.els.charGeneratingOverlay.classList.add("hidden");
             this.els.assistedLoading.classList.add("hidden");
 
             // Restore question UI
@@ -553,6 +564,7 @@ const CharacterView = {
         this.els.assistedModal.classList.add("hidden");
         this.els.assistedLoading.classList.add("hidden");
         this.els.assistedError.classList.add("hidden");
+        this.els.charGeneratingOverlay.classList.add("hidden");
         this._assistedResetVisibility();
     },
 
