@@ -38,8 +38,8 @@ const GameView = {
             // Sidebar
             sidebarName: document.getElementById("sidebar-name"),
             sidebarClassLevel: document.getElementById("sidebar-class-level"),
-            charAppearance: document.getElementById("char-appearance"),
-            charBackstory: document.getElementById("char-backstory"),
+            charAppearance: document.getElementById("sidebar-appearance"),
+            charBackstory: document.getElementById("sidebar-backstory"),
             hpFill: document.getElementById("hp-fill"),
             hpText: document.getElementById("hp-text"),
             statsList: document.getElementById("stats-list"),
