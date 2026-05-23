@@ -96,6 +96,11 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "settable",
         "description": "Number of turns played",
     },
+    "established_facts": {
+        "type": list,
+        "mutability": "mutable",
+        "description": "Established narrative facts for DM consistency",
+    },
 }
 
 
@@ -226,14 +231,23 @@ def validate_state_changes(
                     )
                     continue
 
-                if field_type is not dict and field_type is not DMNotes:
+                # Allow 'add' on list fields with a string value
+                # (appends the string to the list)
+                if field_type is list:
+                    if not isinstance(value, str):
+                        errors.append(
+                            f"Change #{i}: 'add' on list field "
+                            f"{field_name!r} requires a string value, "
+                            f"got {type(value).__name__}"
+                        )
+                        continue
+                elif field_type is not dict and field_type is not DMNotes:
                     errors.append(
                         f"Change #{i}: field {field_name!r} is not a dict or "
                         f"DMNotes, cannot use 'add'"
                     )
                     continue
-
-                if not isinstance(value, dict):
+                elif not isinstance(value, dict):
                     errors.append(
                         f"Change #{i}: 'add' requires a dict value, "
                         f"got {type(value).__name__}"
@@ -363,6 +377,8 @@ def apply_changes(state: WorldState, changes: list[dict[str, Any]]) -> WorldStat
                 new_value = DMNotes(**merged)
             elif isinstance(current, dict):
                 new_value = {**current, **value}
+            elif isinstance(current, list):
+                new_value = current + [value]
             else:
                 new_value = value
             result = dataclasses.replace(result, **{field_name: new_value})  # type: ignore[arg-type]

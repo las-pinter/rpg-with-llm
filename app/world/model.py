@@ -140,6 +140,7 @@ class WorldState:
     gold: int = 0
     dm_notes: DMNotes = field(default_factory=DMNotes)
     turn_count: int = 0
+    established_facts: list[str] = field(default_factory=list)
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -217,6 +218,13 @@ class WorldState:
         raw_gold = data.get("gold", 0)
         gold = int(raw_gold) if raw_gold is not None else 0
 
+        # established_facts — ensure it's a list of strings
+        raw_facts = data.get("established_facts", [])
+        if isinstance(raw_facts, list):
+            established_facts = [str(f) for f in raw_facts if isinstance(f, str)]
+        else:
+            established_facts = []
+
         return cls(
             version=version,
             character_id=data.get("character_id"),
@@ -229,4 +237,5 @@ class WorldState:
             gold=gold,
             dm_notes=dm_notes,
             turn_count=turn_count,
+            established_facts=established_facts,
         )

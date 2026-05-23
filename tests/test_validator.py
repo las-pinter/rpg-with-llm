@@ -203,7 +203,7 @@ class TestValidateStateChanges:
         ]
         errors = validate_state_changes(changes)
         assert len(errors) == 1
-        assert "not a dict" in errors[0].lower()
+        assert "requires a string value" in errors[0].lower()
 
     def test_reject_add_with_non_dict_value(self) -> None:
         changes: list[dict[str, Any]] = [
@@ -241,6 +241,57 @@ class TestValidateStateChanges:
         ]
         errors = validate_state_changes(changes)
         assert len(errors) == 1
+
+    # --- established_facts ---
+
+    def test_valid_add_to_established_facts(self) -> None:
+        """'add' on list field established_facts with string value."""
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "add",
+                "path": "established_facts",
+                "value": "Tavern is The Cracked Flagon",
+            }
+        ]
+        errors = validate_state_changes(changes)
+        assert errors == []
+
+    def test_reject_add_to_established_facts_with_non_string(self) -> None:
+        """'add' on list field requires a string value."""
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "add",
+                "path": "established_facts",
+                "value": 42,
+            }
+        ]
+        errors = validate_state_changes(changes)
+        assert len(errors) == 1
+        assert "requires a string value" in errors[0].lower()
+
+    def test_valid_remove_from_established_facts(self) -> None:
+        """'remove' on list field with a string value should work."""
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "remove",
+                "path": "established_facts",
+                "value": "Some old fact",
+            }
+        ]
+        errors = validate_state_changes(changes)
+        assert errors == []
+
+    def test_valid_append_to_established_facts(self) -> None:
+        """'append' on list field established_facts should work."""
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "append",
+                "path": "established_facts",
+                "value": "A new fact",
+            }
+        ]
+        errors = validate_state_changes(changes)
+        assert errors == []
 
     def test_reject_missing_action_key(self) -> None:
         changes: list[dict[str, Any]] = [
@@ -714,6 +765,55 @@ class TestApplyChanges:
         ]
         result = apply_changes(state, changes)
         assert result.inventory == ["sword", "shield"]
+
+    # --- established_facts apply_changes ---
+
+    def test_apply_add_to_established_facts(self) -> None:
+        """'add' on list field appends the string value."""
+        state = WorldState(established_facts=["Tavern is The Cracked Flagon"])
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "add",
+                "path": "established_facts",
+                "value": "Blacksmith is Torvin Ironhand",
+            }
+        ]
+        result = apply_changes(state, changes)
+        assert result.established_facts == [
+            "Tavern is The Cracked Flagon",
+            "Blacksmith is Torvin Ironhand",
+        ]
+
+    def test_apply_append_to_established_facts(self) -> None:
+        """'append' on list field works the same as 'add'."""
+        state = WorldState(established_facts=[])
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "append",
+                "path": "established_facts",
+                "value": "The innkeeper is a spy",
+            }
+        ]
+        result = apply_changes(state, changes)
+        assert result.established_facts == ["The innkeeper is a spy"]
+
+    def test_apply_remove_from_established_facts(self) -> None:
+        """'remove' on list field removes the matching string."""
+        state = WorldState(
+            established_facts=[
+                "Tavern is The Cracked Flagon",
+                "Blacksmith is Torvin Ironhand",
+            ]
+        )
+        changes: list[dict[str, Any]] = [
+            {
+                "action": "remove",
+                "path": "established_facts",
+                "value": "Tavern is The Cracked Flagon",
+            }
+        ]
+        result = apply_changes(state, changes)
+        assert result.established_facts == ["Blacksmith is Torvin Ironhand"]
 
 
 # ---------------------------------------------------------------------------

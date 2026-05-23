@@ -269,6 +269,10 @@ up an item, an NPC is defeated, a quest advances — propose the change here.
 <state_change action="append" path="inventory" value="Rusted Key" />
 <state_change action="set" path="quests.old_well.status" value="completed" />
 
+When you first introduce a named location, NPC, or important object, record it:
+<state_change action="add" path="established_facts" value="The Cracked Flagon" />
+<state_change action="add" path="established_facts" value="Torvin Ironhand" />
+
 ## npc_request (optional, repeatable)
 When an NPC interaction is complex enough that the NPC should speak and act
 for itself, request an NPC subagent here.  The system will spawn the NPC,
@@ -391,6 +395,13 @@ the crypt, the weight of their armour, the flicker of torchlight on stone.
   value="20" />
 - If the player tries to buy something they cannot afford, describe the
   merchant refusing and let them negotiate or find another way.
+
+# ESTABLISHED FACTS
+
+Established facts are shown in the world state context below.
+If you reference any previously established people, places, or things,
+use the EXACT same name as originally recorded. Do NOT rename or
+re-describe them.
 """
 
 # ---------------------------------------------------------------------------
@@ -513,14 +524,24 @@ class DungeonMaster:
 
         # Incorporate world state summary (if available)
         if self.world_state is not None:
+            context_parts: list[str] = [
+                f"Current world state:\n"
+                f"  Location: {self.world_state.current_location}\n"
+                f"  Turn: {self.world_state.turn_count}\n",
+            ]
+
+            if self.world_state.established_facts:
+                context_parts.append(
+                    "Established facts:\n"
+                    + "\n".join(
+                        f"  - {fact}" for fact in self.world_state.established_facts
+                    )
+                )
+
             messages.append(
                 {
                     "role": "system",
-                    "content": (
-                        f"Current world state:\n"
-                        f"  Location: {self.world_state.current_location}\n"
-                        f"  Turn: {self.world_state.turn_count}\n"
-                    ),
+                    "content": "\n".join(context_parts),
                 }
             )
 
