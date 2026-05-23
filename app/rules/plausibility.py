@@ -91,20 +91,30 @@ CLASS_BLACKLIST: dict[str, list[str]] = {
     "Fighter": [
         "cast",
         "magic",
+        "summon spirit",
+        "summon elemental",
+        "summon demon",
+        "conjure",
+        "enchant",
+        "animate dead",
         "teleport",
         "become god",
         "wish",
         "resurrect",
-        "summon angel",
     ],
     "Rogue": [
         "cast",
         "magic",
+        "summon spirit",
+        "summon elemental",
+        "summon demon",
+        "conjure",
+        "enchant",
+        "animate dead",
         "teleport",
         "become god",
         "wish",
         "resurrect",
-        "summon angel",
     ],
     "Mage": [
         "become god",
@@ -194,6 +204,15 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
             "army of",
             "invade",
             "overthrow kingdom",
+            "summon spirit",
+            "nature spirit",
+            "astral",
+            "forbidden knowledge",
+            "commune with",
+            "place a curse",
+            "curse of",
+            "lay a curse",
+            "necromancy",
         ]
         if _any_match(action_lower, implausible_keywords):
             logger.debug(
@@ -291,6 +310,44 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
                 "reason": (
                     f"With INT {intelligence}, the character's intellect "
                     f"serves them well here."
+                ),
+                "dc": 12,
+                "allow_roll": True,
+            }
+
+    # Check for actions that rely on wisdom
+    wisdom = abilities.get("WIS", 10)
+    wis_keywords = [
+        "omen",
+        "pray",
+        "commune",
+        "spirit",
+        "insight",
+        "perceive",
+        "nature",
+        "meditate",
+        "prophecy",
+        "instinct",
+    ]
+    if _any_match(action_lower, wis_keywords):
+        if wisdom <= 8:
+            logger.debug("plausibility.classify_action: → implausible (WIS=%d)", wisdom)
+            return {
+                "category": "implausible",
+                "reason": (
+                    f"With WIS {wisdom}, the character lacks the spiritual "
+                    f"awareness for this."
+                ),
+                "dc": 23,
+                "allow_roll": True,
+            }
+        if wisdom >= 14:
+            logger.debug("plausibility.classify_action: → plausible (WIS=%d)", wisdom)
+            return {
+                "category": "plausible",
+                "reason": (
+                    f"With WIS {wisdom}, the character's spiritual "
+                    f"connection guides them."
                 ),
                 "dc": 12,
                 "allow_roll": True,
