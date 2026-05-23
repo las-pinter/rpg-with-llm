@@ -109,7 +109,7 @@ const GameView = {
         this.els.collapseBtn.addEventListener("click", () => {
             const sidebar = document.getElementById("status-sidebar");
             sidebar.classList.toggle("collapsed");
-            this.els.collapseBtn.textContent = sidebar.classList.contains("collapsed") ? "\u25B6" : "\u25C0";
+            this.els.collapseBtn.textContent = sidebar.classList.contains("collapsed") ? "\u25C0" : "\u25B6";
 
             // Toggle game grid layout
             const gameView = document.getElementById("view-game");
