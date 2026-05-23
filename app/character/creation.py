@@ -52,6 +52,28 @@ Pick 2-4 skills appropriate for the class and backstory.
 Set HP, AC, and starting inventory appropriate for the class.
 If the player did not provide a name, generate one.
 
+--- ABILITY SCORES (USE THESE) ---
+The player has chosen the following ability scores. Let these numbers shape
+the character's appearance, backstory, and reputation. Extreme scores (3-5
+or 16-18) should be prominently featured in the narrative:
+
+STR={STR}, DEX={DEX}, CON={CON}, INT={INT}, WIS={WIS}, CHA={CHA}
+
+If any ability is very high (16+), the character has an extraordinary
+reputation related to that ability. If very low (5-), the character has
+struggled with it and it shaped their life path. Moderate scores (8-14)
+are unremarkable and need not be mentioned.
+
+When writing the backstory, weave these stat-based details naturally:
+- Very high STR: extraordinary physical feats, broad-shouldered build
+- Very low STR: slight build, relied on wit over force
+- Very high INT: intellectual achievements, memorized entire libraries
+- Very low INT: reputation for foolishness, relies on instinct
+- Very high CHA: magnetic bearing, people drawn to them, once calmed a riot
+- Very low CHA: awkward or off-putting, people keep their distance
+- Very high WIS: reads omens correctly, sensed danger before it arrived
+- Very low WIS: missed obvious warnings, spiritually blind, stubborn denial
+
 --- BACKSTORY (3-5 paragraphs, 300-500 words) ---
 Weave the player's answers into a cohesive narrative. Include:
 1. Upbringing & Origins — Where were they raised? Family? Social station?
@@ -73,11 +95,11 @@ Describe their look vividly:
 
 --- OUTPUT FORMAT ---
 Return ONLY valid JSON — no explanation, no markdown formatting, no code fences:
-{
+{{
     "name": "",
     "character_class": "Fighter|Rogue|Mage|Cleric",
     "level": 1,
-    "abilities": {"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10},
+    "abilities": {{"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10}},
     "skills": ["Skill1", "Skill2"],
     "hp": 10,
     "max_hp": 10,
@@ -85,7 +107,7 @@ Return ONLY valid JSON — no explanation, no markdown formatting, no code fence
     "appearance": "Vivid physical description here.",
     "backstory": "Rich narrative backstory here, 3-5 paragraphs.",
     "inventory": ["Item1", "Item2"]
-}"""
+}}"""
 
 _CORRECTION_PROMPT = """\
 The JSON you returned was invalid. Please return ONLY valid JSON — no \
@@ -133,7 +155,11 @@ class AssistedCreation:
     # Public API
     # ------------------------------------------------------------------
 
-    def generate_character(self, answers: dict[int, str]) -> Character:
+    def generate_character(
+        self,
+        answers: dict[int, str],
+        abilities: dict[str, int] | None = None,
+    ) -> Character:
         """Send up to 7 narrative answers to the LLM and parse the response
         into a complete Character object.
 
@@ -142,6 +168,10 @@ class AssistedCreation:
         answers : dict[int, str]
             Dictionary mapping question index (0-6) to the player's
             answer.  At least 3 answers must be provided.
+        abilities : dict[str, int] | None
+            Player-chosen ability scores (STR, DEX, CON, INT, WIS, CHA).
+            When provided, the LLM will weave these into appearance
+            and backstory.
 
         Returns
         -------
@@ -160,13 +190,29 @@ class AssistedCreation:
             raise ValueError(f"At least 3 answers are required, got {len(answers)}.")
 
         # Build the user message from answers
-        user_parts: list[str] = ["Here are the player's answers:\n"]
+        user_parts: list[str] = []
+        if abilities:
+            user_parts.append(
+                "--- PLAYER ABILITY SCORES ---\n"
+                f"STR={abilities.get('STR', 10)}, DEX={abilities.get('DEX', 10)}, "
+                f"CON={abilities.get('CON', 10)}, INT={abilities.get('INT', 10)}, "
+                f"WIS={abilities.get('WIS', 10)}, CHA={abilities.get('CHA', 10)}\n"
+            )
+        user_parts.append("Here are the player's answers:\n")
         for idx in sorted(answers):
             user_parts.append(f"Q{idx + 1}: {answers[idx]}")
-        user_message = "\n".join(user_parts)
+        user_message = "\n\n".join(user_parts)
 
+        system_prompt = _SYSTEM_PROMPT.format(
+            STR=abilities.get("STR", 10) if abilities else 10,
+            DEX=abilities.get("DEX", 10) if abilities else 10,
+            CON=abilities.get("CON", 10) if abilities else 10,
+            INT=abilities.get("INT", 10) if abilities else 10,
+            WIS=abilities.get("WIS", 10) if abilities else 10,
+            CHA=abilities.get("CHA", 10) if abilities else 10,
+        )
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ]
 
