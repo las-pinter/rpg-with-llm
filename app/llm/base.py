@@ -91,7 +91,7 @@ class ProviderConfig:
         model:          Model identifier to use for completions.
         provider_type:  Provider type identifier (default "ollama").
         api_key:        Optional API key for authentication.
-        timeout:        Request timeout in seconds (default 30).
+        timeout:        Request timeout in seconds (default 300).
         max_tokens:     Maximum tokens in the response (default None).
         temperature:    Sampling temperature (default None).
     """
@@ -100,7 +100,7 @@ class ProviderConfig:
     model: str
     provider_type: str = "ollama"
     api_key: str | None = None
-    timeout: int = 30
+    timeout: int = 300
     max_tokens: int | None = None
     temperature: float | None = None
 
@@ -147,7 +147,7 @@ class ProviderConfig:
                 model=data["model"],
                 provider_type=data.get("provider_type", "ollama"),
                 api_key=data.get("api_key"),
-                timeout=data.get("timeout", 30),
+                timeout=data.get("timeout", 300),
                 max_tokens=data.get("max_tokens"),
                 temperature=data.get("temperature"),
             )

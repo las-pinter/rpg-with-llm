@@ -54,7 +54,7 @@ class LlamacppProvider(LLMProvider):
         base_url: str = "http://localhost:8080",
         model: str = "default",
         api_key: str | None = None,
-        timeout: int = 30,
+        timeout: int = 300,
         max_tokens: int | None = None,
         temperature: float | None = None,
     ) -> None:

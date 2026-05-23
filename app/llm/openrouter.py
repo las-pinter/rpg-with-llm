@@ -55,7 +55,7 @@ class OpenRouterProvider(LLMProvider):
         base_url: str = "https://openrouter.ai/api",
         model: str = "mistralai/mistral-7b-instruct:free",
         api_key: str | None = None,
-        timeout: int = 30,
+        timeout: int = 300,
         site_url: str | None = None,
         app_name: str | None = None,
         max_tokens: int | None = None,

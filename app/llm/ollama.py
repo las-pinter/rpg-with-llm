@@ -50,7 +50,7 @@ class OllamaProvider(LLMProvider):
         base_url: str,
         model: str,
         api_key: str | None = None,
-        timeout: int = 30,
+        timeout: int = 300,
         max_tokens: int | None = None,
         temperature: float | None = None,
     ) -> None:

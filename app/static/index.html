@@ -79,6 +79,13 @@
                             <span class="toggle-hint">Higher values = more creative, unpredictable storytelling</span>
                         </div>
 
+                        <div class="form-group">
+                            <label for="dm-timeout">DM Timeout (s)</label>
+                            <input type="number" id="dm-timeout" min="30" max="3600" step="30" value="300"
+                                placeholder="Request timeout in seconds (default: 300)">
+                            <span class="toggle-hint">How long to wait before giving up on the DM (30–3600s)</span>
+                        </div>
+
                         <h3>NPC Provider</h3>
                         <div class="form-group toggle-row">
                             <label class="toggle-label">
@@ -121,6 +128,12 @@
                                 <label for="npc-temperature">NPC Temperature</label>
                                 <input type="number" id="npc-temperature" min="0.0" max="2.0" step="0.05" value="0.8"
                                     placeholder="NPC creativity">
+                            </div>
+                            <div class="form-group">
+                                <label for="npc-timeout">NPC Timeout (s)</label>
+                                <input type="number" id="npc-timeout" min="30" max="3600" step="30" value="300"
+                                    placeholder="Request timeout in seconds (default: 300)">
+                                <span class="toggle-hint">How long to wait for NPC responses (30–3600s)</span>
                             </div>
                         </div>
 
@@ -167,6 +180,12 @@
                                 <label for="summarizer-temperature">Summarizer Temperature</label>
                                 <input type="number" id="summarizer-temperature" min="0.0" max="2.0" step="0.05"
                                     value="0.3" placeholder="Summarizer creativity (lower = more factual)">
+                            </div>
+                            <div class="form-group">
+                                <label for="summarizer-timeout">Summarizer Timeout (s)</label>
+                                <input type="number" id="summarizer-timeout" min="30" max="3600" step="30" value="300"
+                                    placeholder="Request timeout in seconds (default: 300)">
+                                <span class="toggle-hint">How long to wait for summarization (30–3600s)</span>
                             </div>
                         </div>
 

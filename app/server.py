@@ -606,6 +606,22 @@ def delete_character(name: str):
 # ---------------------------------------------------------------------------
 
 
+def _safe_int(val: str | None) -> int | None:
+    """Cast a string to int safely, returning None on failure."""
+    try:
+        return int(val) if val is not None else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_float(val: str | None) -> float | None:
+    """Cast a string to float safely, returning None on failure."""
+    try:
+        return float(val) if val is not None else None
+    except (ValueError, TypeError):
+        return None
+
+
 def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
     """Build a provider from a config dict, returning None if incomplete."""
     base_url = str(config_data.get("base_url") or "").strip()
@@ -615,9 +631,10 @@ def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
 
     provider_type = str(config_data.get("provider_type") or "").strip() or "ollama"
     api_key = config_data.get("api_key")
-    timeout = config_data.get("timeout", 30)
-    if timeout is not None and (not isinstance(timeout, int) or timeout <= 0):
-        timeout = 30
+    raw_timeout = config_data.get("timeout", 300)
+    timeout = raw_timeout if isinstance(raw_timeout, int) and raw_timeout > 0 else 300
+    max_tokens = config_data.get("max_tokens")
+    temperature = config_data.get("temperature")
 
     config = ProviderConfig(
         base_url=base_url,
@@ -625,6 +642,8 @@ def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
         provider_type=provider_type,
         api_key=api_key,
         timeout=timeout,
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
     return create_provider(config)
 
@@ -798,11 +817,17 @@ def game_stream():
         model = request.args.get(f"{prefix}model", "").strip()
         if not base or not model:
             return {}
+        timeout = _safe_int(request.args.get(f"{prefix}timeout"))
+        max_tokens = _safe_int(request.args.get(f"{prefix}max_tokens"))
+        temperature = _safe_float(request.args.get(f"{prefix}temperature"))
         return {
             "base_url": base,
             "model": model,
             "provider_type": request.args.get(f"{prefix}provider_type", "ollama"),
             "api_key": request.args.get(f"{prefix}api_key"),
+            "timeout": timeout,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
         }
 
     dm_provider_cfg = _prov_from_args()
