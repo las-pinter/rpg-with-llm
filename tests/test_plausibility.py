@@ -88,6 +88,21 @@ class TestClassifyAction:
         assert result["category"] == "impossible"
         assert result["allow_roll"] is False
 
+    def test_level_1_fighter_summon_spirit_is_impossible(self) -> None:
+        """A level 1 Fighter trying to summon a spirit is impossible (bug #4)."""
+        char = _make_fighter()
+        result = classify_action(char, "I summon the spirit of the forest")
+        assert result["category"] == "impossible"
+        assert result["allow_roll"] is False
+        assert result["dc"] is None
+
+    def test_fighter_summon_guard_is_plausible(self) -> None:
+        """A Fighter summoning a guard should still be plausible (regression)."""
+        char = _make_fighter()
+        result = classify_action(char, "I summon the guard to help me")
+        assert result["category"] == "plausible"
+        assert result["allow_roll"] is True
+
     def test_strong_fighter_lifting_is_plausible(self) -> None:
         """A Fighter with STR 15 should find lifting plausible."""
         char = _make_fighter()
@@ -217,6 +232,46 @@ class TestClassifyAction:
             },
         )
         result = classify_action(char, "I persuade the guard to let me pass")
+        assert result["category"] == "plausible"
+        assert result["dc"] == 12
+        assert result["allow_roll"] is True
+
+    def test_low_wisdom_is_implausible(self) -> None:
+        """WIS <= 8 should make spiritual/perceptive actions implausible."""
+        char = Character(
+            name="Oblivious",
+            character_class="Fighter",
+            level=1,
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 6,
+                "CHA": 10,
+            },
+        )
+        result = classify_action(char, "I look for an omen in the sky")
+        assert result["category"] == "implausible"
+        assert result["dc"] == 23
+        assert result["allow_roll"] is True
+
+    def test_high_wisdom_is_plausible(self) -> None:
+        """WIS >= 14 should make spiritual actions plausible."""
+        char = Character(
+            name="Sage",
+            character_class="Fighter",
+            level=1,
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 16,
+                "CHA": 10,
+            },
+        )
+        result = classify_action(char, "I pray for guidance from the spirits")
         assert result["category"] == "plausible"
         assert result["dc"] == 12
         assert result["allow_roll"] is True
