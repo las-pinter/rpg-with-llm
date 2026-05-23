@@ -1524,6 +1524,66 @@ label.toggle-label {
     font-size: 0.9rem;
 }
 
+/* Full-page loading overlay for character generation */
+#char-generating-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    background-image:
+        radial-gradient(ellipse at center, rgba(212, 165, 71, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: overlayFadeIn 0.3s ease;
+}
+#char-generating-overlay.hidden {
+    display: none;
+}
+.char-generating-content {
+    text-align: center;
+    padding: 2rem;
+    animation: contentPopIn 0.35s ease 0.1s both;
+}
+.char-generating-content .spinner {
+    width: 48px;
+    height: 48px;
+    border-width: 4px;
+}
+.char-generating-text {
+    color: var(--accent-gold);
+    font-family: var(--font-narrative);
+    margin-top: 1.5rem;
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    line-height: 1.6;
+    text-shadow: 0 0 20px var(--accent-glow), 0 0 60px var(--accent-glow);
+    animation: textBreathe 3s ease-in-out infinite;
+}
+
+@keyframes overlayFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes contentPopIn {
+    from {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+@keyframes textBreathe {
+    0%, 100% { opacity: 0.75; text-shadow: 0 0 10px var(--accent-glow); }
+    50%      { opacity: 1;    text-shadow: 0 0 30px var(--accent-glow-strong), 0 0 60px var(--accent-glow); }
+}
+
 /* ============================================================
    GOLD DISPLAY
    ============================================================ */
