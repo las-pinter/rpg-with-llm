@@ -166,6 +166,38 @@ class TestWorldState:
         ws = WorldState()
         assert ws.version == "1.0"
 
+    def test_established_facts_defaults_to_empty(self) -> None:
+        ws = WorldState()
+        assert ws.established_facts == []
+
+    def test_established_facts_survives_round_trip(self) -> None:
+        ws = WorldState(
+            established_facts=[
+                "Tavern is The Cracked Flagon",
+                "Blacksmith is Torvin Ironhand",
+            ]
+        )
+        data = ws.to_dict()
+        assert "established_facts" in data
+        assert len(data["established_facts"]) == 2
+        restored = WorldState.from_dict(data)
+        assert restored.established_facts == [
+            "Tavern is The Cracked Flagon",
+            "Blacksmith is Torvin Ironhand",
+        ]
+
+    def test_established_facts_from_dict_with_non_list(self) -> None:
+        """If established_facts is not a list, must default to empty."""
+        ws = WorldState.from_dict({"established_facts": "not a list"})
+        assert ws.established_facts == []
+
+    def test_established_facts_from_dict_filters_non_strings(self) -> None:
+        """Non-string entries must be filtered out."""
+        ws = WorldState.from_dict(
+            {"established_facts": ["valid fact", 42, 3.14, None, "also valid"]}
+        )
+        assert ws.established_facts == ["valid fact", "also valid"]
+
     def test_with_custom_locations_and_quests(self) -> None:
         tavern = Location(
             id="tavern",

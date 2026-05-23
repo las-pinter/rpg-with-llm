@@ -170,6 +170,20 @@ class TestDungeonMasterBuildContext:
         assert "old_tower" in context[1]["content"]
         assert "already in progress" in context[2]["content"]
 
+    def test_includes_established_facts_when_available(self) -> None:
+        """Established facts should appear in the DM context."""
+        from app.world.model import WorldState
+
+        ws = WorldState(established_facts=["The Cracked Flagon", "Torvin Ironhand"])
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        context = dm._build_context("Hello")
+        facts_msgs = [
+            m for m in context if "Established facts:" in m.get("content", "")
+        ]
+        assert len(facts_msgs) == 1
+        assert "The Cracked Flagon" in facts_msgs[0]["content"]
+        assert "Torvin Ironhand" in facts_msgs[0]["content"]
+
     def test_includes_character_when_available(self) -> None:
         """Character info should be included when the DM has it."""
         from app.character.model import Character
