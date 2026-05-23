@@ -18,8 +18,11 @@ Tag types:
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -105,6 +108,10 @@ def _extract_narrative(text: str) -> str:
     match = _NARRATIVE_RE.search(text)
     if match:
         return match.group(1).strip()
+    logger.warning(
+        "No <narrative> tag found in response (first 200 chars): %s",
+        text[:200],
+    )
     return ""
 
 

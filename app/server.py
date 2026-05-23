@@ -785,6 +785,12 @@ def game_stream():
     if not player_input:
         return jsonify({"ok": False, "error": "Missing 'input' query parameter"}), 400
 
+    logger.debug(
+        "game_stream: received player input (len=%d): %s",
+        len(player_input),
+        player_input,
+    )
+
     # Build provider configs from query params
     def _prov_from_args(prefix: str = "") -> dict:
         """Extra a provider config dict from query args with optional prefix."""
@@ -844,6 +850,7 @@ def game_stream():
 
     def generate() -> Generator[str, None, None]:
         """Generate SSE events for the streaming response."""
+        _narrative_retried: bool = False
         # Check for impossible actions before calling LLM (same as process_turn())
         if dm.character is not None:
             classification = classify_action(dm.character, player_input)
@@ -864,7 +871,10 @@ def game_stream():
                 yield f"event: done\ndata: {d_data}\n\n"
                 return
 
-        logger.debug("game_stream: building context for input='%s'", player_input[:80])
+        logger.debug(
+            "game_stream: building context for input='%s'",
+            player_input,
+        )
         messages = dm._build_context(player_input)
         logger.debug("game_stream: context built — %d messages", len(messages))
 
@@ -942,6 +952,50 @@ def game_stream():
                 f"data: {json.dumps({'type': 'error', 'message': 'Parse error'})}\n\n"
             )
             return
+
+        # Empty narrative retry — if LLM omitted <narrative> tags, retry once
+        # with a correction regardless of tool/NPC requests.
+        if not narrative and not _narrative_retried:
+            _narrative_retried = True
+            logger.warning(
+                "game_stream: empty narrative (first 500 chars): %s",
+                full_response[:500],
+            )
+            try:
+                messages.append({"role": "assistant", "content": full_response})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous response was missing the required "
+                            "<narrative> tag. You MUST include a <narrative> "
+                            "tag pair with your story text. Please respond "
+                            "again with proper <narrative> tags."
+                        ),
+                    }
+                )
+                if dm.llm_provider is not None:
+                    retry_resp = dm.llm_provider.call(messages)
+                else:
+                    retry_resp = {
+                        "content": "<narrative>The scene unfolds before you."
+                        "</narrative>"
+                    }
+                retry_text = retry_resp.get("content", "")
+                retry_parsed = parse_dm_response(retry_text)
+                retry_narrative = retry_parsed.get("narrative", "")
+                if retry_narrative:
+                    narrative = retry_narrative
+                    state_changes = retry_parsed.get("state_changes", state_changes)
+                else:
+                    logger.warning(
+                        "game_stream: retry also produced empty narrative, "
+                        "using fallback"
+                    )
+                    narrative = "[The DM's vision flickers... the story continues.]"
+            except Exception as e:
+                logger.warning("game_stream: narrative retry failed: %s", e)
+                narrative = "[The DM's vision flickers... the story continues.]"
 
         # Execute tool requests
         tool_results = []
@@ -1039,6 +1093,14 @@ def game_stream():
                         parsed2 = parse_dm_response(second_text)
                         narrative = parsed2.get("narrative", narrative)
                         state_changes = parsed2.get("state_changes", state_changes)
+                        if not narrative:
+                            logger.warning(
+                                "game_stream: second call also produced empty "
+                                "narrative, using fallback"
+                            )
+                            narrative = (
+                                "[The DM's vision flickers... the story continues.]"
+                            )
             except Exception as e:
                 logger.warning("Second LLM call in stream failed: %s", e)
 

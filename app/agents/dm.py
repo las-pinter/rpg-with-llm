@@ -252,6 +252,10 @@ circular chamber lit by guttering torches.  In the centre, a hooded figure
 kneels before an altar of black stone.  The air smells of old dust and copper.
 </narrative>
 
+**CRITICAL: You MUST ALWAYS include a <narrative> tag pair. If you do not,
+the player will see NOTHING and the system will retry. The <narrative> tag
+is not optional — it is required for every response.**
+
 ## tool_request (optional, repeatable)
 When you need the outcome of an uncertain action, request a tool call.  The
 system will execute the tool and inject the result before you continue.
@@ -447,6 +451,7 @@ class DungeonMaster:
             character = Character.from_dict(character)
         self.character = character
         self.turn_count: int = 0
+        self._retried_parse: bool = False
         self.token_usage: dict[str, int] = {
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -637,6 +642,7 @@ class DungeonMaster:
             }
 
         self.turn_count += 1
+        self._retried_parse = False
         logger.debug(
             "process_turn[%d]: input='%s' (len=%d)",
             self.turn_count,
@@ -766,6 +772,7 @@ class DungeonMaster:
         # 5. Second LLM call — inject tool results and/or NPC results
         # ------------------------------------------------------------------
         need_second_call = bool(tool_requests) or bool(npc_results)
+        _raw_final_response: str = first_response
         if need_second_call:
             messages.append(
                 {
@@ -804,6 +811,7 @@ class DungeonMaster:
 
             try:
                 second_response = self._call_llm(messages)
+                _raw_final_response = second_response
             except Exception:
                 logger.exception("Second LLM call failed")
                 # Fall back to the first response's narrative
@@ -819,6 +827,50 @@ class DungeonMaster:
 
         narrative = final_parsed.get("narrative", "")
         state_changes = final_parsed.get("state_changes", [])
+
+        # ------------------------------------------------------------------
+        # 4a. Empty narrative retry — if the LLM omitted <narrative> tags
+        # ------------------------------------------------------------------
+        if not narrative and not self._retried_parse:
+            raw: str = _raw_final_response
+            logger.warning(
+                "process_turn[%d]: empty narrative detected (first 500 chars): %s",
+                self.turn_count,
+                raw[:500],
+            )
+            self._retried_parse = True
+            messages.append({"role": "assistant", "content": raw})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Your previous response was missing the required "
+                        "<narrative> tag. You MUST include a <narrative> "
+                        "tag pair with your story text. Please respond again "
+                        "with proper <narrative> tags."
+                    ),
+                }
+            )
+            try:
+                retry_response = self._call_llm(messages)
+                retry_parsed = parse_dm_response(retry_response)
+                retry_narrative = retry_parsed.get("narrative", "")
+                if retry_narrative:
+                    narrative = retry_narrative
+                    state_changes = retry_parsed.get("state_changes", state_changes)
+                else:
+                    logger.warning(
+                        "process_turn[%d]: retry also produced empty "
+                        "narrative, using fallback",
+                        self.turn_count,
+                    )
+                    narrative = "[The narrative continues...]"
+            except Exception:
+                logger.exception(
+                    "process_turn[%d]: narrative retry LLM call failed",
+                    self.turn_count,
+                )
+                narrative = "[The narrative continues...]"
 
         # ------------------------------------------------------------------
         # 5. Validate and apply state changes
