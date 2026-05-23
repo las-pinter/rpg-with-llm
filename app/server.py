@@ -1025,7 +1025,7 @@ def game_stream():
             logger.debug("game_stream: spawning %d NPC subagent(s)", len(npc_requests))
             for nr in npc_requests:
                 npc_id = nr.get("npc_id", "unknown")
-                hint = nr.get("context", f"The {npc_id} considers...")[:60]
+                hint = nr.get("context", f"The {npc_id} considers...")
                 event_data = json.dumps(
                     {
                         "type": "npc_thinking",
