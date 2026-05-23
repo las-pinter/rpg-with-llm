@@ -1082,9 +1082,9 @@ class TestAssistedCreation:
         assert char.name == "Rurik Stoneheart"
         assert char.character_class == "Fighter"
 
-    def test_assisted_creation_uses_all_five_questions(self) -> None:
-        """QUESTIONS must have exactly 5 entries."""
-        assert len(AssistedCreation.QUESTIONS) == 5
+    def test_assisted_creation_uses_all_seven_questions(self) -> None:
+        """QUESTIONS must have exactly 7 entries."""
+        assert len(AssistedCreation.QUESTIONS) == 7
 
     def test_assisted_creation_questions_are_non_empty(self) -> None:
         """Every question in QUESTIONS must be a non-empty string."""
