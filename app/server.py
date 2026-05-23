@@ -426,6 +426,7 @@ def generate_character():
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
 
     answers = data.get("answers")
+    abilities = data.get("abilities", {})
     if not isinstance(answers, dict) or len(answers) < 3:
         return jsonify({"ok": False, "error": "At least 3 answers are required"}), 400
 
@@ -465,7 +466,7 @@ def generate_character():
         )
         provider = create_provider(config)
         creation = AssistedCreation(llm_provider=provider)
-        character = creation.generate_character(answers_int)
+        character = creation.generate_character(answers_int, abilities=abilities)
     except ValueError as e:
         logger.warning("Invalid character generation request: %s", e)
         return jsonify({"ok": False, "error": "Invalid request data"}), 400

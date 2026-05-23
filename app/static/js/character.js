@@ -522,6 +522,7 @@ const CharacterView = {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     answers: answers,
+                    abilities: CharacterView.abilities,
                     provider: App.state.provider,
                 }),
             });

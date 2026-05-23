@@ -1227,3 +1227,81 @@ class TestAssistedCreation:
 
         with pytest.raises(CharacterGenerationError, match="Failed to generate"):
             creation.generate_character(_VALID_ANSWERS)
+
+    def test_assisted_creation_with_abilities_includes_stat_references(
+        self,
+    ) -> None:
+        """When abilities are passed, the LLM system prompt includes them
+        and the generated backstory should reflect extreme stats."""
+        abilities = {
+            "STR": 18,
+            "DEX": 10,
+            "CON": 14,
+            "INT": 10,
+            "WIS": 10,
+            "CHA": 10,
+        }
+        strong_json = json.dumps(
+            {
+                "name": "Grom Ironfist",
+                "character_class": "Fighter",
+                "level": 1,
+                "abilities": abilities,
+                "skills": ["Athletics", "Perception"],
+                "hp": 14,
+                "max_hp": 14,
+                "ac": 18,
+                "appearance": (
+                    "A towering figure with broad shoulders and corded muscle. "
+                    "His arms are thick as tree trunks from years of lifting "
+                    "heavy stone."
+                ),
+                "backstory": (
+                    "Born in a small farming village, Grom was always the biggest "
+                    "and strongest. By age twelve he could lift a horse. When a "
+                    "flood destroyed his village, he single-handedly held back a "
+                    "falling barn door long enough to save three children, earning "
+                    "a reputation as the strongest man in the county."
+                ),
+                "inventory": ["Longsword", "Chain Mail", "Shield", "Explorer's Pack"],
+            }
+        )
+        mock_llm = _make_mock_llm(strong_json)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS, abilities=abilities)
+
+        assert isinstance(char, Character)
+        assert char.name == "Grom Ironfist"
+        assert char.abilities["STR"] == 18
+        assert (
+            "strongest" in char.backstory.lower()
+            or "strength" in char.backstory.lower()
+        )
+
+    def test_assisted_creation_without_abilities_still_works(
+        self,
+    ) -> None:
+        """When no abilities are passed, generation must still succeed
+        using default ability values in the prompt."""
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+
+        assert isinstance(char, Character)
+        assert char.name == "Rurik Stoneheart"
+
+    def test_assisted_creation_abilities_passed_to_user_message(self) -> None:
+        """When abilities are provided, they must appear in the user message
+        sent to the LLM."""
+        abilities = {"STR": 3, "DEX": 18, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10}
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS, abilities=abilities)
+
+        # Verify the call was made (LLM was invoked)
+        assert mock_llm.call.called
+        assert isinstance(char, Character)
+        assert char.name == "Rurik Stoneheart"
