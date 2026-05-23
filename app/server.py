@@ -231,6 +231,13 @@ def save_game():
 
     state_dict = data["state"]
     if isinstance(state_dict, dict):
+        # Shallow copy to avoid mutating the original request data (Bug 8)
+        state_dict = state_dict.copy()
+        # Embed character data inside the state dict for single-file save
+        char_data = data.get("character")
+        if char_data and isinstance(char_data, dict):
+            state_dict["_character"] = char_data
+            state_dict["character_name"] = char_data.get("name", "")
         logger.debug(
             "Saving game '%s' with state keys: %s", name, list(state_dict.keys())
         )
@@ -247,11 +254,6 @@ def save_game():
         logger.exception("Failed to save game '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
-    # Save companion character data if provided
-    char_data = data.get("character")
-    if char_data and isinstance(char_data, dict):
-        _save_companion_character(name, char_data)
-
     return jsonify({"ok": True, "name": name, "timestamp": timestamp})
 
 
@@ -267,29 +269,13 @@ def list_saves():
     return jsonify({"ok": True, "saves": saves})
 
 
-def _save_companion_character(save_name: str, char_data: dict) -> None:
-    """Save companion character data alongside a world save."""
-    char_dir = (Path("data") / "saves").resolve()
-    char_dir.mkdir(parents=True, exist_ok=True)
-    save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
-    char_path = (char_dir / f"{save_key}.char.json").resolve()
-    tmp_path = (char_dir / f"{save_key}.char.json.tmp").resolve()
-    try:
-        char_path.relative_to(char_dir)
-        tmp_path.relative_to(char_dir)
-    except ValueError as exc:
-        raise ValueError("Invalid save name for companion character path") from exc
-    try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(char_data, f, indent=2, ensure_ascii=False)
-        tmp_path.replace(char_path)
-    except BaseException:
-        tmp_path.unlink(missing_ok=True)
-        raise
-
-
 def _load_companion_character(save_name: str) -> dict | None:
-    """Load companion character data for a save, or None."""
+    """Load companion character data for a save, or None.
+
+    This is a backward-compatibility shim for old saves that used
+    separate .char.json files. New saves embed character data directly
+    in the world state file.
+    """
     char_dir = (Path("data") / "saves").resolve()
     save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
     char_path = (char_dir / f"{save_key}.char.json").resolve()
@@ -304,6 +290,21 @@ def _load_companion_character(save_name: str) -> dict | None:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
+
+
+def _delete_companion_character(save_name: str) -> None:
+    """Delete orphan companion character file for a save, if it exists."""
+    char_dir = (Path("data") / "saves").resolve()
+    save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+    char_path = (char_dir / f"{save_key}.char.json").resolve()
+    try:
+        char_path.relative_to(char_dir)
+    except ValueError:
+        return
+    try:
+        char_path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 @app.route("/api/load/<string:name>", methods=["POST"])
@@ -339,7 +340,11 @@ def load_game(name):
         logger.exception("Failed to load save '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
-    char_data = _load_companion_character(name)
+    # Extract character data from embedded _character field
+    char_data = world_state._character
+    if char_data is None:
+        # Backward compat: try loading from old companion file
+        char_data = _load_companion_character(name)
     result: dict[str, object] = {"ok": True, "state": world_state.to_dict()}
     if char_data is not None:
         result["character"] = char_data
@@ -368,6 +373,9 @@ def delete_save(name):
     except Exception:
         logger.exception("Failed to delete save '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    # Clean up any orphan .char.json companion files (legacy format)
+    _delete_companion_character(name)
 
     return jsonify({"ok": True})
 

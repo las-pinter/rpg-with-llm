@@ -50,6 +50,16 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "settable",
         "description": "Linked character ID",
     },
+    "character_name": {
+        "type": str,
+        "mutability": "settable",
+        "description": "Character display name for save index",
+    },
+    "_character": {
+        "type": (dict, type(None)),
+        "mutability": "settable",
+        "description": "Embedded character data for single-file save",
+    },
     "current_location": {
         "type": str,
         "mutability": "settable",

@@ -131,6 +131,7 @@ class WorldState:
 
     version: str = "1.0"
     character_id: str | None = None
+    character_name: str = ""
     current_location: str = "starting_village"
     active_npcs: dict[str, dict[str, Any]] = field(default_factory=dict)
     locations: dict[str, Location] = field(default_factory=dict)
@@ -141,6 +142,9 @@ class WorldState:
     dm_notes: DMNotes = field(default_factory=DMNotes)
     turn_count: int = 0
     established_facts: list[str] = field(default_factory=list)
+
+    # Embedded character data for single-file save (not part of game logic)
+    _character: dict[str, Any] | None = field(default=None, repr=False)
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -228,6 +232,7 @@ class WorldState:
         return cls(
             version=version,
             character_id=data.get("character_id"),
+            character_name=str(data.get("character_name", "")),
             current_location=data.get("current_location", "starting_village"),
             active_npcs=active_npcs,
             locations=locations,
@@ -238,4 +243,5 @@ class WorldState:
             dm_notes=dm_notes,
             turn_count=turn_count,
             established_facts=established_facts,
+            _character=data.get("_character"),
         )
