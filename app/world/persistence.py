@@ -90,7 +90,9 @@ class WorldStorage:
         # Populate metadata from WorldState (Bug 6)
         metadata: dict[str, Any] = {
             "timestamp": timestamp,
-            "character_name": world_state.character_id or "Unknown",
+            "character_name": world_state.character_name
+            or world_state.character_id
+            or "Unknown",
             "level": world_state.turn_count,  # Placeholder until character system
             "turn_count": world_state.turn_count,
         }

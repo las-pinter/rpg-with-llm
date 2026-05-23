@@ -714,6 +714,7 @@ const GameView = {
 
         // Seed worldState with character's starting equipment and gold
         if (App.state.character) {
+            this.state.worldState.character_name = App.state.character.name || "";
             if (App.state.character.inventory) {
                 this.state.worldState.inventory = [...App.state.character.inventory];
             }
@@ -781,12 +782,17 @@ const GameView = {
         this.els.saveStatus.className = "save-status";
 
         try {
+            // Embed character data inside the state dict for single-file save
+            const stateData = this.state.worldState ? { ...this.state.worldState } : {};
+            if (App.state.character) {
+                stateData._character = App.state.character;
+                stateData.character_name = App.state.character.name || "";
+            }
             const resp = await fetch("/api/save", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    state: this.state.worldState || {},
-                    character: App.state.character || undefined,
+                    state: stateData,
                     name: name,
                 }),
             });
@@ -903,9 +909,13 @@ const GameView = {
                 this.state.turnCount = data.state.turn_count || 0;
                 this.state.hasStarted = true;
 
-                // Restore character if companion data exists
-                if (data.character) {
-                    App.state.character = data.character;
+                // Restore character from embedded _character data (new format)
+                // with fallback to separate character field (legacy format)
+                const charData = data.state && data.state._character
+                    ? data.state._character
+                    : data.character || null;
+                if (charData) {
+                    App.state.character = charData;
                 }
 
                 // Clear and rebuild narrative

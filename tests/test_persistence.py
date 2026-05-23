@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
@@ -9,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from app.server import app as flask_app
 from app.world.model import (
     DMNotes,
     FactionStanding,
@@ -67,6 +69,13 @@ def sample_world() -> WorldState:
         dm_notes=notes,
         turn_count=7,
     )
+
+
+@pytest.fixture
+def client():
+    """Create a Flask test client (storage patched per-test as needed)."""
+    with flask_app.test_client() as c:
+        yield c
 
 
 # ---------------------------------------------------------------------------
@@ -519,11 +528,13 @@ class TestWorldStorage:
     def test_index_metadata_character_name_is_populated(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
-        """character_name in index must come from world_state.character_id."""
+        """character_name in index must use world_state.character_name field."""
+        sample_world.character_name = "Sir Hero"
+        sample_world.character_id = "hero_42"
         storage.save(sample_world, name="meta_char")
         saves = storage.list_saves()
         assert len(saves) == 1
-        assert saves[0]["character_name"] == "hero_42"
+        assert saves[0]["character_name"] == "Sir Hero"
 
     def test_index_metadata_character_name_default_when_none(
         self, storage: WorldStorage
@@ -543,3 +554,137 @@ class TestWorldStorage:
         saves = storage.list_saves()
         assert len(saves) == 1
         assert saves[0]["level"] == 7
+
+    # ------------------------------------------------------------------
+    # Embedded character save/load (Bug 8)
+    # ------------------------------------------------------------------
+
+    def test_save_embeds_character_in_state(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """Saving with character data embeds _character key in the JSON file."""
+        char_data = {"name": "Test Hero", "class": "Mage", "level": 5}
+        sample_world._character = char_data
+        sample_world.character_name = "Test Hero"
+        storage.save(sample_world, name="char_embed")
+
+        save_path = storage.saves_dir / "char_embed.json"
+        with open(save_path) as f:
+            raw_data = json.load(f)
+
+        assert "_character" in raw_data
+        assert raw_data["_character"]["name"] == "Test Hero"
+        assert raw_data["_character"]["class"] == "Mage"
+        assert raw_data["_character"]["level"] == 5
+        assert raw_data["character_name"] == "Test Hero"
+
+    def test_load_extracts_embedded_character(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """Loading a save with embedded _character preserves the data."""
+        char_data = {"name": "Load Hero", "class": "Warrior", "level": 3}
+        sample_world._character = char_data
+        sample_world.character_name = "Load Hero"
+        storage.save(sample_world, name="char_load")
+
+        loaded = storage.load("char_load")
+        assert loaded._character is not None
+        assert loaded._character["name"] == "Load Hero"
+        assert loaded._character["class"] == "Warrior"
+        assert loaded._character["level"] == 3
+        assert loaded.character_name == "Load Hero"
+
+    def test_load_falls_back_to_companion_character(self, client, monkeypatch) -> None:
+        """Load falls back to old .char.json companion file when _character
+        is absent (backward compatibility)."""
+        tmp_dir = Path(tempfile.mkdtemp())
+        saves_dir = tmp_dir / "saves"
+        saves_dir.mkdir(parents=True)
+
+        storage = WorldStorage(tmp_dir)
+        monkeypatch.setattr("app.server._storage", storage)
+
+        # Create a state file WITHOUT _character (old format)
+        save_name = "backward_compat"
+        state_path = saves_dir / f"{save_name}.json"
+        with open(state_path, "w") as f:
+            json.dump(
+                {
+                    "version": "1.0",
+                    "turn_count": 5,
+                    "character_id": "old_hero",
+                },
+                f,
+            )
+
+        # Create companion .char.json file in the location
+        # _load_companion_character looks for (Path("data") / "saves").
+        companion_dir = tmp_dir / "data" / "saves"
+        companion_dir.mkdir(parents=True)
+        save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+        char_data = {"name": "Old Hero", "class": "Fighter", "level": 3}
+        char_path = companion_dir / f"{save_key}.char.json"
+        with open(char_path, "w") as f:
+            json.dump(char_data, f)
+
+        monkeypatch.chdir(tmp_dir)
+
+        # Load via Flask endpoint — should find companion character
+        resp = client.post("/api/load/backward_compat")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["character"]["name"] == "Old Hero"
+        assert data["character"]["class"] == "Fighter"
+        assert data["character"]["level"] == 3
+
+    def test_delete_cleans_up_companion_file(self, client, monkeypatch) -> None:
+        """Deleting a save also removes the orphan .char.json companion file."""
+        tmp_dir = Path(tempfile.mkdtemp())
+        saves_dir = tmp_dir / "saves"
+        saves_dir.mkdir(parents=True)
+
+        storage = WorldStorage(tmp_dir)
+        monkeypatch.setattr("app.server._storage", storage)
+
+        # Save a game (creates the state file properly)
+        save_name = "cleanup_companion"
+        ws = WorldState(turn_count=5, _character={"name": "Hero"})
+        storage.save(ws, name=save_name)
+
+        # Create companion file in the legacy location
+        companion_dir = tmp_dir / "data" / "saves"
+        companion_dir.mkdir(parents=True)
+        save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+        char_path = companion_dir / f"{save_key}.char.json"
+        with open(char_path, "w") as f:
+            json.dump({"name": "Legacy Hero"}, f)
+        assert char_path.exists()
+
+        monkeypatch.chdir(tmp_dir)
+
+        # Delete via Flask endpoint — companion file should be removed
+        resp = client.delete(f"/api/delete/{save_name}")
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        assert not char_path.exists(), "Companion file should be cleaned up"
+
+    def test_world_state_character_round_trip(self) -> None:
+        """WorldState.from_dict(to_dict()) preserves _character and
+        character_name."""
+        char_data = {"name": "Round Trip Hero", "class": "Rogue"}
+        ws = WorldState(
+            character_name="Round Trip Hero",
+            _character=char_data,
+            turn_count=10,
+        )
+
+        d = ws.to_dict()
+        assert d["_character"] == char_data
+        assert d["character_name"] == "Round Trip Hero"
+        assert d["turn_count"] == 10
+
+        ws2 = WorldState.from_dict(d)
+        assert ws2._character == char_data
+        assert ws2.character_name == "Round Trip Hero"
+        assert ws2.turn_count == 10
