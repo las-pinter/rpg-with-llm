@@ -96,17 +96,27 @@ earlier. Use the player's original answers to generate the character."""
 class AssistedCreation:
     """LLM-assisted character creation flow.
 
-    The player answers 3-5 open-ended narrative questions, and the DM
+    The player answers 7 open-ended narrative questions, and the DM
     (an LLM call) generates a complete Character from those answers.
     """
 
     QUESTIONS: list[str] = [
-        "Where do you come from, and what was your life before adventure found you?",
-        "What event set you on the path of a hero — or a fool with a death wish?",
-        "What is your greatest strength and your deepest flaw?",
-        "What do you hope to find in the world — treasure, "
-        "knowledge, redemption, or a good death?",
-        "Tell me about a person you left behind and what they'd say about you now.",
+        "Where were you born and raised? What did your family do — and what did you "
+        "do before you picked up a sword (or a spellbook, or a set of lockpicks)?",
+        "Describe a single moment that changed everything — a betrayal, a loss, a "
+        "discovery, or a choice you couldn't take back. What happened, and why did "
+        "it leave you no choice but to adventure?",
+        "What is your deepest flaw — the thing about yourself you're trying to hide "
+        "or outrun? And what strength do you lean on when you fall?",
+        "What are you looking for out there — really? Treasure? A name for yourself? "
+        "Revenge? Something you lost? And what would make you turn back?",
+        "Describe someone you left behind — a person you love, fear, owe, or hate. "
+        "What would they say about you if you never came back?",
+        "What do you look like? What marks, scars, or gear does a stranger notice "
+        "first — and what story do those marks tell?",
+        "What's one thing about your past that, if it ever caught up to you, would "
+        "ruin everything? A debt? A crime? A promise you broke? A secret you're "
+        "keeping?",
     ]
 
     def __init__(self, llm_provider: LLMProvider) -> None:
@@ -124,13 +134,13 @@ class AssistedCreation:
     # ------------------------------------------------------------------
 
     def generate_character(self, answers: dict[int, str]) -> Character:
-        """Send 3-5 narrative answers to the LLM and parse the response
+        """Send up to 7 narrative answers to the LLM and parse the response
         into a complete Character object.
 
         Parameters
         ----------
         answers : dict[int, str]
-            Dictionary mapping question index (0-4) to the player's
+            Dictionary mapping question index (0-6) to the player's
             answer.  At least 3 answers must be provided.
 
         Returns
