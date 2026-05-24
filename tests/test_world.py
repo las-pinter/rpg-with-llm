@@ -229,6 +229,11 @@ class TestWorldState:
         ws = WorldState.from_dict({"version": "1.0"})
         assert ws.story_log == []
 
+    def test_story_log_non_list_fallback(self) -> None:
+        """Non-list story_log data falls back to empty list."""
+        ws = WorldState.from_dict({"version": "1.0", "story_log": "not a list"})
+        assert ws.story_log == []
+
     def test_with_custom_locations_and_quests(self) -> None:
         tavern = Location(
             id="tavern",

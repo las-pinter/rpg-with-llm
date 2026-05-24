@@ -882,49 +882,51 @@ const GameView = {
     // Story Modal
     // ------------------------------------------------------------------
 
-    /** Show the story modal and fetch the adventure log. */
+    /** Show the story modal with the adventure log from live state. */
     async _showStoryModal() {
         const modal = document.getElementById("story-modal");
         const content = document.getElementById("story-content");
         if (!modal || !content) return;
 
         modal.style.display = "flex";
-        content.innerHTML = '<p class="text-muted">Loading story...</p>';
+        content.innerHTML = '';
 
-        const characterName = App.state.character ? App.state.character.name : null;
-        if (!characterName) {
-            content.innerHTML = '<p class="text-error">No character loaded.</p>';
+        // Escape key closes the modal
+        this._storyKeyHandler = (e) => {
+            if (e.key === "Escape") this._hideStoryModal();
+        };
+        document.addEventListener("keydown", this._storyKeyHandler);
+
+        const storyLog = this.state.worldState?.story_log;
+
+        if (!storyLog || storyLog.length === 0) {
+            content.innerHTML = '<p class="text-muted">The adventure has just begun... no story yet!</p>';
             return;
         }
 
-        try {
-            const resp = await fetch(`/api/story/${encodeURIComponent(characterName)}`);
-            const data = await resp.json();
-            if (data.ok && data.story && data.story.length > 0) {
-                content.innerHTML = data.story.map(entry => {
-                    const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
-                    if (match) {
-                        return `<div class="story-entry">
-                            <div class="story-turn-header">Turn ${match[1]}</div>
-                            <div class="story-narrative">${this._esc(match[2])}</div>
-                        </div>`;
-                    }
-                    return `<div class="story-entry"><div class="story-narrative">${this._esc(entry)}</div></div>`;
-                }).join('');
-            } else if (data.ok) {
-                content.innerHTML = '<p class="text-muted">The adventure has just begun... no story yet!</p>';
-            } else {
-                content.innerHTML = `<p class="text-error">${this._esc(data.error || 'Failed to load story.')}</p>`;
+        // Render each story entry
+        content.innerHTML = storyLog.map(entry => {
+            const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
+            if (match) {
+                return `<div class="story-entry">
+                    <div class="story-turn-header">Turn ${this._esc(match[1])}</div>
+                    <div class="story-narrative">${this._esc(match[2])}</div>
+                </div>`;
             }
-        } catch (err) {
-            content.innerHTML = `<p class="text-error">Error: ${this._esc(err.message)}</p>`;
-        }
+            return `<div class="story-entry"><div class="story-narrative">${this._esc(entry)}</div></div>`;
+        }).join('');
     },
 
-    /** Hide the story modal. */
+    /** Hide the story modal and clean up. */
     _hideStoryModal() {
         const modal = document.getElementById("story-modal");
         if (modal) modal.style.display = "none";
+        const content = document.getElementById("story-content");
+        if (content) content.innerHTML = ''; // clear on close
+        if (this._storyKeyHandler) {
+            document.removeEventListener("keydown", this._storyKeyHandler);
+            this._storyKeyHandler = null;
+        }
     },
 
     // ------------------------------------------------------------------
