@@ -503,6 +503,9 @@ class TestProcessTurnStream:
 
         events = list(dm.process_turn_stream("I cast fireball at the goblins"))
 
+        error_events = [e for e in events if e["event"] == "error"]
+        assert len(error_events) == 0
+
         assert len(ws.story_log) == 1
         assert ws.story_log[0].startswith("[Turn 1]")
         # Should mention impossibility
