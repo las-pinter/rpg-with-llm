@@ -106,6 +106,7 @@ const CharacterView = {
 
             // Load tab
             characterList: document.getElementById("character-list"),
+            savedGamesList: document.getElementById("saved-games-list"),
 
             // Assisted creation modal
             assistedModal: document.getElementById("assisted-modal"),
@@ -680,40 +681,125 @@ const CharacterView = {
         if (merged.length === 0) {
             container.innerHTML =
                 '<p class="empty-state">No saved characters yet. Create one!</p>';
-            return;
+        } else {
+            container.innerHTML = merged
+                .map(
+                    (c) => `
+                <div class="char-card">
+                    <div class="char-info">
+                        <h3>${this._esc(c.name)}</h3>
+                        <p class="char-meta">
+                            ${this._esc(c.character_class)} · Level ${c.level}
+                            ${c.created ? " · " + new Date(c.created).toLocaleDateString() : ""}
+                        </p>
+                    </div>
+                    <div class="char-actions">
+                        <button class="btn btn-sm btn-load" data-name="${this._esc(c.name)}">Load</button>
+                        <button class="btn btn-sm btn-danger btn-delete" data-name="${this._esc(c.name)}">Del</button>
+                    </div>
+                </div>
+            `,
+                )
+                .join("");
+
+            // Bind events for load/delete buttons
+            container.querySelectorAll(".btn-load").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    this._loadCharacter(btn.dataset.name);
+                });
+            });
+            container.querySelectorAll(".btn-delete").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    this._deleteCharacter(btn.dataset.name);
+                });
+            });
         }
 
-        container.innerHTML = merged
-            .map(
-                (c) => `
-            <div class="char-card">
-                <div class="char-info">
-                    <h3>${this._esc(c.name)}</h3>
-                    <p class="char-meta">
-                        ${this._esc(c.character_class)} · Level ${c.level}
-                        ${c.created ? " · " + new Date(c.created).toLocaleDateString() : ""}
-                    </p>
-                </div>
-                <div class="char-actions">
-                    <button class="btn btn-sm btn-load" data-name="${this._esc(c.name)}">Load</button>
-                    <button class="btn btn-sm btn-danger btn-delete" data-name="${this._esc(c.name)}">Del</button>
-                </div>
-            </div>
-        `,
-            )
-            .join("");
+        // ---- Render saved games section ----
+        this._renderSavedGames();
+    },
 
-        // Bind events for load/delete buttons
-        container.querySelectorAll(".btn-load").forEach((btn) => {
-            btn.addEventListener("click", () => {
-                this._loadCharacter(btn.dataset.name);
-            });
-        });
-        container.querySelectorAll(".btn-delete").forEach((btn) => {
-            btn.addEventListener("click", () => {
-                this._deleteCharacter(btn.dataset.name);
-            });
-        });
+    /** Fetch and render the list of saved games in the Load tab. */
+    async _renderSavedGames() {
+        const savesContainer = this.els.savedGamesList;
+        if (!savesContainer) return;
+
+        savesContainer.innerHTML =
+            '<p class="empty-state">Loading saved games...</p>';
+
+        try {
+            const resp = await fetch("/api/saves");
+            const data = await resp.json();
+            const saves = data.saves || [];
+
+            if (saves.length === 0) {
+                savesContainer.innerHTML =
+                    '<p class="empty-state">No saved games yet.</p>';
+                return;
+            }
+
+            savesContainer.innerHTML = saves
+                .map(
+                    (s) => {
+                        const saveName = s.name || s.character_name || "Unknown";
+                        const charName = s.character_name || "Unknown";
+                        const turnCount = s.turn_count ?? "?";
+                        const ts = s.timestamp
+                            ? this._formatTimestamp(s.timestamp)
+                            : "";
+                        return `
+                    <div class="save-card" data-name="${this._esc(saveName)}">
+                        <div class="save-info">
+                            <h3>${this._esc(charName)}</h3>
+                            <p class="save-meta">
+                                Turn ${turnCount} · ${ts}
+                            </p>
+                        </div>
+                        <div class="save-actions">
+                            <button class="btn btn-sm btn-continue-save">
+                                Continue Adventure
+                            </button>
+                        </div>
+                    </div>
+                `;
+                    },
+                )
+                .join("");
+
+            savesContainer.querySelectorAll(".btn-continue-save").forEach(
+                (btn) => {
+                    btn.addEventListener("click", () => {
+                        const card = btn.closest(".save-card");
+                        const saveName = card.dataset.name;
+                        App.state.loadSaveName = saveName;
+                        App.navigate("game");
+                    });
+                },
+            );
+        } catch (e) {
+            savesContainer.innerHTML =
+                '<p class="empty-state">Could not load saved games.</p>';
+        }
+    },
+
+    /** Format a YYYYMMDD_HHMMSS_ffffff timestamp for display. */
+    _formatTimestamp(ts) {
+        if (!ts) return "";
+        const m = ts.match(
+            /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
+        );
+        if (m) {
+            const date = new Date(
+                parseInt(m[1]),
+                parseInt(m[2]) - 1,
+                parseInt(m[3]),
+                parseInt(m[4]),
+                parseInt(m[5]),
+                parseInt(m[6]),
+            );
+            return date.toLocaleString();
+        }
+        return ts;
     },
 
     /**

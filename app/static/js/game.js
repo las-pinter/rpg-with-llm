@@ -158,6 +158,14 @@ const GameView = {
 
     /** Called when the game view becomes active. */
     async _onShow() {
+        // Handle saved game load triggered from character view
+        if (App.state.loadSaveName) {
+            const saveName = App.state.loadSaveName;
+            App.state.loadSaveName = null;
+            await this._loadGame(saveName);
+            return;
+        }
+
         await this._loadState();
         this._renderSidebar();
 

@@ -686,6 +686,34 @@ label.toggle-label {
 }
 .assisted-info.hidden { display: none; }
 
+/* ----- Saved Games Section (Load tab) ----- */
+.section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.25rem 0 0.75rem;
+}
+.section-subtitle {
+    font-size: 1rem;
+    color: var(--accent-gold);
+    margin: 0 0 0.25rem;
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+
+/* Continue Adventure button for saved games in character view */
+.btn-continue-save {
+    background: var(--accent-amber);
+    color: var(--text-inverse);
+    border-color: var(--accent-gold);
+    font-weight: 600;
+}
+.btn-continue-save:hover:not(:disabled) {
+    background: var(--accent-gold);
+    color: var(--text-inverse);
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
+
 /* ----- Character List (Load tab) ----- */
 .character-list {
     display: flex;
