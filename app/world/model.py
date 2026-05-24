@@ -142,6 +142,7 @@ class WorldState:
     dm_notes: DMNotes = field(default_factory=DMNotes)
     turn_count: int = 0
     established_facts: list[str] = field(default_factory=list)
+    story_log: list[str] = field(default_factory=list)
 
     # Embedded character data for single-file save (not part of game logic)
     _character: dict[str, Any] | None = field(default=None, repr=False)
@@ -229,6 +230,13 @@ class WorldState:
         else:
             established_facts = []
 
+        # story_log — ensure it's a list of strings
+        raw_story = data.get("story_log", [])
+        if isinstance(raw_story, list):
+            story_log = [str(s) for s in raw_story if isinstance(s, str)]
+        else:
+            story_log = []
+
         return cls(
             version=version,
             character_id=data.get("character_id"),
@@ -243,5 +251,6 @@ class WorldState:
             dm_notes=dm_notes,
             turn_count=turn_count,
             established_facts=established_facts,
+            story_log=story_log,
             _character=data.get("_character"),
         )
