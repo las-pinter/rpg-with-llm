@@ -200,21 +200,23 @@ class TestProcessTurnStream:
     # ------------------------------------------------------------------
 
     def test_impossible_action_calls_bookkeeping(self) -> None:
-        """Impossible path should also call add_turn + _maybe_summarize."""
+        """Impossible path should call add_turn + _sync_npcs + _maybe_summarize."""
         char = _make_fighter()
         dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
 
         with patch.object(dm.history, "add_turn") as mock_add_turn:
-            with patch.object(dm, "_maybe_summarize") as mock_summarize:
-                list(
-                    dm.process_turn_stream(
-                        "I teleport to the dragon's lair",
+            with patch.object(dm, "_sync_npcs_to_world_state") as mock_sync:
+                with patch.object(dm, "_maybe_summarize") as mock_summarize:
+                    list(
+                        dm.process_turn_stream(
+                            "I teleport to the dragon's lair",
+                        )
                     )
-                )
 
         mock_add_turn.assert_called_once()
         args, _ = mock_add_turn.call_args
         assert args[0] == "I teleport to the dragon's lair"
+        mock_sync.assert_called_once()
         mock_summarize.assert_called_once()
 
     # ------------------------------------------------------------------
@@ -345,3 +347,121 @@ class TestProcessTurnStream:
         # The retry narrative should appear
         narr = next(e for e in events if e["event"] == "narrative")
         assert "retry narrative" in narr["data"]["content"].lower()
+
+    # ------------------------------------------------------------------
+    # 13. Second LLM call when tool_requests exist
+    # ------------------------------------------------------------------
+
+    def test_second_llm_call_when_tool_requests_exist(
+        self,
+        mock_stream_provider: MagicMock,
+    ) -> None:
+        """When tool_requests exist, process_turn_stream should make a
+        second LLM call and use its narrative."""
+        dm = DungeonMaster(
+            llm_provider=mock_stream_provider,
+            world_state=None,
+            character=None,
+        )
+
+        first_parsed = {
+            "narrative": "First pass narrative.",
+            "state_changes": [],
+            "tool_requests": [{"name": "dice", "params": {"formula": "d20"}}],
+            "npc_requests": [],
+        }
+        second_parsed = {
+            "narrative": "Second pass narrative after tools.",
+            "state_changes": [],
+            "tool_requests": [],
+            "npc_requests": [],
+        }
+
+        with patch(
+            "app.agents.dm.parse_dm_response",
+            side_effect=[first_parsed, second_parsed],
+        ):
+            with patch(
+                "app.agents.dm.dispatch_tool",
+                return_value={"ok": True, "result": 15},
+            ):
+                events = list(dm.process_turn_stream("Roll a die"))
+
+        # Should have narrative from second call
+        narr_events = [e for e in events if e["event"] == "narrative"]
+        assert len(narr_events) == 1
+        assert "Second pass narrative" in narr_events[0]["data"]["content"]
+
+        # Should complete without error
+        event_types = {e["event"] for e in events}
+        assert "error" not in event_types
+        assert "done" in event_types
+
+    # ------------------------------------------------------------------
+    # 14. State validation and application
+    # ------------------------------------------------------------------
+
+    def test_state_changes_applied_when_valid(
+        self,
+        mock_stream_provider: MagicMock,
+    ) -> None:
+        """Valid state changes should be applied to world_state."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=mock_stream_provider,
+            world_state=ws,
+            character=None,
+        )
+
+        # Mock parse_dm_response to return state_changes
+        parsed = {
+            "narrative": "You pick up the rusty key.",
+            "state_changes": [
+                {"action": "set", "path": "gold", "value": 50},
+            ],
+            "tool_requests": [],
+            "npc_requests": [],
+        }
+
+        with patch("app.agents.dm.parse_dm_response", return_value=parsed):
+            with patch.object(dm, "_sync_npcs_to_world_state"):
+                events = list(dm.process_turn_stream("I take the gold"))
+
+        # Gold should have been updated
+        assert dm.world_state.gold == 50
+
+        # Should complete without error
+        event_types = {e["event"] for e in events}
+        assert "error" not in event_types
+        assert "done" in event_types
+
+    # ------------------------------------------------------------------
+    # 15. Parse error handling
+    # ------------------------------------------------------------------
+
+    def test_parse_error_yields_error_event(
+        self,
+        mock_stream_provider: MagicMock,
+    ) -> None:
+        """When parse_dm_response raises, yield error event."""
+        dm = DungeonMaster(
+            llm_provider=mock_stream_provider,
+            world_state=None,
+            character=None,
+        )
+
+        with patch(
+            "app.agents.dm.parse_dm_response",
+            side_effect=ValueError("Bad parse"),
+        ):
+            events = list(dm.process_turn_stream("Hello"))
+
+        error_events = [e for e in events if e["event"] == "error"]
+        assert len(error_events) == 1
+        assert "Parse error" in error_events[0]["data"]["message"]
+
+        # Should NOT have a done event
+        done_events = [e for e in events if e["event"] == "done"]
+        assert len(done_events) == 0
