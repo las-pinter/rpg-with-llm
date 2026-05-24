@@ -2,8 +2,7 @@
  * LLM-Powered RPG — Game View
  *
  * The main gameplay interface: narrative display, status sidebar, and
- * action input.  Communicates with the DM backend via POST /api/turn
- * and GET /api/game/stream (SSE).
+ * action input.  Communicates with the DM backend via GET /api/game/stream (SSE).
  */
 const GameView = {
     /** Runtime game state. */
@@ -205,23 +204,17 @@ const GameView = {
         // Add the player's action to the narrative
         this._addPlayerAction(input);
 
-        // Try SSE streaming first; fall back to fetch-based POST
         try {
             await this._sendTurnSSE(input);
-        } catch (_sseErr) {
-            // SSE failed — fall back to synchronous fetch
-            try {
-                await this._sendTurnFetch(input);
-            } catch (fetchErr) {
-                let msg = fetchErr.message;
-                if (fetchErr.name === "TimeoutError") {
-                    msg = "The DM is taking too long — check your connection and try again.";
-                } else if (fetchErr.message === "Failed to fetch") {
-                    msg = "Cannot reach the game server. Is it running?";
-                }
-                this._addNarrative(`[${msg}]`, { isError: true });
-                this._addTurnSeparator();
+        } catch (err) {
+            let msg = err.message;
+            if (err.name === "TimeoutError") {
+                msg = "The DM is taking too long — check your connection and try again.";
+            } else if (err.message === "Failed to fetch") {
+                msg = "Cannot reach the game server. Is it running?";
             }
+            this._addNarrative(`[${msg}]`, { isError: true });
+            this._addTurnSeparator();
         } finally {
             this.state.isThinking = false;
             this._showThinking(false);
@@ -295,90 +288,7 @@ const GameView = {
         });
     },
 
-    /**
-     * Fallback: process a turn via the synchronous POST /api/turn endpoint.
-     * Used when SSE is unavailable or fails.
-     */
-    async _sendTurnFetch(input) {
-        this._hideNpcThinking();
-        const provider = App.state.provider;
 
-        const resp = await fetch("/api/turn", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                input: input,
-                provider: provider
-                    ? {
-                        base_url: provider.base_url,
-                        model: provider.model,
-                        provider_type: provider.provider_type || "ollama",
-                        api_key: provider.api_key || undefined,
-                        timeout: provider.timeout || undefined,
-                        max_tokens: provider.max_tokens || undefined,
-                        temperature: provider.temperature || undefined,
-                    }
-                    : undefined,
-                npc_provider: App.state.npcProvider
-                    ? {
-                        base_url: App.state.npcProvider.base_url,
-                        model: App.state.npcProvider.model,
-                        provider_type: App.state.npcProvider.provider_type || "ollama",
-                        api_key: App.state.npcProvider.api_key || undefined,
-                        timeout: App.state.npcProvider.timeout || undefined,
-                        max_tokens: App.state.npcProvider.max_tokens || undefined,
-                        temperature: App.state.npcProvider.temperature || undefined,
-                    }
-                    : undefined,
-                summarizer_provider: App.state.summarizerProvider
-                    ? {
-                        base_url: App.state.summarizerProvider.base_url,
-                        model: App.state.summarizerProvider.model,
-                        provider_type: App.state.summarizerProvider.provider_type || "ollama",
-                        api_key: App.state.summarizerProvider.api_key || undefined,
-                        timeout: App.state.summarizerProvider.timeout || undefined,
-                        max_tokens: App.state.summarizerProvider.max_tokens || undefined,
-                        temperature: App.state.summarizerProvider.temperature || undefined,
-                    }
-                    : undefined,
-                character: App.state.character || undefined,
-                state: this.state.worldState || undefined,
-            }),
-            signal: AbortSignal.timeout(60000),
-        });
-
-        const data = await resp.json();
-
-        if (data.ok) {
-            this._addNarrative(data.narrative);
-
-            if (data.state_changes && data.state_changes.length > 0) {
-                this._applyStateChanges(data.state_changes);
-            }
-
-            if (data.tool_results && data.tool_results.length > 0) {
-                this._showToolResults(data.tool_results);
-            }
-
-            // Accumulate token usage from POST response
-            if (data.token_usage) {
-                this.state.tokenUsage.prompt_tokens += data.token_usage.prompt_tokens || 0;
-                this.state.tokenUsage.completion_tokens += data.token_usage.completion_tokens || 0;
-                this.state.tokenUsage.total_tokens += data.token_usage.total_tokens || 0;
-            }
-
-            this.state.turnCount = data.turn_count ?? this.state.turnCount + 1;
-            this._renderSidebar();
-            this._addTurnSeparator();
-        } else {
-            this._addNarrative(
-                `[The fabric of reality wavers... An error occurred: ${data.error || "Unknown error"
-                }]`,
-                { isError: true },
-            );
-            this._addTurnSeparator();
-        }
-    },
 
     // ------------------------------------------------------------------
     // Narrative Display

@@ -1162,16 +1162,15 @@ class TestStaticRoutes:
         assert "_setNested" in js
         assert "_getNested" in js
 
-    def test_game_js_uses_correct_turn_endpoint(self, client):
-        """game.js calls POST /api/turn with correct payload shape."""
+    def test_game_js_uses_sse_endpoint(self, client):
+        """game.js calls SSEClient.connect for streaming."""
         resp = client.get("/static/js/game.js")
         js = resp.get_data(as_text=True)
-        assert "/api/turn" in js
-        assert "input" in js
+        assert "SSEClient.connect" in js
+        assert "_sendTurnSSE" in js
         assert "provider" in js
         assert "character" in js
         assert "state" in js
-        assert "AbortSignal.timeout" in js
 
     def test_game_js_uses_reset_endpoint(self, client):
         """game.js calls POST /api/reset to initialise world state."""
@@ -1297,7 +1296,7 @@ class TestStaticRoutes:
         js = resp.get_data(as_text=True)
         assert "SSEClient" in js
         assert "_sendTurnSSE" in js
-        assert "_sendTurnFetch" in js
+        assert "_sendTurn" in js
 
     # ------------------------------------------------------------------
     # CSS — Accessibility & motion preferences

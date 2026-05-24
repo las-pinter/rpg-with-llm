@@ -1168,15 +1168,7 @@ class DungeonMaster:
                 }
             )
             try:
-                if self.llm_provider is not None:
-                    retry_resp = self.llm_provider.call(messages)
-                else:
-                    retry_resp = {
-                        "content": (
-                            "<narrative>The scene unfolds before you.</narrative>"
-                        ),
-                    }
-                retry_text = retry_resp.get("content", "")
+                retry_text = self._call_llm(messages)
                 retry_parsed = parse_dm_response(retry_text)
                 retry_narrative = retry_parsed.get("narrative", "")
                 if retry_narrative:
@@ -1338,17 +1330,6 @@ class DungeonMaster:
                             i,
                             change_errors[0],
                         )
-            else:
-                valid_changes = state_changes
-
-            if valid_changes:
-                try:
-                    self.world_state = apply_changes(self.world_state, valid_changes)
-                except Exception:
-                    logger.exception("Failed to apply state changes")
-                    warnings.append(
-                        f"Failed to apply {len(valid_changes)} state change(s)"
-                    )
             else:
                 valid_changes = state_changes
 
