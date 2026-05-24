@@ -751,7 +751,7 @@ def game_turn():
         return jsonify({"ok": False, "error": "Missing 'input' in request body"}), 400
 
     logger.debug(
-        "game_turn: received input='%s' (len=%d)", player_input[:80], len(player_input)
+        "game_turn: received input='%s' (len=%d)", player_input, len(player_input)
     )
 
     dm, error = _build_dm(data)
@@ -1165,9 +1165,9 @@ def game_stream():
         narrative = re.sub(r"`[^`]*?(?:action=|path=|value=)[^`]*`", "", narrative)
 
         logger.debug(
-            "game_stream: final narrative — %d chars (first 200: %s...)",
+            "game_stream: final narrative — %d chars: %s",
             len(narrative),
-            narrative[:200],
+            narrative,
         )
 
         # Yield state update so the client can persist continuity
