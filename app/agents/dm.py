@@ -667,7 +667,7 @@ class DungeonMaster:
         logger.debug(
             "process_turn[%d]: input='%s' (len=%d)",
             self.turn_count,
-            player_input[:80],
+            player_input,
             len(player_input),
         )
 
@@ -947,10 +947,10 @@ class DungeonMaster:
         )
 
         logger.debug(
-            "process_turn[%d]: final narrative — %d chars (first 200: %s...)",
+            "process_turn[%d]: final narrative — %d chars: %s",
             self.turn_count,
             len(narrative),
-            narrative[:200],
+            narrative,
         )
 
         return {
@@ -1226,6 +1226,12 @@ class DungeonMaster:
         """
         recent_count = len(self.history.recent_turns)
         if recent_count < self.history.max_turns:
+            logger.debug(
+                "_maybe_summarize: summarization is not needed - "
+                "recent_count: %d, max_turns: %d",
+                recent_count,
+                self.history.max_turns
+            )
             return
 
         try:
