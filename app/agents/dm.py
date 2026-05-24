@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import re
+from collections.abc import Generator
 from typing import Any
 
 from app.agents.history import SessionHistory
@@ -964,6 +966,458 @@ class DungeonMaster:
             "warnings": warnings,
         }
 
+    def process_turn_stream(
+        self,
+        player_input: str,
+    ) -> Generator[dict[str, Any], None, None]:
+        """Process a turn with streaming LLM response, yielding events.
+
+        Mirrors :meth:`process_turn` but uses ``self.llm_provider.stream()``
+        instead of ``_call_llm()`` and yields event dicts instead of
+        returning a single response dict.  Each yielded dict has an
+        ``event`` field (SSE event type) and a ``data`` field (the
+        JSON-serialisable payload).
+
+        Parameters
+        ----------
+        player_input : str
+            The player's latest action or utterance.
+
+        Yields
+        ------
+        dict[str, Any]
+            Event dicts with ``event`` and ``data`` keys.  Possible event
+            types: ``token``, ``npc_thinking``, ``state_update``,
+            ``narrative``, ``token_usage``, ``done``, ``error``.
+        """
+        # ------------------------------------------------------------------
+        # 0. Input validation
+        # ------------------------------------------------------------------
+        if not player_input or not isinstance(player_input, str):
+            yield {
+                "event": "error",
+                "data": {
+                    "type": "error",
+                    "message": "Player input must be a non-empty string",
+                },
+            }
+            return
+
+        self.turn_count += 1
+        self._retried_parse = False
+        logger.debug(
+            "process_turn_stream[%d]: input='%s' (len=%d)",
+            self.turn_count,
+            player_input,
+            len(player_input),
+        )
+
+        # ------------------------------------------------------------------
+        # 1. Plausibility check — short-circuit impossible actions
+        # ------------------------------------------------------------------
+        plausibility_note: str | None = None
+        if self.character is not None:
+            classification = classify_action(self.character, player_input)
+            category = classification.get("category", "plausible")
+
+            if category == "impossible":
+                narrative = self._build_impossible_narrative(
+                    classification, player_input
+                )
+                # Bookkeeping: record history, sync NPCs, summarise
+                self.history.add_turn(player_input, narrative)
+                self._sync_npcs_to_world_state()
+                try:
+                    self._maybe_summarize()
+                except Exception:
+                    logger.exception("Summarization failed, continuing")
+
+                state_dict = (
+                    self.world_state.to_dict() if self.world_state is not None else {}
+                )
+                yield {
+                    "event": "state_update",
+                    "data": {
+                        "type": "state_update",
+                        "state": state_dict,
+                        "turn_count": self.turn_count,
+                    },
+                }
+                yield {
+                    "event": "narrative",
+                    "data": {"type": "narrative", "content": narrative},
+                }
+                yield {
+                    "event": "done",
+                    "data": {"type": "done", "turn_count": self.turn_count},
+                }
+                return
+
+            if category in ("implausible", "ambitious"):
+                reason = classification.get("reason", "")
+                suggested_dc = classification.get("dc", "N/A")
+                plausibility_note = (
+                    f"[PLAUSIBILITY NOTE: The player attempts something "
+                    f"{category}. {reason} "
+                    f"Suggested DC: {suggested_dc}. "
+                    f"The player must roll for this — set an appropriately "
+                    f"high DC and describe the stakes before the roll.]"
+                )
+
+        # ------------------------------------------------------------------
+        # 2. Build context
+        # ------------------------------------------------------------------
+        messages = self._build_context(player_input, plausibility_note)
+
+        # ------------------------------------------------------------------
+        # 3. Stream tokens from the LLM
+        # ------------------------------------------------------------------
+        full_response: str = ""
+        collected_tokens: list[str] = []
+
+        if self.llm_provider is not None:
+            # Reset streaming usage tracker
+            self.llm_provider._last_stream_usage = None
+
+            try:
+                for token in self.llm_provider.stream(messages):
+                    collected_tokens.append(token)
+                    yield {
+                        "event": "token",
+                        "data": {"type": "token", "content": token},
+                    }
+            except Exception:
+                logger.exception(
+                    "process_turn_stream[%d]: LLM stream error",
+                    self.turn_count,
+                )
+                yield {
+                    "event": "error",
+                    "data": {
+                        "type": "error",
+                        "message": "LLM stream error",
+                    },
+                }
+                return
+
+            full_response = "".join(collected_tokens)
+
+            # Accumulate token usage from streaming response
+            if self.llm_provider._last_stream_usage is not None:
+                try:
+                    su = self.llm_provider._last_stream_usage
+                    self.token_usage["prompt_tokens"] += int(su.get("prompt_tokens", 0))
+                    self.token_usage["completion_tokens"] += int(
+                        su.get("completion_tokens", 0)
+                    )
+                    self.token_usage["total_tokens"] += int(su.get("total_tokens", 0))
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "Invalid stream token usage: %s",
+                        self.llm_provider._last_stream_usage,
+                    )
+        else:
+            # No provider configured — use canned response
+            full_response = "<narrative>\nThe scene unfolds before you.\n</narrative>"
+
+        logger.debug(
+            "process_turn_stream[%d]: stream finished — %d tokens collected",
+            self.turn_count,
+            len(collected_tokens),
+        )
+
+        # ------------------------------------------------------------------
+        # 4. Parse the collected response
+        # ------------------------------------------------------------------
+        try:
+            parsed = parse_dm_response(full_response)
+        except Exception:
+            logger.exception("process_turn_stream[%d]: parse error", self.turn_count)
+            yield {
+                "event": "error",
+                "data": {"type": "error", "message": "Parse error"},
+            }
+            return
+
+        narrative = parsed.get("narrative", "")
+        state_changes = parsed.get("state_changes", [])
+        tool_requests = parsed.get("tool_requests", [])
+        npc_requests = parsed.get("npc_requests", [])
+
+        # ------------------------------------------------------------------
+        # 5. Empty narrative retry
+        # ------------------------------------------------------------------
+        if not narrative and not self._retried_parse:
+            self._retried_parse = True
+            logger.warning(
+                "process_turn_stream[%d]: empty narrative detected "
+                "(first 500 chars): %s",
+                self.turn_count,
+                full_response[:500],
+            )
+            messages.append({"role": "assistant", "content": full_response})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Your previous response was missing the required "
+                        "<narrative> tag. You MUST include a <narrative> "
+                        "tag pair with your story text. Please respond "
+                        "again with proper <narrative> tags."
+                    ),
+                }
+            )
+            try:
+                if self.llm_provider is not None:
+                    retry_resp = self.llm_provider.call(messages)
+                else:
+                    retry_resp = {
+                        "content": (
+                            "<narrative>The scene unfolds before you.</narrative>"
+                        ),
+                    }
+                retry_text = retry_resp.get("content", "")
+                retry_parsed = parse_dm_response(retry_text)
+                retry_narrative = retry_parsed.get("narrative", "")
+                if retry_narrative:
+                    narrative = retry_narrative
+                    state_changes = retry_parsed.get("state_changes", state_changes)
+                else:
+                    logger.warning(
+                        "process_turn_stream[%d]: retry also produced "
+                        "empty narrative, using fallback",
+                        self.turn_count,
+                    )
+                    narrative = "[The DM's vision flickers... the story continues.]"
+            except Exception as e:
+                logger.warning(
+                    "process_turn_stream[%d]: narrative retry failed: %s",
+                    self.turn_count,
+                    e,
+                )
+                narrative = "[The DM's vision flickers... the story continues.]"
+
+        # ------------------------------------------------------------------
+        # 6. Execute tool requests
+        # ------------------------------------------------------------------
+        tool_results: list[dict[str, Any]] = []
+        if tool_requests:
+            for req in tool_requests:
+                result = dispatch_tool(req["name"], req.get("params", {}))
+                tool_results.append(
+                    {
+                        "name": req["name"],
+                        "params": req.get("params", {}),
+                        "result": result,
+                    }
+                )
+
+        # ------------------------------------------------------------------
+        # 7. Spawn NPC subagents
+        # ------------------------------------------------------------------
+        npc_results: list[dict[str, Any]] = []
+        if npc_requests:
+            for nr in npc_requests:
+                npc_id = nr.get("npc_id", "unknown")
+                hint = nr.get("context", f"The {npc_id} considers...")
+                yield {
+                    "event": "npc_thinking",
+                    "data": {
+                        "type": "npc_thinking",
+                        "npc_id": npc_id,
+                        "hint": hint,
+                    },
+                }
+            npc_results = self._spawn_npcs(npc_requests, player_input)
+
+        # ------------------------------------------------------------------
+        # 8. Sync NPC data to world state  ← FIX: missing in game_stream
+        # ------------------------------------------------------------------
+        self._sync_npcs_to_world_state()
+
+        # ------------------------------------------------------------------
+        # 9. Second LLM call — inject tool results and/or NPC results
+        # ------------------------------------------------------------------
+        need_second_call = bool(tool_requests) or bool(npc_results)
+        if need_second_call:
+            messages.append({"role": "assistant", "content": full_response})
+
+            context_parts: list[str] = []
+
+            if tool_results:
+                tool_summary = self._format_tool_results(tool_results)
+                context_parts.append(f"Tool results:\n{tool_summary}")
+
+            if npc_results:
+                npc_block = self._format_npc_results(npc_results)
+                context_parts.append(
+                    f"NPC interactions produced the following "
+                    f"results:\n\n"
+                    f"{npc_block}\n\n"
+                    f"You may use, modify, or ignore these NPC "
+                    f"responses as you see fit.  Weave them into "
+                    f"the narrative."
+                )
+
+            context_parts.append(
+                "Now continue the narrative, weaving these results "
+                "into the story.  Include the final narrative and "
+                "any necessary state_change tags."
+            )
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "\n\n".join(context_parts),
+                }
+            )
+
+            try:
+                if self.llm_provider is not None:
+                    second_response = self.llm_provider.call(messages)
+                else:
+                    second_response = {
+                        "content": ("<narrative>The scene continues...</narrative>"),
+                    }
+                if second_response:
+                    second_text = second_response.get("content", "")
+                    # Accumulate usage from second call
+                    usage2 = second_response.get("usage")
+                    if usage2 and isinstance(usage2, dict):
+                        try:
+                            self.token_usage["prompt_tokens"] += int(
+                                usage2.get("prompt_tokens", 0)
+                            )
+                            self.token_usage["completion_tokens"] += int(
+                                usage2.get("completion_tokens", 0)
+                            )
+                            self.token_usage["total_tokens"] += int(
+                                usage2.get("total_tokens", 0)
+                            )
+                        except (ValueError, TypeError):
+                            logger.warning(
+                                "Invalid second-call token usage: %s",
+                                usage2,
+                            )
+                    parsed2 = parse_dm_response(second_text)
+                    narrative = parsed2.get("narrative", narrative)
+                    state_changes = parsed2.get("state_changes", state_changes)
+                    if not narrative:
+                        logger.warning(
+                            "process_turn_stream[%d]: second call "
+                            "produced empty narrative, using fallback",
+                            self.turn_count,
+                        )
+                        narrative = "[The DM's vision flickers... the story continues.]"
+            except Exception as e:
+                logger.warning(
+                    "process_turn_stream[%d]: second LLM call failed: %s",
+                    self.turn_count,
+                    e,
+                )
+
+        # ------------------------------------------------------------------
+        # 10. Validate and apply state changes
+        # ------------------------------------------------------------------
+        valid_changes: list[dict[str, Any]] = []
+        warnings: list[str] = []
+
+        if self.world_state is not None and state_changes:
+            validation_errors = validate_state_changes(state_changes, self.world_state)
+            if validation_errors:
+                for err in validation_errors:
+                    logger.warning("State change validation error: %s", err)
+                # Filter out invalid changes
+                for i, change in enumerate(state_changes):
+                    change_errors = validate_state_changes([change], self.world_state)
+                    if not change_errors:
+                        valid_changes.append(change)
+                    else:
+                        logger.warning(
+                            "Skipping invalid state change #%d: %s",
+                            i,
+                            change_errors[0],
+                        )
+            else:
+                valid_changes = state_changes
+
+            if valid_changes:
+                try:
+                    self.world_state = apply_changes(self.world_state, valid_changes)
+                except Exception:
+                    logger.exception("Failed to apply state changes")
+                    warnings.append(
+                        f"Failed to apply {len(valid_changes)} state change(s)"
+                    )
+            else:
+                valid_changes = state_changes
+
+            if valid_changes:
+                try:
+                    self.world_state = apply_changes(self.world_state, valid_changes)
+                except Exception:
+                    logger.exception("Failed to apply state changes")
+                    warnings.append(
+                        f"Failed to apply {len(valid_changes)} state change(s)"
+                    )
+
+        # ------------------------------------------------------------------
+        # 11. Clean up narrative — strip XML tags and artifact markers
+        # ------------------------------------------------------------------
+        narrative = re.sub(r"<[^>]*>", "", narrative)
+        narrative = re.sub(r"\*\*[a-zA-Z_]+\*\*", "", narrative)
+        narrative = re.sub(r"`[^`]*?(?:action=|path=|value=)[^`]*`", "", narrative)
+
+        # Update world state turn count
+        if self.world_state is not None:
+            self.world_state.turn_count = self.turn_count
+
+        # ------------------------------------------------------------------
+        # 12. Bookkeeping — record history + summarise  ← FIX: missing in
+        #     game_stream
+        # ------------------------------------------------------------------
+        self.history.add_turn(player_input, narrative)
+        try:
+            self._maybe_summarize()
+        except Exception:
+            logger.exception("Summarization failed, continuing")
+
+        logger.debug(
+            "process_turn_stream[%d]: token usage — prompt=%s, completion=%s, total=%s",
+            self.turn_count,
+            self.token_usage["prompt_tokens"],
+            self.token_usage["completion_tokens"],
+            self.token_usage["total_tokens"],
+        )
+
+        # ------------------------------------------------------------------
+        # 13. Yield final events
+        # ------------------------------------------------------------------
+        state_dict = self.world_state.to_dict() if self.world_state is not None else {}
+        yield {
+            "event": "state_update",
+            "data": {
+                "type": "state_update",
+                "state": state_dict,
+                "turn_count": self.turn_count,
+            },
+        }
+        yield {
+            "event": "narrative",
+            "data": {"type": "narrative", "content": narrative},
+        }
+        yield {
+            "event": "token_usage",
+            "data": {
+                "type": "token_usage",
+                "usage": dict(self.token_usage),
+            },
+        }
+        yield {
+            "event": "done",
+            "data": {"type": "done", "turn_count": self.turn_count},
+        }
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -1230,7 +1684,7 @@ class DungeonMaster:
                 "_maybe_summarize: summarization is not needed - "
                 "recent_count: %d, max_turns: %d",
                 recent_count,
-                self.history.max_turns
+                self.history.max_turns,
             )
             return
 
