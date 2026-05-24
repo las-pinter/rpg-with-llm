@@ -14,6 +14,7 @@ import pytest
 
 from app.agents.dm import DungeonMaster
 from app.character.model import Character
+from app.world.model import WorldState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -465,3 +466,79 @@ class TestProcessTurnStream:
         # Should NOT have a done event
         done_events = [e for e in events if e["event"] == "done"]
         assert len(done_events) == 0
+
+    # ------------------------------------------------------------------
+    # 16. Story log appending (Bug 2)
+    # ------------------------------------------------------------------
+
+    def test_story_log_appended_during_turn(
+        self,
+        mock_stream_provider: MagicMock,
+    ) -> None:
+        """After process_turn_stream, world_state.story_log has the
+        narrative appended with [Turn N] prefix."""
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=mock_stream_provider,
+            world_state=ws,
+            character=None,
+        )
+
+        with patch.object(dm, "_sync_npcs_to_world_state"):
+            list(dm.process_turn_stream("Hello"))
+
+        assert len(ws.story_log) == 1
+        assert ws.story_log[0].startswith("[Turn 1]")
+        assert "Hello world" in ws.story_log[0]
+
+    def test_story_log_appended_in_impossible_path(self) -> None:
+        """Impossible action path also appends to story_log."""
+        char = _make_fighter()
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=ws,
+            character=char,
+        )
+
+        events = list(dm.process_turn_stream("I cast fireball at the goblins"))
+
+        assert len(ws.story_log) == 1
+        assert ws.story_log[0].startswith("[Turn 1]")
+        # Should mention impossibility
+        assert "beyond" in ws.story_log[0].lower()
+
+    def test_story_log_not_appended_for_empty_narrative(
+        self,
+        mock_stream_provider: MagicMock,
+    ) -> None:
+        """When narrative is empty, story_log is NOT modified."""
+        ws = WorldState()
+        dm = DungeonMaster(
+            llm_provider=mock_stream_provider,
+            world_state=ws,
+            character=None,
+        )
+
+        # Use a side-effect on parse_dm_response to:
+        # 1. Force empty narrative
+        # 2. Set _retried_parse = True (to prevent the retry mechanism
+        #    from replacing the empty narrative with a fallback)
+        def _force_empty_parse(raw: str) -> dict:
+            dm._retried_parse = True
+            return {
+                "narrative": "",
+                "state_changes": [],
+                "tool_requests": [],
+                "npc_requests": [],
+            }
+
+        with patch(
+            "app.agents.dm.parse_dm_response",
+            side_effect=_force_empty_parse,
+        ):
+            with patch.object(dm, "_sync_npcs_to_world_state"):
+                with patch.object(dm, "_maybe_summarize"):
+                    list(dm.process_turn_stream("Hello"))
+
+        assert ws.story_log == []

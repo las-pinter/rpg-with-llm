@@ -1631,3 +1631,45 @@ class TestCharacterListEndpoint:
         assert data["ok"] is True
         names = [c.get("name") for c in data["characters"]]
         assert "ListTest" in names
+
+
+# ---------------------------------------------------------------------------
+# GET /api/story/<name>
+# ---------------------------------------------------------------------------
+
+
+class TestStoryEndpoint:
+    """Tests for GET /api/story/<name>."""
+
+    def test_get_story_endpoint_returns_story(self, client):
+        """Save a game with story_log, then GET /api/story/<name>
+        returns the story_log."""
+        state = {
+            "version": "1.0",
+            "story_log": [
+                "[Turn 1] You enter the dark forest.",
+                "[Turn 2] A goblin appears!",
+            ],
+        }
+        resp = client.post(
+            "/api/save",
+            json={"state": state, "name": "story_test_save"},
+        )
+        assert resp.status_code == 200
+
+        resp = client.get("/api/story/story_test_save")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["story"] == [
+            "[Turn 1] You enter the dark forest.",
+            "[Turn 2] A goblin appears!",
+        ]
+
+    def test_get_story_endpoint_404(self, client):
+        """GET /api/story/<nonexistent> returns 404."""
+        resp = client.get("/api/story/nonexistent_save")
+        assert resp.status_code == 404
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "not found" in data["error"].lower()
