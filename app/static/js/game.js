@@ -122,6 +122,20 @@ const GameView = {
             this.els.tokenToggle.textContent = this.state.showTokens ? "Hide Tokens" : "Show Tokens";
         });
 
+        // Story modal button
+        const readStoryBtn = document.getElementById("read-story-btn");
+        const storyCloseBtn = document.getElementById("story-close-btn");
+        if (readStoryBtn) readStoryBtn.addEventListener("click", () => this._showStoryModal());
+        if (storyCloseBtn) storyCloseBtn.addEventListener("click", () => this._hideStoryModal());
+
+        // Click outside to close story modal
+        const storyModal = document.getElementById("story-modal");
+        if (storyModal) {
+            storyModal.addEventListener("click", (e) => {
+                if (e.target === storyModal) this._hideStoryModal();
+            });
+        }
+
         // Auto-scroll detection — pause on manual scroll-up
         this.els.narrativePane.addEventListener("scroll", () => {
             const el = this.els.narrativePane;
@@ -862,6 +876,55 @@ const GameView = {
             return date.toLocaleString();
         }
         return ts;
+    },
+
+    // ------------------------------------------------------------------
+    // Story Modal
+    // ------------------------------------------------------------------
+
+    /** Show the story modal and fetch the adventure log. */
+    async _showStoryModal() {
+        const modal = document.getElementById("story-modal");
+        const content = document.getElementById("story-content");
+        if (!modal || !content) return;
+
+        modal.style.display = "flex";
+        content.innerHTML = '<p class="text-muted">Loading story...</p>';
+
+        const characterName = App.state.character ? App.state.character.name : null;
+        if (!characterName) {
+            content.innerHTML = '<p class="text-error">No character loaded.</p>';
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/api/story/${encodeURIComponent(characterName)}`);
+            const data = await resp.json();
+            if (data.ok && data.story && data.story.length > 0) {
+                content.innerHTML = data.story.map(entry => {
+                    const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
+                    if (match) {
+                        return `<div class="story-entry">
+                            <div class="story-turn-header">Turn ${match[1]}</div>
+                            <div class="story-narrative">${this._esc(match[2])}</div>
+                        </div>`;
+                    }
+                    return `<div class="story-entry"><div class="story-narrative">${this._esc(entry)}</div></div>`;
+                }).join('');
+            } else if (data.ok) {
+                content.innerHTML = '<p class="text-muted">The adventure has just begun... no story yet!</p>';
+            } else {
+                content.innerHTML = `<p class="text-error">${this._esc(data.error || 'Failed to load story.')}</p>`;
+            }
+        } catch (err) {
+            content.innerHTML = `<p class="text-error">Error: ${this._esc(err.message)}</p>`;
+        }
+    },
+
+    /** Hide the story modal. */
+    _hideStoryModal() {
+        const modal = document.getElementById("story-modal");
+        if (modal) modal.style.display = "none";
     },
 
     // ------------------------------------------------------------------

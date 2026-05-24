@@ -524,6 +524,11 @@
                         </ul>
                     </div>
                 </div>
+
+                <!-- Read Story -->
+                <div class="sidebar-section">
+                    <button id="read-story-btn" class="btn btn-sm">Read Story</button>
+                </div>
             </div>
 
             <button id="sidebar-collapse" class="btn btn-sm" title="Toggle sidebar">▶</button>
@@ -586,6 +591,21 @@
                 <div id="load-list" class="save-list">
                     <p class="empty-state">Loading saves...</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         STORY MODAL
+         ============================================================ -->
+    <div id="story-modal" class="modal-overlay" style="display:none;">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3>📖 Adventure Story</h3>
+                <button id="story-close-btn" class="btn btn-sm">✕</button>
+            </div>
+            <div class="modal-body" id="story-content">
+                <p class="text-muted">Loading story...</p>
             </div>
         </div>
     </div>
