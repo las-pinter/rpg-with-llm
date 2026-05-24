@@ -673,6 +673,16 @@ const GameView = {
     _showSaveModal() {
         if (this.state.isThinking) return;
 
+        // Reset all save states: show form, hide loading/success
+        const formGroup = document.querySelector("#save-modal .form-group");
+        const saveFooter = document.querySelector("#save-modal .modal-footer");
+        const saveLoading = document.getElementById("save-loading");
+        const saveSuccess = document.getElementById("save-success");
+        if (formGroup) formGroup.style.display = "";
+        if (saveFooter) saveFooter.style.display = "";
+        if (saveLoading) saveLoading.style.display = "none";
+        if (saveSuccess) saveSuccess.style.display = "none";
+
         // Auto-generate a suggested name
         const charName = App.state.character ? App.state.character.name : "Adventure";
         const date = new Date().toLocaleString();
@@ -700,8 +710,16 @@ const GameView = {
             return;
         }
 
-        this.els.saveConfirmBtn.disabled = true;
-        this.els.saveConfirmBtn.textContent = "Saving...";
+        // Get elements for state transitions
+        const formGroup = document.querySelector("#save-modal .form-group");
+        const saveFooter = document.querySelector("#save-modal .modal-footer");
+        const saveLoading = document.getElementById("save-loading");
+        const saveSuccess = document.getElementById("save-success");
+
+        // Hide form, show loading spinner
+        if (formGroup) formGroup.style.display = "none";
+        if (saveFooter) saveFooter.style.display = "none";
+        if (saveLoading) saveLoading.style.display = "block";
         this.els.saveStatus.textContent = "";
         this.els.saveStatus.className = "save-status";
 
@@ -721,20 +739,33 @@ const GameView = {
                 }),
             });
             const data = await resp.json();
+
+            // Hide loading
+            if (saveLoading) saveLoading.style.display = "none";
+
             if (data.ok) {
-                this.els.saveStatus.textContent = `✓ Saved as "${data.name}"`;
-                this.els.saveStatus.className = "save-status save-status-ok";
-                setTimeout(() => this._hideSaveModal(), 1500);
+                // Show success briefly, then close
+                if (saveSuccess) saveSuccess.style.display = "block";
+                setTimeout(() => {
+                    this._hideSaveModal();
+                    // Reset for next open
+                    if (formGroup) formGroup.style.display = "";
+                    if (saveFooter) saveFooter.style.display = "";
+                    if (saveSuccess) saveSuccess.style.display = "none";
+                }, 1200);
             } else {
+                // Show error, restore form
+                if (formGroup) formGroup.style.display = "";
+                if (saveFooter) saveFooter.style.display = "";
                 this.els.saveStatus.textContent = `✗ Failed: ${data.error || "Unknown error"}`;
                 this.els.saveStatus.className = "save-status save-status-error";
             }
         } catch (e) {
+            if (saveLoading) saveLoading.style.display = "none";
+            if (formGroup) formGroup.style.display = "";
+            if (saveFooter) saveFooter.style.display = "";
             this.els.saveStatus.textContent = `✗ Error: ${e.message}`;
             this.els.saveStatus.className = "save-status save-status-error";
-        } finally {
-            this.els.saveConfirmBtn.disabled = false;
-            this.els.saveConfirmBtn.textContent = "Save";
         }
     },
 
