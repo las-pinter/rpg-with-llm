@@ -1386,6 +1386,47 @@ label.toggle-label {
     border: 1px solid var(--danger-border);
 }
 
+/* Save loading spinner */
+.save-loading {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.save-loading .spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 1rem;
+    border: 3px solid var(--border, #3a3a5c);
+    border-top-color: var(--accent-gold, #d4a547);
+    border-radius: 50%;
+    animation: saveSpin 0.8s linear infinite;
+}
+
+@keyframes saveSpin {
+    to { transform: rotate(360deg); }
+}
+
+.save-loading p {
+    color: var(--text-muted, #7a6e5a);
+    font-style: italic;
+}
+
+.save-success {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.save-success-icon {
+    display: block;
+    font-size: 3rem;
+    color: var(--success, #4ade80);
+    margin-bottom: 0.5rem;
+}
+
+.save-success p {
+    color: var(--text-primary, #e8dcc8);
+}
+
 /* Save list (load modal) */
 .save-list {
     display: flex;
