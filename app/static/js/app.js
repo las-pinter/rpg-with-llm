@@ -11,6 +11,7 @@ const App = {
     state: {
         provider: null,   // { base_url, model, api_key }
         character: null,  // Full character data dict
+        loadSaveName: null, // Save name to load when navigating to game view
     },
 
     /** Initialise the router — call once on DOMContentLoaded. */
