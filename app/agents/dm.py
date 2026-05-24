@@ -1026,6 +1026,10 @@ class DungeonMaster:
                 )
                 # Bookkeeping: record history, sync NPCs, summarise
                 self.history.add_turn(player_input, narrative)
+                if narrative and self.world_state is not None:
+                    self.world_state.story_log.append(
+                        f"[Turn {self.turn_count}] {narrative}"
+                    )
                 self._sync_npcs_to_world_state()
                 try:
                     self._maybe_summarize()
@@ -1358,6 +1362,8 @@ class DungeonMaster:
         #     game_stream
         # ------------------------------------------------------------------
         self.history.add_turn(player_input, narrative)
+        if narrative and self.world_state is not None:
+            self.world_state.story_log.append(f"[Turn {self.turn_count}] {narrative}")
         try:
             self._maybe_summarize()
         except Exception:

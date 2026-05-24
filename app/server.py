@@ -375,6 +375,31 @@ def delete_save(name):
     return jsonify({"ok": True})
 
 
+@app.route("/api/story/<name>", methods=["GET"])
+def get_story(name: str):
+    """Return the story log for a saved game.
+
+    Parameters
+    ----------
+    name : str
+        The name of the saved game (URL-decoded automatically by Flask).
+
+    Returns
+    -------
+    JSON with ``ok`` and ``story`` (list of narrative strings) on success.
+
+    Errors
+    ------
+    404
+        If no save with the given *name* exists.
+    """
+    try:
+        world_state = _storage.load(name)
+        return jsonify({"ok": True, "story": world_state.story_log})
+    except FileNotFoundError:
+        return jsonify({"ok": False, "error": "Save not found"}), 404
+
+
 @app.route("/api/reset", methods=["POST"])
 def reset_game():
     """Return a fresh default world state without touching disk.
