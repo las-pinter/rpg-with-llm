@@ -875,24 +875,24 @@ class TestCharacterPersistence:
         """During save, a .tmp file must be used before renaming to final path."""
         store = CharacterStorage(tmp_path)
         char = Character.create_default("Glimli", "Fighter")
-        original_rename = os.rename
+        original_replace = os.replace
         tmp_paths: list[Path] = []
 
-        def tracking_rename(src: str, dst: str) -> None:
+        def tracking_replace(src: str, dst: str) -> None:
             src_path = Path(src)
             if src_path.suffix == ".tmp":
                 assert src_path.exists(), (
                     f"Temp file {src_path} should exist before rename"
                 )
                 tmp_paths.append(src_path)
-            original_rename(src, dst)
+            original_replace(src, dst)
 
         try:
-            os.rename = tracking_rename  # type: ignore[assignment]
+            os.replace = tracking_replace  # type: ignore[assignment]
             store.save(char, name="atomic_test")
             assert len(tmp_paths) >= 1, "No .tmp file was used during save"
         finally:
-            os.rename = original_rename
+            os.replace = original_replace
         assert (store.characters_dir / "atomic_test.json").exists()
         assert not (store.characters_dir / "atomic_test.json.tmp").exists()
 
