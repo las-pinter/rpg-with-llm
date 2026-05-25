@@ -24,6 +24,7 @@ from app.character.model import (
     Character,
 )
 from app.llm.base import LLMProvider
+from app.utils import atomic_write
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -430,16 +431,8 @@ class CharacterStorage:
         timestamp = _timestamp_now()
         data: dict[str, Any] = character.to_dict()
 
-        tmp_path = self.characters_dir / f"{name}.json.tmp"
         final_path = self.characters_dir / f"{name}.json"
-
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            os.rename(tmp_path, final_path)
-        except BaseException:
-            tmp_path.unlink(missing_ok=True)
-            raise
+        atomic_write(final_path, data, indent=2)
 
         metadata: dict[str, Any] = {
             "name": name,
