@@ -16,6 +16,7 @@ _SPEC: ProviderSpec = ProviderSpec(
     models_endpoint="/api/tags",
     models_key="models",
     name_key="name",
+    health_endpoint="/api/tags",
 )
 
 

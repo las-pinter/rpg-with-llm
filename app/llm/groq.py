@@ -19,6 +19,7 @@ _SPEC = ProviderSpec(
     models_endpoint="/v1/models",
     models_key="data",
     name_key="id",
+    health_endpoint="/v1/models",
 )
 
 

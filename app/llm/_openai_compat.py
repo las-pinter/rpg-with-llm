@@ -356,49 +356,37 @@ class OpenAICompatibleProvider(LLMProvider):
         return models
 
     # ------------------------------------------------------------------
-    # health()
+    # health helpers
     # ------------------------------------------------------------------
 
-    def health(self) -> HealthResult:
-        """Check whether the provider is reachable and working.
+    def _do_health_request(self, url: str, start: float) -> HealthResult:
+        """Make a single health-check GET request and parse the response.
 
-        Uses a two-tier fallback strategy when
-        ``spec.health_fallback_endpoint`` is set.
+        Parameters
+        ----------
+        url:
+            Full URL for the health-check endpoint.
+        start:
+            Start time from ``time.monotonic()`` for latency
+            measurement.
 
         Returns
         -------
         HealthResult
-            Health status with latency and model info.
+            Healthy when the endpoint responds; unhealthy on timeout
+            or HTTP error.  On ``ConnectionError`` this method
+            **re-raises** so that the caller can attempt a fallback.
+
+        Raises
+        ------
+        requests.exceptions.ConnectionError
+            Re-raised so the caller can attempt a fallback endpoint.
+        Exception
+            Any unexpected error propagates to the caller's
+            catch-all handler.
         """
-        start = time.monotonic()
-        endpoint = self._spec.health_endpoint or self._spec.models_endpoint
-        url = f"{self.base_url}{endpoint}"
         try:
-            response = requests.get(
-                url,
-                headers=self._headers(),
-                timeout=self.timeout,
-            )
-            if not response.ok:
-                return HealthResult(
-                    ok=False,
-                    latency_ms=(time.monotonic() - start) * 1000,
-                    model=self.model,
-                    error=(
-                        f"{self._spec.provider_name} returned "
-                        f"HTTP {response.status_code}"
-                    ),
-                )
-            data = response.json()
-            model_list = data.get(self._spec.models_key, [])
-            model_name = ""
-            if isinstance(model_list, list) and model_list:
-                model_name = model_list[0].get(self._spec.name_key, "")
-            return HealthResult(
-                ok=True,
-                latency_ms=(time.monotonic() - start) * 1000,
-                model=model_name or self.model,
-            )
+            response = requests.get(url, headers=self._headers(), timeout=self.timeout)
         except requests.exceptions.Timeout:
             return HealthResult(
                 ok=False,
@@ -407,41 +395,58 @@ class OpenAICompatibleProvider(LLMProvider):
                 error=f"{self._spec.provider_name} health check: Timeout",
             )
         except requests.exceptions.ConnectionError:
+            raise
+
+        if not response.ok:
+            return HealthResult(
+                ok=False,
+                latency_ms=(time.monotonic() - start) * 1000,
+                model=self.model,
+                error=(
+                    f"{self._spec.provider_name} returned HTTP {response.status_code}"
+                ),
+            )
+
+        try:
+            data = response.json()
+            model_list = data.get(self._spec.models_key, [])
+            model_name = ""
+            if isinstance(model_list, list) and model_list:
+                model_name = model_list[0].get(self._spec.name_key, "")
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            # Server responded, but data is malformed — still healthy.
+            return HealthResult(
+                ok=True,
+                latency_ms=(time.monotonic() - start) * 1000,
+                model=self.model,
+            )
+
+        return HealthResult(
+            ok=True,
+            latency_ms=(time.monotonic() - start) * 1000,
+            model=model_name or self.model,
+        )
+
+    # ------------------------------------------------------------------
+    # health()
+    # ------------------------------------------------------------------
+
+    def health(self) -> HealthResult:
+        """Check whether the provider is reachable and working.
+
+        Uses a two-tier fallback strategy when
+        ``spec.health_fallback_endpoint`` is set.
+        """
+        start = time.monotonic()
+        endpoint = self._spec.health_endpoint or self._spec.models_endpoint
+        url = f"{self.base_url}{endpoint}"
+        try:
+            return self._do_health_request(url, start)
+        except requests.exceptions.ConnectionError:
             if self._spec.health_fallback_endpoint:
                 fallback_url = f"{self.base_url}{self._spec.health_fallback_endpoint}"
                 try:
-                    response = requests.get(
-                        fallback_url,
-                        headers=self._headers(),
-                        timeout=self.timeout,
-                    )
-                    if not response.ok:
-                        return HealthResult(
-                            ok=False,
-                            latency_ms=(time.monotonic() - start) * 1000,
-                            model=self.model,
-                            error=(
-                                f"{self._spec.provider_name} returned "
-                                f"HTTP {response.status_code}"
-                            ),
-                        )
-                    data = response.json()
-                    model_list = data.get(self._spec.models_key, [])
-                    model_name = ""
-                    if isinstance(model_list, list) and model_list:
-                        model_name = model_list[0].get(self._spec.name_key, "")
-                    return HealthResult(
-                        ok=True,
-                        latency_ms=(time.monotonic() - start) * 1000,
-                        model=model_name or self.model,
-                    )
-                except requests.exceptions.Timeout:
-                    return HealthResult(
-                        ok=False,
-                        latency_ms=(time.monotonic() - start) * 1000,
-                        model=self.model,
-                        error=(f"{self._spec.provider_name} health check: Timeout"),
-                    )
+                    return self._do_health_request(fallback_url, start)
                 except requests.exceptions.ConnectionError:
                     return HealthResult(
                         ok=False,
@@ -456,13 +461,6 @@ class OpenAICompatibleProvider(LLMProvider):
                 latency_ms=(time.monotonic() - start) * 1000,
                 model=self.model,
                 error=(f"{self._spec.provider_name} health check: Connection error"),
-            )
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
-            # Malformed response — server is up but data is odd.
-            return HealthResult(
-                ok=True,
-                latency_ms=(time.monotonic() - start) * 1000,
-                model=self.model,
             )
         except Exception:
             return HealthResult(
