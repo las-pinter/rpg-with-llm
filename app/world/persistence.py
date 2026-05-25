@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.utils import atomic_write
 from app.world.model import WorldState
 
 
@@ -76,16 +77,8 @@ class WorldStorage:
         timestamp = _timestamp_now()
         data: dict[str, Any] = world_state.to_dict()
 
-        tmp_path = self.saves_dir / f"{name}.json.tmp"
         final_path = self.saves_dir / f"{name}.json"
-
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            os.rename(tmp_path, final_path)
-        except BaseException:
-            tmp_path.unlink(missing_ok=True)
-            raise
+        atomic_write(final_path, data, indent=2)
 
         # Populate metadata from WorldState (Bug 6)
         metadata: dict[str, Any] = {
