@@ -9,7 +9,6 @@ for fast listing without re-reading every file.
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -226,14 +225,7 @@ class WorldStorage:
     @staticmethod
     def _write_index_atomic(index_path: Path, index: dict[str, Any]) -> None:
         """Atomically write *index* to *index_path*."""
-        tmp_path = index_path.with_name("index.json.tmp")
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(index, f, indent=2, ensure_ascii=False)
-            os.rename(tmp_path, index_path)
-        except BaseException:
-            tmp_path.unlink(missing_ok=True)
-            raise
+        atomic_write(index_path, index, indent=2)
 
 
 def _timestamp_now() -> str:
