@@ -1,5 +1,7 @@
 # agents package — Dungeon Master, NPC, and summarizer agents
 
+from __future__ import annotations
+
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
 from app.agents.history import SessionHistory
 from app.agents.npc import (
