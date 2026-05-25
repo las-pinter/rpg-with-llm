@@ -508,7 +508,7 @@ class TestOllamaProvider:
         messages = [{"role": "user", "content": "Hi"}]
 
         with patch(
-            "app.llm.ollama.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             result = provider.call(messages)
@@ -573,7 +573,7 @@ class TestOllamaProvider:
             },
         }
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Write a poem"}])
 
         assert result["content"] == "Sure, here is a poem..."
@@ -614,7 +614,7 @@ class TestOllamaProvider:
         ]
 
         with patch(
-            "app.llm.ollama.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
@@ -649,7 +649,7 @@ class TestOllamaProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == ["Hi", " there"]
@@ -670,8 +670,11 @@ class TestOllamaProvider:
         mock_response = MagicMock(spec=requests.Response)
         mock_response.ok = True
         mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "models": [{"name": "llama3.2", "modified_at": "..."}],
+        }
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -698,7 +701,7 @@ class TestOllamaProvider:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -722,7 +725,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             result = provider.health()
@@ -751,7 +754,7 @@ class TestOllamaProvider:
         mock_response.text = '{"error": "bad request"}'
         mock_response.__bool__ = lambda self: False
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -777,7 +780,7 @@ class TestOllamaProvider:
         mock_response.status_code = 401
         mock_response.text = "unauthorized"
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -799,7 +802,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -822,7 +825,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -850,7 +853,7 @@ class TestOllamaProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -873,7 +876,7 @@ class TestOllamaProvider:
             b'data: {"choices":[],"finish_reason":null}',
             b"data: [DONE]",
         ]
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
         assert tokens == []
 
@@ -891,7 +894,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Stream timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -914,7 +917,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -944,7 +947,7 @@ class TestOllamaProvider:
             "Connection broken"
         )
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(LLMConnectionError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -972,7 +975,7 @@ class TestOllamaProvider:
             "Something went wrong"
         )
 
-        with patch("app.llm.ollama.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -1028,13 +1031,13 @@ class TestOllamaProvider:
             ]
         }
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
         assert models[0].id == "llama3.2"
         assert models[0].name == "llama3.2"
-        assert models[0].provider == "ollama"
+        assert models[0].provider == "Ollama"
         assert models[1].id == "mistral"
 
     def test_list_models_returns_empty_on_http_error(self):
@@ -1054,7 +1057,7 @@ class TestOllamaProvider:
         mock_response.ok = False
         mock_response.status_code = 500
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -1073,7 +1076,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             models = provider.list_models()
@@ -1099,7 +1102,7 @@ class TestOllamaProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -1122,7 +1125,7 @@ class TestOllamaProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = {"models": []}
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -1151,7 +1154,7 @@ class TestOllamaProvider:
             ]
         }
 
-        with patch("app.llm.ollama.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
@@ -1172,7 +1175,7 @@ class TestOllamaProvider:
         )
 
         with patch(
-            "app.llm.ollama.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.Timeout("Request timed out"),
         ):
             models = provider.list_models()
@@ -1279,7 +1282,7 @@ class TestGroqProvider:
         messages = [{"role": "user", "content": "Hi"}]
 
         with patch(
-            "app.llm.groq.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             result = provider.call(messages)
@@ -1344,7 +1347,7 @@ class TestGroqProvider:
             },
         }
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Write a poem"}])
 
         assert result["content"] == "Sure, here is a poem..."
@@ -1385,7 +1388,7 @@ class TestGroqProvider:
         ]
 
         with patch(
-            "app.llm.groq.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
@@ -1420,7 +1423,7 @@ class TestGroqProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == ["Hi", " there"]
@@ -1441,8 +1444,11 @@ class TestGroqProvider:
         mock_response = MagicMock(spec=requests.Response)
         mock_response.ok = True
         mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [{"id": "llama3-70b-8192"}],
+        }
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -1469,12 +1475,11 @@ class TestGroqProvider:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
         assert result.ok is False
-        assert result.model == "llama3-70b-8192"
         assert result.error is not None
         assert "500" in result.error
         assert result.latency_ms >= 0
@@ -1493,7 +1498,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             result = provider.health()
@@ -1522,7 +1527,7 @@ class TestGroqProvider:
         mock_response.text = '{"error": "bad request"}'
         mock_response.__bool__ = lambda self: False
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -1548,7 +1553,7 @@ class TestGroqProvider:
         mock_response.status_code = 401
         mock_response.text = "unauthorized"
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -1570,7 +1575,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -1593,7 +1598,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -1621,7 +1626,7 @@ class TestGroqProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -1648,7 +1653,7 @@ class TestGroqProvider:
             b"data: {invalid json here}",
         ]
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -1670,7 +1675,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Stream timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -1693,7 +1698,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -1723,7 +1728,7 @@ class TestGroqProvider:
             "Connection broken"
         )
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(LLMConnectionError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -1751,7 +1756,7 @@ class TestGroqProvider:
             "Something went wrong"
         )
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -1802,7 +1807,7 @@ class TestGroqProvider:
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [b"data: [DONE]"]
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -1831,7 +1836,7 @@ class TestGroqProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -1857,7 +1862,7 @@ class TestGroqProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -1884,12 +1889,11 @@ class TestGroqProvider:
         mock_response.status_code = 403
         mock_response.text = "Forbidden"
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
         assert result.ok is False
-        assert result.model == "llama3-70b-8192"
         assert "403" in result.error
         assert result.latency_ms >= 0
 
@@ -1907,7 +1911,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.Timeout("Timed out"),
         ):
             result = provider.health()
@@ -1922,7 +1926,7 @@ class TestGroqProvider:
     # ------------------------------------------------------------------
 
     def test_call_missing_choices_key(self):
-        """call() should raise KeyError when response has no 'choices'."""
+        """call() should raise ProviderError when response has no 'choices'."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -1943,12 +1947,14 @@ class TestGroqProvider:
             "model": "llama3-70b-8192",
         }
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
+        assert "Invalid response structure" in str(excinfo.value)
+
     def test_call_empty_choices_array(self):
-        """call() should raise IndexError when choices array is empty."""
+        """call() should raise ProviderError when choices array is empty."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -1971,12 +1977,14 @@ class TestGroqProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
-            with pytest.raises(IndexError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
+        assert "Invalid response structure" in str(excinfo.value)
+
     def test_call_missing_message_in_choice(self):
-        """call() should raise KeyError when a choice has no 'message'."""
+        """call() should raise ProviderError when a choice has no 'message'."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -2004,12 +2012,14 @@ class TestGroqProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
+        assert "Invalid response structure" in str(excinfo.value)
+
     def test_call_missing_usage(self):
-        """call() should raise KeyError when response has no 'usage'."""
+        """call() should raise ProviderError when response has no 'usage'."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -2040,9 +2050,11 @@ class TestGroqProvider:
             ],
         }
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
+
+        assert "Invalid response structure" in str(excinfo.value)
 
     def test_call_extra_fields_in_response(self):
         """call() should ignore unexpected fields in the response."""
@@ -2084,7 +2096,7 @@ class TestGroqProvider:
             "x_groq": {"hint": "extra metadata"},
         }
 
-        with patch("app.llm.groq.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Hi"}])
 
         assert result["content"] == "Hello!"
@@ -2187,7 +2199,9 @@ class TestGroqProvider:
             ]
         }
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response) as mock_get:
+        with patch(
+            "app.llm._openai_compat.requests.get", return_value=mock_response
+        ) as mock_get:
             models = provider.list_models()
 
         # Verify auth headers were sent
@@ -2199,7 +2213,7 @@ class TestGroqProvider:
         assert len(models) == 2
         assert models[0].id == "llama3-70b-8192"
         assert models[0].name == "llama3-70b-8192"
-        assert models[0].provider == "groq"
+        assert models[0].provider == "Groq"
         assert models[1].id == "mixtral-8x7b-32768"
 
     def test_list_models_returns_empty_on_http_error(self):
@@ -2219,7 +2233,7 @@ class TestGroqProvider:
         mock_response.ok = False
         mock_response.status_code = 401
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -2238,7 +2252,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             models = provider.list_models()
@@ -2264,7 +2278,7 @@ class TestGroqProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -2287,7 +2301,7 @@ class TestGroqProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = {"data": []}
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -2316,7 +2330,7 @@ class TestGroqProvider:
             ]
         }
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
@@ -2342,7 +2356,9 @@ class TestGroqProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = {"data": [{"id": "test-model"}]}
 
-        with patch("app.llm.groq.requests.get", return_value=mock_response) as mock_get:
+        with patch(
+            "app.llm._openai_compat.requests.get", return_value=mock_response
+        ) as mock_get:
             provider.list_models()
 
         call_headers = mock_get.call_args[1].get("headers", {})
@@ -2362,7 +2378,7 @@ class TestGroqProvider:
         )
 
         with patch(
-            "app.llm.groq.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.Timeout("Request timed out"),
         ):
             models = provider.list_models()
@@ -2482,7 +2498,7 @@ class TestOpenRouterProvider:
         messages = [{"role": "user", "content": "Hi"}]
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             result = provider.call(messages)
@@ -2547,7 +2563,7 @@ class TestOpenRouterProvider:
             },
         }
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Write a poem"}])
 
         assert result["content"] == "Sure, here is a poem..."
@@ -2588,7 +2604,7 @@ class TestOpenRouterProvider:
         ]
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
@@ -2623,7 +2639,7 @@ class TestOpenRouterProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == ["Hi", " there"]
@@ -2645,7 +2661,7 @@ class TestOpenRouterProvider:
         mock_response.ok = True
         mock_response.status_code = 200
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -2672,7 +2688,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -2696,7 +2712,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             result = provider.health()
@@ -2725,7 +2741,7 @@ class TestOpenRouterProvider:
         mock_response.text = '{"error": "bad request"}'
         mock_response.__bool__ = lambda self: False
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -2751,7 +2767,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 401
         mock_response.text = "unauthorized"
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -2773,7 +2789,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -2796,7 +2812,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -2824,7 +2840,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -2851,7 +2867,7 @@ class TestOpenRouterProvider:
             b"data: {invalid json here}",
         ]
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -2873,7 +2889,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Stream timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -2896,7 +2912,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -2926,7 +2942,7 @@ class TestOpenRouterProvider:
             "Connection broken"
         )
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(LLMConnectionError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -2954,7 +2970,7 @@ class TestOpenRouterProvider:
             "Something went wrong"
         )
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -3005,7 +3021,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [b"data: [DONE]"]
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -3034,7 +3050,7 @@ class TestOpenRouterProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -3060,7 +3076,7 @@ class TestOpenRouterProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -3087,7 +3103,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 403
         mock_response.text = "Forbidden"
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -3110,7 +3126,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.Timeout("Timed out"),
         ):
             result = provider.health()
@@ -3125,7 +3141,7 @@ class TestOpenRouterProvider:
     # ------------------------------------------------------------------
 
     def test_call_missing_choices_key(self):
-        """call() should raise KeyError when response has no 'choices'."""
+        """call() should raise ProviderError when response has no 'choices'."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -3146,12 +3162,12 @@ class TestOpenRouterProvider:
             "model": "mistralai/mistral-7b-instruct:free",
         }
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_empty_choices_array(self):
-        """call() should raise IndexError when choices array is empty."""
+        """call() should raise ProviderError when choices array is empty."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -3174,12 +3190,12 @@ class TestOpenRouterProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
-            with pytest.raises(IndexError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_missing_message_in_choice(self):
-        """call() should raise KeyError when a choice has no 'message'."""
+        """call() should raise ProviderError when a choice has no 'message'."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -3207,12 +3223,12 @@ class TestOpenRouterProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_missing_usage(self):
-        """call() should raise KeyError when response has no 'usage'."""
+        """call() should raise ProviderError when response has no 'usage'."""
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -3243,8 +3259,8 @@ class TestOpenRouterProvider:
             ],
         }
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_extra_fields_in_response(self):
@@ -3287,7 +3303,7 @@ class TestOpenRouterProvider:
             "x_openrouter": {"hint": "extra metadata"},
         }
 
-        with patch("app.llm.openrouter.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Hi"}])
 
         assert result["content"] == "Hello!"
@@ -3409,7 +3425,7 @@ class TestOpenRouterProvider:
         }
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             provider.call([{"role": "user", "content": "Hi"}])
@@ -3461,7 +3477,7 @@ class TestOpenRouterProvider:
         }
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             provider.call([{"role": "user", "content": "Hi"}])
@@ -3487,7 +3503,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Stream timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -3525,7 +3541,7 @@ class TestOpenRouterProvider:
         }
 
         with patch(
-            "app.llm.openrouter.requests.get",
+            "app.llm._openai_compat.requests.get",
             return_value=mock_response,
         ) as mock_get:
             models = provider.list_models()
@@ -3563,7 +3579,7 @@ class TestOpenRouterProvider:
             ]
         }
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 1
@@ -3587,7 +3603,7 @@ class TestOpenRouterProvider:
         mock_response.ok = False
         mock_response.status_code = 403
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -3606,7 +3622,7 @@ class TestOpenRouterProvider:
         )
 
         with patch(
-            "app.llm.openrouter.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             models = provider.list_models()
@@ -3632,7 +3648,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -3655,7 +3671,7 @@ class TestOpenRouterProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = {"data": []}
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -3684,7 +3700,7 @@ class TestOpenRouterProvider:
             ]
         }
 
-        with patch("app.llm.openrouter.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
@@ -3788,7 +3804,7 @@ class TestLlamacppProvider:
         messages = [{"role": "user", "content": "Hi"}]
 
         with patch(
-            "app.llm.llamacpp.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             result = provider.call(messages)
@@ -3853,7 +3869,7 @@ class TestLlamacppProvider:
             },
         }
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Write a poem"}])
 
         assert result["content"] == "Sure, here is a poem..."
@@ -3894,7 +3910,7 @@ class TestLlamacppProvider:
         ]
 
         with patch(
-            "app.llm.llamacpp.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
@@ -3929,7 +3945,7 @@ class TestLlamacppProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == ["Hi", " there"]
@@ -3960,7 +3976,7 @@ class TestLlamacppProvider:
             "data": [{"id": "llama-3.2-3b"}],
         }
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -3988,7 +4004,7 @@ class TestLlamacppProvider:
         mock_health_response.status_code = 200
 
         with patch(
-            "app.llm.llamacpp.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=[
                 requests.exceptions.ConnectionError("Connection refused"),
                 mock_health_response,
@@ -4017,7 +4033,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=[
                 requests.exceptions.ConnectionError("Connection refused"),
                 requests.exceptions.ConnectionError("Also refused"),
@@ -4050,7 +4066,7 @@ class TestLlamacppProvider:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -4074,7 +4090,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             result = provider.health()
@@ -4107,7 +4123,7 @@ class TestLlamacppProvider:
             "data": [{"id": "llama-3.2-3b"}],
         }
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -4137,7 +4153,7 @@ class TestLlamacppProvider:
             # "data" key missing entirely
         }
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -4160,7 +4176,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=[
                 requests.exceptions.ConnectionError("Connection refused"),
                 requests.exceptions.Timeout("Timed out"),
@@ -4185,7 +4201,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=RuntimeError("Something unexpected happened"),
         ):
             result = provider.health()
@@ -4214,7 +4230,7 @@ class TestLlamacppProvider:
         mock_response.text = '{"error": "bad request"}'
         mock_response.__bool__ = lambda self: False
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -4240,7 +4256,7 @@ class TestLlamacppProvider:
         mock_response.status_code = 401
         mock_response.text = "unauthorized"
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -4262,7 +4278,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -4285,7 +4301,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -4313,7 +4329,7 @@ class TestLlamacppProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -4340,7 +4356,7 @@ class TestLlamacppProvider:
             b"data: {invalid json here}",
         ]
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -4362,7 +4378,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Stream timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -4385,7 +4401,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -4415,7 +4431,7 @@ class TestLlamacppProvider:
             "Connection broken"
         )
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(LLMConnectionError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -4443,7 +4459,7 @@ class TestLlamacppProvider:
             "Something went wrong"
         )
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -4494,7 +4510,7 @@ class TestLlamacppProvider:
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [b"data: [DONE]"]
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -4525,7 +4541,7 @@ class TestLlamacppProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -4551,7 +4567,7 @@ class TestLlamacppProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -4561,10 +4577,12 @@ class TestLlamacppProvider:
     # ------------------------------------------------------------------
 
     def test_call_missing_choices_key(self):
-        """call() should raise KeyError when response has no 'choices'."""
+        """call() should raise ProviderError when response has no 'choices'."""
         from unittest.mock import MagicMock, patch
 
         import requests
+
+        from app.llm.base import ProviderError
 
         from app.llm.llamacpp import LlamacppProvider
 
@@ -4582,15 +4600,17 @@ class TestLlamacppProvider:
             "model": "default",
         }
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_empty_choices_array(self):
-        """call() should raise IndexError when choices array is empty."""
+        """call() should raise ProviderError when choices array is empty."""
         from unittest.mock import MagicMock, patch
 
         import requests
+
+        from app.llm.base import ProviderError
 
         from app.llm.llamacpp import LlamacppProvider
 
@@ -4610,15 +4630,17 @@ class TestLlamacppProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
-            with pytest.raises(IndexError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_missing_message_in_choice(self):
-        """call() should raise KeyError when a choice has no 'message'."""
+        """call() should raise ProviderError when a choice has no 'message'."""
         from unittest.mock import MagicMock, patch
 
         import requests
+
+        from app.llm.base import ProviderError
 
         from app.llm.llamacpp import LlamacppProvider
 
@@ -4643,15 +4665,17 @@ class TestLlamacppProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_missing_usage(self):
-        """call() should raise KeyError when response has no 'usage'."""
+        """call() should raise ProviderError when response has no 'usage'."""
         from unittest.mock import MagicMock, patch
 
         import requests
+
+        from app.llm.base import ProviderError
 
         from app.llm.llamacpp import LlamacppProvider
 
@@ -4679,8 +4703,8 @@ class TestLlamacppProvider:
             ],
         }
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_extra_fields_in_response(self):
@@ -4723,7 +4747,7 @@ class TestLlamacppProvider:
             "x_llamacpp": {"hint": "extra metadata"},
         }
 
-        with patch("app.llm.llamacpp.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Hi"}])
 
         assert result["content"] == "Hello!"
@@ -4825,13 +4849,13 @@ class TestLlamacppProvider:
             ]
         }
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
         assert models[0].id == "default"
         assert models[0].name == "default"
-        assert models[0].provider == "llamacpp"
+        assert models[0].provider == "llama.cpp"
         assert models[1].id == "llama-3.2-3b"
 
     def test_list_models_returns_empty_on_http_error(self):
@@ -4851,7 +4875,7 @@ class TestLlamacppProvider:
         mock_response.ok = False
         mock_response.status_code = 500
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -4870,7 +4894,7 @@ class TestLlamacppProvider:
         )
 
         with patch(
-            "app.llm.llamacpp.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             models = provider.list_models()
@@ -4896,7 +4920,7 @@ class TestLlamacppProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -4919,7 +4943,7 @@ class TestLlamacppProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = {"data": []}
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -4948,7 +4972,7 @@ class TestLlamacppProvider:
             ]
         }
 
-        with patch("app.llm.llamacpp.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
@@ -5055,7 +5079,7 @@ class TestUnslothProvider:
         messages = [{"role": "user", "content": "Hi"}]
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             result = provider.call(messages)
@@ -5120,7 +5144,7 @@ class TestUnslothProvider:
             },
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Write a poem"}])
 
         assert result["content"] == "Sure, here is a poem..."
@@ -5161,7 +5185,7 @@ class TestUnslothProvider:
         ]
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
@@ -5196,7 +5220,7 @@ class TestUnslothProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == ["Hi", " there"]
@@ -5222,7 +5246,7 @@ class TestUnslothProvider:
             "data": [{"id": "unsloth/gemma-3-27b-it-GGUF"}],
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -5249,7 +5273,7 @@ class TestUnslothProvider:
         mock_health_response.status_code = 200
 
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=[
                 requests.exceptions.ConnectionError("Connection refused"),
                 mock_health_response,
@@ -5281,7 +5305,7 @@ class TestUnslothProvider:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -5305,7 +5329,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             result = provider.health()
@@ -5334,7 +5358,7 @@ class TestUnslothProvider:
         mock_response.text = '{"error": "bad request"}'
         mock_response.__bool__ = lambda self: False
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -5360,7 +5384,7 @@ class TestUnslothProvider:
         mock_response.status_code = 401
         mock_response.text = "unauthorized"
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -5382,7 +5406,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -5405,7 +5429,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -5433,7 +5457,7 @@ class TestUnslothProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 provider.call([{"role": "user", "content": "Hi"}])
 
@@ -5459,7 +5483,7 @@ class TestUnslothProvider:
             b'data: {"choices":[],"finish_reason":null}',
             b"data: [DONE]",
         ]
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
         assert tokens == []
 
@@ -5477,7 +5501,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.Timeout("Stream timed out"),
         ):
             with pytest.raises(LLMTimeoutError) as excinfo:
@@ -5500,7 +5524,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             with pytest.raises(LLMConnectionError) as excinfo:
@@ -5530,7 +5554,7 @@ class TestUnslothProvider:
             "Connection broken"
         )
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(LLMConnectionError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -5558,7 +5582,7 @@ class TestUnslothProvider:
             "Something went wrong"
         )
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -5605,7 +5629,7 @@ class TestUnslothProvider:
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [b"data: [DONE]"]
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -5634,7 +5658,7 @@ class TestUnslothProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
 
         assert tokens == []
@@ -5659,7 +5683,7 @@ class TestUnslothProvider:
             b"data: {invalid json here}",
         ]
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             with pytest.raises(ProviderError) as excinfo:
                 for _ in provider.stream([{"role": "user", "content": "Hi"}]):
                     pass
@@ -5685,7 +5709,7 @@ class TestUnslothProvider:
         mock_response.status_code = 403
         mock_response.text = "Forbidden"
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -5708,7 +5732,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.Timeout("Timed out"),
         ):
             result = provider.health()
@@ -5723,11 +5747,12 @@ class TestUnslothProvider:
     # ------------------------------------------------------------------
 
     def test_call_missing_choices_key(self):
-        """call() should raise KeyError when response has no 'choices'."""
+        """call() should raise ProviderError when response has no 'choices'."""
         from unittest.mock import MagicMock, patch
 
         import requests
 
+        from app.llm.base import ProviderError
         from app.llm.unsloth import UnslothProvider
 
         provider = UnslothProvider(
@@ -5744,16 +5769,17 @@ class TestUnslothProvider:
             "model": "unsloth/Devstral-Small-2-24B-Instruct-2512",
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_empty_choices_array(self):
-        """call() should raise IndexError when choices array is empty."""
+        """call() should raise ProviderError when choices array is empty."""
         from unittest.mock import MagicMock, patch
 
         import requests
 
+        from app.llm.base import ProviderError
         from app.llm.unsloth import UnslothProvider
 
         provider = UnslothProvider(
@@ -5772,16 +5798,17 @@ class TestUnslothProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
-            with pytest.raises(IndexError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_missing_message_in_choice(self):
-        """call() should raise KeyError when a choice has no 'message'."""
+        """call() should raise ProviderError when a choice has no 'message'."""
         from unittest.mock import MagicMock, patch
 
         import requests
 
+        from app.llm.base import ProviderError
         from app.llm.unsloth import UnslothProvider
 
         provider = UnslothProvider(
@@ -5805,16 +5832,17 @@ class TestUnslothProvider:
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_missing_usage(self):
-        """call() should raise KeyError when response has no 'usage'."""
+        """call() should raise ProviderError when response has no 'usage'."""
         from unittest.mock import MagicMock, patch
 
         import requests
 
+        from app.llm.base import ProviderError
         from app.llm.unsloth import UnslothProvider
 
         provider = UnslothProvider(
@@ -5841,8 +5869,8 @@ class TestUnslothProvider:
             ],
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
-            with pytest.raises(KeyError):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
+            with pytest.raises(ProviderError):
                 provider.call([{"role": "user", "content": "Hi"}])
 
     def test_call_extra_fields_in_response(self):
@@ -5885,7 +5913,7 @@ class TestUnslothProvider:
             "x_unsloth": {"hint": "extra metadata"},
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([{"role": "user", "content": "Hi"}])
 
         assert result["content"] == "Hello!"
@@ -5988,7 +6016,7 @@ class TestUnslothProvider:
         # call would need another mock.  We only supply one, so
         # expecting a single GET call.
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             return_value=mock_v1,
         ) as mock_get:
             result = provider.health()
@@ -6023,7 +6051,7 @@ class TestUnslothProvider:
         mock_v1.status_code = 403
         mock_v1.text = "Forbidden"
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_v1):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_v1):
             result = provider.health()
 
         assert result.ok is False
@@ -6055,7 +6083,7 @@ class TestUnslothProvider:
             "data": [],
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -6085,7 +6113,7 @@ class TestUnslothProvider:
             "data": [{"object": "model"}],  # no "id" key
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -6114,7 +6142,7 @@ class TestUnslothProvider:
             # "data" key is missing entirely
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -6143,7 +6171,7 @@ class TestUnslothProvider:
             "data": "not_a_list",  # TypeError on [0]
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -6170,7 +6198,7 @@ class TestUnslothProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Bad JSON", "", 0)
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -6203,7 +6231,7 @@ class TestUnslothProvider:
             ],
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             result = provider.health()
 
         assert isinstance(result, HealthResult)
@@ -6235,7 +6263,7 @@ class TestUnslothProvider:
         mock_health.text = "Internal Server Error"
 
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=[
                 requests.exceptions.ConnectionError("Connection refused"),
                 mock_health,
@@ -6264,7 +6292,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=[
                 requests.exceptions.ConnectionError("Connection refused"),
                 requests.exceptions.Timeout("Timed out"),
@@ -6320,7 +6348,7 @@ class TestUnslothProvider:
         }
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             result = provider.call([{"role": "user", "content": "Hi"}])
@@ -6355,7 +6383,7 @@ class TestUnslothProvider:
         ]
 
         with patch(
-            "app.llm.unsloth.requests.post",
+            "app.llm._openai_compat.requests.post",
             return_value=mock_response,
         ) as mock_post:
             tokens = list(provider.stream([{"role": "user", "content": "Hi"}]))
@@ -6407,7 +6435,7 @@ class TestUnslothProvider:
             },
         }
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             result = provider.call([])
 
         assert result["content"] == "Empty messages response"
@@ -6441,7 +6469,7 @@ class TestUnslothProvider:
             b"data: [DONE]",
         ]
 
-        with patch("app.llm.unsloth.requests.post", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.post", return_value=mock_response):
             tokens = list(provider.stream([]))
 
         assert tokens == ["No ", "messages"]
@@ -6489,7 +6517,7 @@ class TestUnslothProvider:
             ]
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
@@ -6515,7 +6543,7 @@ class TestUnslothProvider:
         mock_response.ok = False
         mock_response.status_code = 500
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -6534,7 +6562,7 @@ class TestUnslothProvider:
         )
 
         with patch(
-            "app.llm.unsloth.requests.get",
+            "app.llm._openai_compat.requests.get",
             side_effect=requests.exceptions.ConnectionError("Connection refused"),
         ):
             models = provider.list_models()
@@ -6560,7 +6588,7 @@ class TestUnslothProvider:
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("bad json", "", 0)
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -6583,7 +6611,7 @@ class TestUnslothProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = {"data": []}
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert models == []
@@ -6612,7 +6640,7 @@ class TestUnslothProvider:
             ]
         }
 
-        with patch("app.llm.unsloth.requests.get", return_value=mock_response):
+        with patch("app.llm._openai_compat.requests.get", return_value=mock_response):
             models = provider.list_models()
 
         assert len(models) == 2
