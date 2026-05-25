@@ -308,6 +308,7 @@ class TestWorldStorage:
     ) -> None:
         """During save, tmp files are created before final files."""
         original_rename = os.rename
+        original_replace = os.replace
         tmp_paths: list[Path] = []
 
         def tracking_rename(src: str, dst: str) -> None:
@@ -319,12 +320,23 @@ class TestWorldStorage:
                 tmp_paths.append(src_path)
             original_rename(src, dst)
 
+        def tracking_replace(src: str, dst: str) -> None:
+            src_path = Path(src)
+            if src_path.suffix == ".tmp":
+                assert src_path.exists(), (
+                    f"Temp file {src_path} should exist before replace"
+                )
+                tmp_paths.append(src_path)
+            original_replace(src, dst)
+
         try:
             os.rename = tracking_rename  # type: ignore[assignment]
+            os.replace = tracking_replace  # type: ignore[assignment]
             storage.save(sample_world, name="atomic_test")
             assert len(tmp_paths) >= 1, "No tmp file was used during save"
         finally:
             os.rename = original_rename
+            os.replace = original_replace
 
         # Confirm the final file exists and tmp file is gone
         assert (storage.saves_dir / "atomic_test.json").exists()
