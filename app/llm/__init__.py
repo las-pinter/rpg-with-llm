@@ -1,4 +1,7 @@
 # ruff: noqa: F401
+
+from __future__ import annotations
+
 from app.llm.base import (
     HealthResult,
     LLMConnectionError,
