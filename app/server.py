@@ -15,6 +15,7 @@ import time
 from collections.abc import Generator
 from pathlib import Path
 
+import flask as flask
 from flask import Flask, Response, jsonify, request, stream_with_context
 
 from app.agents.dm import DungeonMaster
@@ -72,7 +73,7 @@ def _cleanup_stale_dms() -> None:
 
 
 @app.route("/")
-def index():
+def index() -> tuple[flask.Response, int] | flask.Response:
     """Serve the SPA entry point (index.html)."""
     return app.send_static_file("index.html")
 
@@ -83,7 +84,7 @@ def index():
 
 
 @app.route("/api/health", methods=["POST"])
-def health_check():
+def health_check() -> tuple[flask.Response, int] | flask.Response:
     """Check the health of an LLM provider.
 
     Accepts JSON body with ``base_url``, ``model``, and optional
@@ -142,7 +143,7 @@ def health_check():
 
 
 @app.route("/api/models", methods=["POST"])
-def list_models():
+def list_models() -> tuple[flask.Response, int] | flask.Response:
     """Fetch available models from an LLM provider.
 
     Accepts JSON body with ``base_url``, ``model``, and optional
@@ -211,7 +212,7 @@ def list_models():
 
 
 @app.route("/api/save", methods=["POST"])
-def save_game():
+def save_game() -> tuple[flask.Response, int] | flask.Response:
     """Persist the current world state (and optionally character) to disk.
 
     Accepts JSON body with a ``state`` dict (the serialised
@@ -277,7 +278,7 @@ def save_game():
 
 
 @app.route("/api/saves", methods=["GET"])
-def list_saves():
+def list_saves() -> tuple[flask.Response, int] | flask.Response:
     """Return metadata for all saved games.
 
     Returns
@@ -327,7 +328,7 @@ def _delete_companion_character(save_name: str) -> None:
 
 
 @app.route("/api/load/<string:name>", methods=["POST"])
-def load_game(name):
+def load_game(name: str) -> tuple[flask.Response, int] | flask.Response:
     """Restore a previously saved world state.
 
     Returns
@@ -371,7 +372,7 @@ def load_game(name):
 
 
 @app.route("/api/delete/<string:name>", methods=["DELETE"])
-def delete_save(name):
+def delete_save(name: str) -> tuple[flask.Response, int] | flask.Response:
     """Delete a saved game by name.
 
     Returns
@@ -400,7 +401,7 @@ def delete_save(name):
 
 
 @app.route("/api/story/<name>", methods=["GET"])
-def get_story(name: str):
+def get_story(name: str) -> tuple[flask.Response, int] | flask.Response:
     """Return the story log for a saved game.
 
     Parameters
@@ -425,7 +426,7 @@ def get_story(name: str):
 
 
 @app.route("/api/reset", methods=["POST"])
-def reset_game():
+def reset_game() -> tuple[flask.Response, int] | flask.Response:
     """Return a fresh default world state without touching disk.
 
     Returns
@@ -442,7 +443,7 @@ def reset_game():
 
 
 @app.route("/api/character/generate", methods=["POST"])
-def generate_character():
+def generate_character() -> tuple[flask.Response, int] | flask.Response:
     """Generate a character from narrative answers using the LLM.
 
     Accepts JSON body with ``answers`` (dict of index -> answer text)
@@ -527,7 +528,7 @@ def generate_character():
 
 
 @app.route("/api/character/save", methods=["POST"])
-def save_character():
+def save_character() -> tuple[flask.Response, int] | flask.Response:
     """Save a character to disk.
 
     Accepts JSON body with ``character`` (serialised Character dict)
@@ -574,7 +575,7 @@ def save_character():
 
 
 @app.route("/api/characters", methods=["GET"])
-def list_characters():
+def list_characters() -> tuple[flask.Response, int] | flask.Response:
     """Return metadata for all saved characters.
 
     Returns
@@ -586,7 +587,7 @@ def list_characters():
 
 
 @app.route("/api/character/load/<name>", methods=["GET"])
-def load_character(name: str):
+def load_character(name: str) -> tuple[flask.Response, int] | flask.Response:
     """Load a single character's full data by name.
 
     Parameters
@@ -624,7 +625,7 @@ def load_character(name: str):
 
 
 @app.route("/api/character/delete/<name>", methods=["DELETE"])
-def delete_character(name: str):
+def delete_character(name: str) -> tuple[flask.Response, int] | flask.Response:
     """Delete a saved character by name.
 
     Parameters
@@ -702,7 +703,7 @@ def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
 
 
 @app.route("/api/game/stream", methods=["GET"])
-def game_stream():
+def game_stream() -> tuple[flask.Response, int] | flask.Response:
     """SSE endpoint for streaming DM responses.
 
     Accepts ``?input=player+action`` query parameter, plus optional
