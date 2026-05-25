@@ -102,7 +102,8 @@ class OpenAICompatibleProvider(LLMProvider):
         base_url = base_url.strip().rstrip("/")
         self.base_url: str = base_url
         self.model: str = model
-        self.api_key: str | None = api_key
+        # Normalize empty string to None for cleaner header logic.
+        self.api_key: str | None = api_key if api_key else None
         self.timeout: int = timeout
         self.max_tokens: int | None = max_tokens
         self.temperature: float | None = temperature
@@ -382,7 +383,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 return HealthResult(
                     ok=False,
                     latency_ms=(time.monotonic() - start) * 1000,
-                    model="",
+                    model=self.model,
                     error=(
                         f"{self._spec.provider_name} returned "
                         f"HTTP {response.status_code}"
@@ -390,19 +391,19 @@ class OpenAICompatibleProvider(LLMProvider):
                 )
             data = response.json()
             model_list = data.get(self._spec.models_key, [])
-            model_name = (
-                model_list[0].get(self._spec.name_key, "") if model_list else ""
-            )
+            model_name = ""
+            if isinstance(model_list, list) and model_list:
+                model_name = model_list[0].get(self._spec.name_key, "")
             return HealthResult(
                 ok=True,
                 latency_ms=(time.monotonic() - start) * 1000,
-                model=model_name,
+                model=model_name or self.model,
             )
         except requests.exceptions.Timeout:
             return HealthResult(
                 ok=False,
                 latency_ms=(time.monotonic() - start) * 1000,
-                model="",
+                model=self.model,
                 error=f"{self._spec.provider_name} health check: Timeout",
             )
         except requests.exceptions.ConnectionError:
@@ -418,7 +419,7 @@ class OpenAICompatibleProvider(LLMProvider):
                         return HealthResult(
                             ok=False,
                             latency_ms=(time.monotonic() - start) * 1000,
-                            model="",
+                            model=self.model,
                             error=(
                                 f"{self._spec.provider_name} returned "
                                 f"HTTP {response.status_code}"
@@ -426,38 +427,47 @@ class OpenAICompatibleProvider(LLMProvider):
                         )
                     data = response.json()
                     model_list = data.get(self._spec.models_key, [])
-                    model_name = (
-                        model_list[0].get(self._spec.name_key, "") if model_list else ""
-                    )
+                    model_name = ""
+                    if isinstance(model_list, list) and model_list:
+                        model_name = model_list[0].get(self._spec.name_key, "")
                     return HealthResult(
                         ok=True,
                         latency_ms=(time.monotonic() - start) * 1000,
-                        model=model_name,
+                        model=model_name or self.model,
                     )
                 except requests.exceptions.Timeout:
                     return HealthResult(
                         ok=False,
                         latency_ms=(time.monotonic() - start) * 1000,
-                        model="",
+                        model=self.model,
                         error=(f"{self._spec.provider_name} health check: Timeout"),
                     )
                 except requests.exceptions.ConnectionError:
                     return HealthResult(
                         ok=False,
                         latency_ms=(time.monotonic() - start) * 1000,
-                        model="",
-                        error=(f"{self._spec.provider_name} health check failed"),
+                        model=self.model,
+                        error=(
+                            f"{self._spec.provider_name} health check: Connection error"
+                        ),
                     )
             return HealthResult(
                 ok=False,
                 latency_ms=(time.monotonic() - start) * 1000,
-                model="",
+                model=self.model,
                 error=(f"{self._spec.provider_name} health check: Connection error"),
+            )
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            # Malformed response — server is up but data is odd.
+            return HealthResult(
+                ok=True,
+                latency_ms=(time.monotonic() - start) * 1000,
+                model=self.model,
             )
         except Exception:
             return HealthResult(
                 ok=False,
                 latency_ms=(time.monotonic() - start) * 1000,
-                model="",
+                model=self.model,
                 error=f"{self._spec.provider_name} health check failed",
             )

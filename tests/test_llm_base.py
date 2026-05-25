@@ -1021,7 +1021,7 @@ class TestHealthMethod:
         assert "SpookyProvider" in result.error
 
     def test_health_empty_model_list(self):
-        """health() should return empty model string when list is empty."""
+        """health() should fall back to constructor model when list is empty."""
         provider = _make_provider()
         mock_response = _make_mock_response(json_data={"data": []})
 
@@ -1029,7 +1029,7 @@ class TestHealthMethod:
             result = provider.health()
 
         assert result.ok is True
-        assert result.model == ""
+        assert result.model == "test-model"
 
     def test_health_fallback_timeout_returns_unhealthy(self):
         """Unhealthy when fallback endpoint times out."""
