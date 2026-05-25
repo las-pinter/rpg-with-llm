@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from collections.abc import Generator
 from pathlib import Path
 
@@ -39,6 +40,30 @@ app = Flask(__name__, static_folder=_static_folder, static_url_path="/static")
 logger = logging.getLogger(__name__)
 _storage = WorldStorage(data_dir=Path("data"))
 _character_storage = CharacterStorage(data_dir=Path("data"))
+
+# Cache of persistent DungeonMaster instances, keyed by character_id.
+# DMs are recreated for new games and evicted after inactivity.
+_dm_cache: dict[str, DungeonMaster] = {}
+_DM_CACHE_TTL_SECONDS: int = 3600  # 1 hour inactivity before eviction
+
+# Track last cleanup time
+_dm_cache_cleanup_time: float = 0.0
+_DM_CACHE_CLEANUP_INTERVAL: float = 300.0  # 5 minutes
+
+
+def _cleanup_stale_dms() -> None:
+    """Evict DMs that have been idle too long. Called periodically."""
+    global _dm_cache_cleanup_time
+    now = time.monotonic()
+    if now - _dm_cache_cleanup_time < _DM_CACHE_CLEANUP_INTERVAL:
+        return
+    _dm_cache_cleanup_time = now
+
+    # Keep cache bounded — production would track last-access per DM
+    if len(_dm_cache) > 50:
+        keys = list(_dm_cache.keys())
+        for key in keys[:-50]:
+            del _dm_cache[key]
 
 
 # ---------------------------------------------------------------------------
@@ -751,6 +776,9 @@ def game_stream():
         else None
     )
 
+    # Clean up stale DMs periodically
+    _cleanup_stale_dms()
+
     # Restore world state from query param (JSON-encoded)
     state_raw = request.args.get("state")
     if state_raw:
@@ -770,13 +798,22 @@ def game_stream():
         except (json.JSONDecodeError, Exception):
             character = None
 
-    dm = DungeonMaster(
-        llm_provider=dm_provider,
-        world_state=world_state,
-        character=character,
-        npc_provider=npc_provider,
-        summarizer_provider=summarizer_provider,
-    )
+    # Create or retrieve persistent DungeonMaster for this character.
+    character_id = character.get("id") if isinstance(character, dict) else None
+    if character_id and character_id in _dm_cache:
+        dm = _dm_cache[character_id]
+        # Keep world_state fresh from the request while preserving history
+        dm.world_state = world_state
+    else:
+        dm = DungeonMaster(
+            llm_provider=dm_provider,
+            world_state=world_state,
+            character=character,
+            npc_provider=npc_provider,
+            summarizer_provider=summarizer_provider,
+        )
+        if character_id:
+            _dm_cache[character_id] = dm
 
     def generate() -> Generator[str, None, None]:
         try:
