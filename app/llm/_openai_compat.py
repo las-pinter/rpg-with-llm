@@ -29,6 +29,9 @@ from app.llm.base import (
     ProviderError,
 )
 
+# Default timeout in seconds for HTTP requests.
+DEFAULT_TIMEOUT: int = 300
+
 # Sentinel value to distinguish "not provided" from "explicitly None".
 _UNSET: object = object()
 
@@ -94,7 +97,7 @@ class OpenAICompatibleProvider(LLMProvider):
         base_url: str,
         model: str,
         api_key: str | None = None,
-        timeout: int = 300,
+        timeout: int = DEFAULT_TIMEOUT,
         max_tokens: int | None = None,
         temperature: float | None = None,
         spec: ProviderSpec | object = _UNSET,
