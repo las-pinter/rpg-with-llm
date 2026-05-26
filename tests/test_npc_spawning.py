@@ -272,7 +272,6 @@ class TestFormatNpcResults:
     def test_formats_normal_result(self) -> None:
         """Normal NPC results should be formatted with dialogue,
         action, and emotional state."""
-        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
         results = [
             {
                 "npc_id": "tavern_keep",
@@ -292,7 +291,6 @@ class TestFormatNpcResults:
 
     def test_formats_error_result(self) -> None:
         """Error entries should be marked as unavailable."""
-        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
         results = [
             {
                 "npc_id": "slow_npc",
@@ -309,7 +307,6 @@ class TestFormatNpcResults:
 
     def test_formats_multiple_results(self) -> None:
         """Multiple results should be separated."""
-        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
         results = [
             {
                 "npc_id": "npc_a",
