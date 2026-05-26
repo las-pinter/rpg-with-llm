@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from app.agents.dm import DungeonMaster
+from app.agents.dm import DungeonMaster, format_npc_results
 
 # ===========================================================================
 # Helpers
@@ -282,7 +282,7 @@ class TestFormatNpcResults:
                 "tool_request": None,
             }
         ]
-        block = dm._format_npc_results(results)
+        block = format_npc_results(results)
         assert "tavern_keep" in block
         # Dialogue is compressed: "Welcome!" stays
         assert "Welcome" in block
@@ -303,7 +303,7 @@ class TestFormatNpcResults:
                 "tool_request": None,
             }
         ]
-        block = dm._format_npc_results(results)
+        block = format_npc_results(results)
         assert "slow_npc" in block
         assert "unavailable" in block
 
@@ -327,7 +327,7 @@ class TestFormatNpcResults:
                 "tool_request": None,
             },
         ]
-        block = dm._format_npc_results(results)
+        block = format_npc_results(results)
         assert "npc_a" in block
         assert "npc_b" in block
         assert "unavailable" in block
