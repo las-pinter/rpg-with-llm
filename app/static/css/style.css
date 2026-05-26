@@ -387,8 +387,8 @@ input[type="number"]::-webkit-outer-spin-button {
 /* ----- Per-Agent Provider Config (Advanced) ----- */
 .advanced-toggle {
     background: none;
-    border: 1px solid var(--accent-gold, #d4a547);
-    color: var(--accent-gold, #d4a547);
+    border: 1px solid var(--accent-gold);
+    color: var(--accent-gold);
     padding: 8px 16px;
     cursor: pointer;
     font-family: inherit;
@@ -406,7 +406,7 @@ input[type="number"]::-webkit-outer-spin-button {
 #advanced-section {
     margin-top: 16px;
     padding: 16px;
-    border: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+    border: 1px solid var(--accent-border);
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.2);
 }
@@ -414,7 +414,7 @@ input[type="number"]::-webkit-outer-spin-button {
 #advanced-section h3 {
     margin: 12px 0 8px;
     font-size: 0.95em;
-    color: var(--accent-gold, #d4a547);
+    color: var(--accent-gold);
     text-transform: none;
     letter-spacing: 0.03em;
 }
@@ -793,9 +793,9 @@ label.toggle-label {
     font-style: italic;
     padding: 3rem 0;
 }
-.turn-block {
-    margin-bottom: 1.5rem;
-    animation: fadeIn 0.4s ease;
+.text-muted {
+    color: var(--text-muted);
+    font-size: 0.9em;
 }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
@@ -1172,13 +1172,6 @@ label.toggle-label {
     display: none;
 }
 
-#view-game.sidebar-collapsed {
-    grid-template-columns: 1fr;
-}
-#view-game.sidebar-collapsed #status-sidebar {
-    display: none;
-}
-
 /* Sidebar collapse button - fixed at the border between narrative pane and sidebar */
 #sidebar-collapse {
     position: fixed;
@@ -1190,7 +1183,7 @@ label.toggle-label {
     transition: right var(--transition);
 }
 
-#view-game.sidebar-collapsed #sidebar-collapse {
+#status-sidebar.collapsed ~ #sidebar-collapse {
     right: 0.5rem;
 }
 
@@ -1329,7 +1322,7 @@ label.toggle-label {
     display: none;
 }
 
-  .modal {
+.modal {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -1427,11 +1420,7 @@ label.toggle-label {
     border: 3px solid var(--border, #3a3a5c);
     border-top-color: var(--accent-gold, #d4a547);
     border-radius: 50%;
-    animation: saveSpin 0.8s linear infinite;
-}
-
-@keyframes saveSpin {
-    to { transform: rotate(360deg); }
+    animation: spin 0.8s linear infinite;
 }
 
 .save-loading p {
@@ -1447,7 +1436,7 @@ label.toggle-label {
 .save-success-icon {
     display: block;
     font-size: 3rem;
-    color: var(--success, #4ade80);
+    color: var(--success);
     margin-bottom: 0.5rem;
 }
 
@@ -1538,7 +1527,7 @@ label.toggle-label {
 
 .story-turn-header {
     font-size: 0.8rem;
-    color: var(--accent, #8b5cf6);
+    color: var(--accent-gold, #d4a547);
     font-weight: bold;
     margin-bottom: 0.5rem;
     text-transform: uppercase;
@@ -1546,7 +1535,7 @@ label.toggle-label {
 }
 
 .story-narrative {
-    color: var(--text, #e0e0e0);
+    color: var(--text-primary);
     white-space: pre-wrap;
 }
 

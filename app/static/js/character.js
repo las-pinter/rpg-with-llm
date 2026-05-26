@@ -687,15 +687,15 @@ const CharacterView = {
                     (c) => `
                 <div class="char-card">
                     <div class="char-info">
-                        <h3>${this._esc(c.name)}</h3>
+                        <h3>${_esc(c.name)}</h3>
                         <p class="char-meta">
-                            ${this._esc(c.character_class)} · Level ${c.level}
+                            ${_esc(c.character_class)} · Level ${c.level}
                             ${c.created ? " · " + new Date(c.created).toLocaleDateString() : ""}
                         </p>
                     </div>
                     <div class="char-actions">
-                        <button class="btn btn-sm btn-load" data-name="${this._esc(c.name)}">Load</button>
-                        <button class="btn btn-sm btn-danger btn-delete" data-name="${this._esc(c.name)}">Del</button>
+                        <button class="btn btn-sm btn-load" data-name="${_esc(c.name)}">Load</button>
+                        <button class="btn btn-sm btn-danger btn-delete" data-name="${_esc(c.name)}">Del</button>
                     </div>
                 </div>
             `,
@@ -745,12 +745,12 @@ const CharacterView = {
                         const charName = s.character_name || "Unknown";
                         const turnCount = s.turn_count ?? "?";
                         const ts = s.timestamp
-                            ? this._formatTimestamp(s.timestamp)
+                            ? _formatTimestamp(s.timestamp)
                             : "";
                         return `
-                    <div class="save-card" data-name="${this._esc(saveName)}">
+                    <div class="save-card" data-name="${_esc(saveName)}">
                         <div class="save-info">
-                            <h3>${this._esc(charName)}</h3>
+                            <h3>${_esc(charName)}</h3>
                             <p class="save-meta">
                                 Turn ${turnCount} · ${ts}
                             </p>
@@ -780,26 +780,6 @@ const CharacterView = {
             savesContainer.innerHTML =
                 '<p class="empty-state">Could not load saved games.</p>';
         }
-    },
-
-    /** Format a YYYYMMDD_HHMMSS_ffffff timestamp for display. */
-    _formatTimestamp(ts) {
-        if (!ts) return "";
-        const m = ts.match(
-            /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
-        );
-        if (m) {
-            const date = new Date(
-                parseInt(m[1]),
-                parseInt(m[2]) - 1,
-                parseInt(m[3]),
-                parseInt(m[4]),
-                parseInt(m[5]),
-                parseInt(m[6]),
-            );
-            return date.toLocaleString();
-        }
-        return ts;
     },
 
     /**
@@ -866,12 +846,6 @@ const CharacterView = {
     // Utilities
     // ------------------------------------------------------------------
 
-    /** Escape HTML special chars (simple XSS guard). */
-    _esc(str) {
-        const div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
-    },
 };
 
 document.addEventListener("DOMContentLoaded", () => CharacterView.init());
