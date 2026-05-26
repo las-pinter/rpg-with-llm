@@ -109,10 +109,6 @@ const GameView = {
             const sidebar = document.getElementById("status-sidebar");
             sidebar.classList.toggle("collapsed");
             this.els.collapseBtn.textContent = sidebar.classList.contains("collapsed") ? "\u25C0" : "\u25B6";
-
-            // Toggle game grid layout
-            const gameView = document.getElementById("view-game");
-            gameView.classList.toggle("sidebar-collapsed");
         });
 
         // Token usage toggle
@@ -337,10 +333,10 @@ const GameView = {
         // Render paragraphs from the narrative text
         const paragraphs = text.split("\n").filter((p) => p.trim());
         if (paragraphs.length === 0) {
-            div.innerHTML = "<p>" + this._esc(text) + "</p>";
+            div.innerHTML = "<p>" + _esc(text) + "</p>";
         } else {
             div.innerHTML = paragraphs
-                .map((p) => "<p>" + this._esc(p) + "</p>")
+                .map((p) => "<p>" + _esc(p) + "</p>")
                 .join("");
         }
 
@@ -472,7 +468,7 @@ const GameView = {
                 '<li class="empty-state">Empty</li>';
         } else {
             this.els.inventoryList.innerHTML = inv
-                .map((item) => `<li>${this._esc(item)}</li>`)
+                .map((item) => `<li>${_esc(item)}</li>`)
                 .join("");
         }
 
@@ -496,11 +492,11 @@ const GameView = {
                     const npc = npcs[id] || {};
                     const name = npc.name || id;
                     const lastSeen = npc.last_seen_turn;
-                    let label = this._esc(name);
+                    let label = _esc(name);
                     if (lastSeen != null) {
                         label +=
                             ` <span class="npc-last-seen">` +
-                            `(turn ${this._esc(String(lastSeen))})</span>`;
+                            `(turn ${_esc(String(lastSeen))})</span>`;
                     }
                     return `<li>${label}</li>`;
                 })
@@ -806,11 +802,11 @@ const GameView = {
             loadList.innerHTML = saves
                 .map(
                     (s) => `
-                <div class="save-card" data-name="${this._esc(s.name || s.character_name || "Unknown")}">
+                <div class="save-card" data-name="${_esc(s.name || s.character_name || "Unknown")}">
                     <div class="save-info">
-                        <h3>${this._esc(s.character_name || "Unknown")}</h3>
+                        <h3>${_esc(s.character_name || "Unknown")}</h3>
                         <p class="save-meta">
-                            Turn ${s.turn_count ?? "?"} · ${s.timestamp ? this._formatTimestamp(s.timestamp) : ""}
+                            Turn ${s.turn_count ?? "?"} · ${s.timestamp ? _formatTimestamp(s.timestamp) : ""}
                         </p>
                     </div>
                     <div class="save-actions">
@@ -902,21 +898,6 @@ const GameView = {
         }
     },
 
-    /** Format a timestamp string for display. */
-    _formatTimestamp(ts) {
-        if (!ts) return "";
-        // Try parsing YYYYMMDD_HHMMSS_ffffff format
-        const m = ts.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-        if (m) {
-            const date = new Date(
-                parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]),
-                parseInt(m[4]), parseInt(m[5]), parseInt(m[6]),
-            );
-            return date.toLocaleString();
-        }
-        return ts;
-    },
-
     // ------------------------------------------------------------------
     // Story Modal
     // ------------------------------------------------------------------
@@ -948,11 +929,11 @@ const GameView = {
             const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
             if (match) {
                 return `<div class="story-entry">
-                    <div class="story-turn-header">Turn ${this._esc(match[1])}</div>
-                    <div class="story-narrative">${this._esc(match[2])}</div>
+                    <div class="story-turn-header">Turn ${_esc(match[1])}</div>
+                    <div class="story-narrative">${_esc(match[2])}</div>
                 </div>`;
             }
-            return `<div class="story-entry"><div class="story-narrative">${this._esc(entry)}</div></div>`;
+            return `<div class="story-entry"><div class="story-narrative">${_esc(entry)}</div></div>`;
         }).join('');
     },
 
@@ -979,14 +960,6 @@ const GameView = {
             this.els.narrativePane.scrollTop =
                 this.els.narrativePane.scrollHeight;
         });
-    },
-
-    /** Escape HTML special chars. */
-    _esc(str) {
-        if (typeof str !== "string") return String(str || "");
-        const div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
     },
 
     /** Strip XML/HTML-like tags, markdown bold artifacts, and backtick state-change attributes. */
