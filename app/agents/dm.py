@@ -695,11 +695,11 @@ class DungeonMaster:
             context_parts: list[str] = []
 
             if tool_results:
-                tool_summary = self._format_tool_results(tool_results)
+                tool_summary = format_tool_results(tool_results)
                 context_parts.append(f"Tool results:\n{tool_summary}")
 
             if npc_results:
-                npc_block = self._format_npc_results(npc_results)
+                npc_block = format_npc_results(npc_results)
                 context_parts.append(
                     f"NPC interactions produced the following results:\n\n"
                     f"{npc_block}\n\n"
@@ -1129,11 +1129,11 @@ class DungeonMaster:
             context_parts: list[str] = []
 
             if tool_results:
-                tool_summary = self._format_tool_results(tool_results)
+                tool_summary = format_tool_results(tool_results)
                 context_parts.append(f"Tool results:\n{tool_summary}")
 
             if npc_results:
-                npc_block = self._format_npc_results(npc_results)
+                npc_block = format_npc_results(npc_results)
                 context_parts.append(
                     f"NPC interactions produced the following "
                     f"results:\n\n"
@@ -1358,13 +1358,6 @@ class DungeonMaster:
 
         return content
 
-    def _format_tool_results(self, tool_results: list[dict[str, Any]]) -> str:
-        """Format tool results into a readable summary for the LLM.
-
-        Delegates to the module-level :func:`format_tool_results`.
-        """
-        return format_tool_results(tool_results)
-
     # ------------------------------------------------------------------
     # NPC spawning
     # ------------------------------------------------------------------
@@ -1498,16 +1491,6 @@ class DungeonMaster:
                 # Merge personality if we now have richer data
                 if npc_data.get("personality") and not entry.get("personality"):
                     entry["personality"] = npc_data["personality"]
-
-    def _format_npc_results(
-        self,
-        npc_results: list[dict[str, Any]],
-    ) -> str:
-        """Format NPC results for injection into the second LLM call.
-
-        Delegates to the module-level :func:`format_npc_results`.
-        """
-        return format_npc_results(npc_results)
 
     # ------------------------------------------------------------------
     # Plausibility — impossible action narrative
