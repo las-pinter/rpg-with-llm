@@ -564,37 +564,22 @@ class DungeonMaster:
         # ------------------------------------------------------------------
         # 0. Plausibility check — short-circuit impossible actions
         # ------------------------------------------------------------------
-        plausibility_note: str | None = None
-        if self.character is not None:
-            classification = classify_action(self.character, player_input)
-            category = classification.get("category", "plausible")
-
-            if category == "impossible":
-                narrative = self._build_impossible_narrative(
-                    classification, player_input
-                )
-                self.history.add_turn(player_input, narrative)
-                return {
-                    "narrative": narrative,
-                    "state_changes": [],
-                    "tool_results": [],
-                    "turn_count": self.turn_count,
-                    "token_usage": dict(self.token_usage),
-                    "ok": True,
-                    "error": None,
-                    "warnings": ["Action classified as impossible"],
-                }
-
-            if category in ("implausible", "ambitious"):
-                reason = classification.get("reason", "")
-                suggested_dc = classification.get("dc", "N/A")
-                plausibility_note = (
-                    f"[PLAUSIBILITY NOTE: The player attempts something "
-                    f"{category}. {reason} "
-                    f"Suggested DC: {suggested_dc}. "
-                    f"The player must roll for this — set an appropriately "
-                    f"high DC and describe the stakes before the roll.]"
-                )
+        is_impossible, impossibility_narrative, plausibility_note = (
+            self._check_plausibility(player_input)
+        )
+        if is_impossible:
+            assert impossibility_narrative is not None
+            self.history.add_turn(player_input, impossibility_narrative)
+            return {
+                "narrative": impossibility_narrative,
+                "state_changes": [],
+                "tool_results": [],
+                "turn_count": self.turn_count,
+                "token_usage": dict(self.token_usage),
+                "ok": True,
+                "error": None,
+                "warnings": ["Action classified as impossible"],
+            }
 
         # ------------------------------------------------------------------
         # 1. Build context and call LLM
@@ -657,27 +642,12 @@ class DungeonMaster:
         # ------------------------------------------------------------------
         # 3. Execute tool requests
         # ------------------------------------------------------------------
-        tool_results: list[dict[str, Any]] = []
-        if tool_requests:
-            for req in tool_requests:
-                result = dispatch_tool(req["name"], req.get("params", {}))
-                tool_results.append(
-                    {
-                        "name": req["name"],
-                        "params": req.get("params", {}),
-                        "result": result,
-                    }
-                )
+        tool_results = self._execute_tools(tool_requests)
 
         # ------------------------------------------------------------------
-        # 4. Spawn NPC subagents
+        # 4. Spawn NPC subagents and sync to world state
         # ------------------------------------------------------------------
-        npc_results: list[dict[str, Any]] = []
-        if npc_requests:
-            npc_results = self._spawn_npcs(npc_requests, player_input)
-
-        # Sync NPC data to world state for persistence across save/load
-        self._sync_npcs_to_world_state()
+        npc_results = self._spawn_and_sync_npcs(npc_requests, player_input)
 
         # ------------------------------------------------------------------
         # 5. Second LLM call — inject tool results and/or NPC results
@@ -685,39 +655,8 @@ class DungeonMaster:
         need_second_call = bool(tool_requests) or bool(npc_results)
         _raw_final_response: str = first_response
         if need_second_call:
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": first_response,
-                }
-            )
-
-            context_parts: list[str] = []
-
-            if tool_results:
-                tool_summary = format_tool_results(tool_results)
-                context_parts.append(f"Tool results:\n{tool_summary}")
-
-            if npc_results:
-                npc_block = format_npc_results(npc_results)
-                context_parts.append(
-                    f"NPC interactions produced the following results:\n\n"
-                    f"{npc_block}\n\n"
-                    f"You may use, modify, or ignore these NPC responses "
-                    f"as you see fit.  Weave them into the narrative."
-                )
-
-            context_parts.append(
-                "Now continue the narrative, weaving these results into "
-                "the story.  Include the final narrative and any necessary "
-                "state_change tags."
-            )
-
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "\n\n".join(context_parts),
-                }
+            self._build_second_call_messages(
+                messages, first_response, tool_results, npc_results
             )
 
             try:
@@ -786,55 +725,14 @@ class DungeonMaster:
         # ------------------------------------------------------------------
         # 5. Validate and apply state changes
         # ------------------------------------------------------------------
-        applied_changes: list[dict[str, Any]] = []
-        valid_changes: list[dict[str, Any]] = []
-        warnings: list[str] = []
-
-        if self.world_state is not None and state_changes:
-            validation_errors = validate_state_changes(state_changes, self.world_state)
-            if validation_errors:
-                for err in validation_errors:
-                    logger.warning("State change validation error: %s", err)
-                # Filter out invalid changes
-                for i, change in enumerate(state_changes):
-                    change_errors = validate_state_changes([change], self.world_state)
-                    if not change_errors:
-                        valid_changes.append(change)
-                    else:
-                        logger.warning(
-                            "Skipping invalid state change #%d: %s",
-                            i,
-                            change_errors[0],
-                        )
-            else:
-                valid_changes = state_changes
-
-            if valid_changes:
-                try:
-                    self.world_state = apply_changes(self.world_state, valid_changes)
-                    applied_changes = valid_changes
-                except Exception:
-                    logger.exception("Failed to apply state changes")
-                    warnings.append(
-                        f"Failed to apply {len(valid_changes)} state change(s)"
-                    )
-
-        # Update world turn count
-        if self.world_state is not None:
-            self.world_state.turn_count = self.turn_count
-
-        # Update conversation history — store cleaned narrative (no XML tags)
-        self.history.add_turn(player_input, narrative)
-
-        # Check if summarization should trigger
-        self._maybe_summarize()
-
-        logger.debug(
-            "Token usage after turn: prompt=%s, completion=%s, total=%s",
-            self.token_usage["prompt_tokens"],
-            self.token_usage["completion_tokens"],
-            self.token_usage["total_tokens"],
+        applied_changes, warnings, narrative = self._validate_and_apply_state_changes(
+            state_changes, narrative
         )
+
+        # ------------------------------------------------------------------
+        # 6. Record turn, update story log, trigger summarization
+        # ------------------------------------------------------------------
+        self._record_turn_and_summarize(player_input, narrative)
 
         logger.debug(
             "process_turn[%d]: final narrative — %d chars: %s",
@@ -903,58 +801,43 @@ class DungeonMaster:
         # ------------------------------------------------------------------
         # 1. Plausibility check — short-circuit impossible actions
         # ------------------------------------------------------------------
-        plausibility_note: str | None = None
-        if self.character is not None:
-            classification = classify_action(self.character, player_input)
-            category = classification.get("category", "plausible")
-
-            if category == "impossible":
-                narrative = self._build_impossible_narrative(
-                    classification, player_input
+        is_impossible, impossibility_narrative, plausibility_note = (
+            self._check_plausibility(player_input)
+        )
+        if is_impossible:
+            assert impossibility_narrative is not None
+            # Bookkeeping: record history, sync NPCs, summarise
+            self.history.add_turn(player_input, impossibility_narrative)
+            if impossibility_narrative and self.world_state is not None:
+                self.world_state.story_log.append(
+                    f"[Turn {self.turn_count}] {impossibility_narrative}"
                 )
-                # Bookkeeping: record history, sync NPCs, summarise
-                self.history.add_turn(player_input, narrative)
-                if narrative and self.world_state is not None:
-                    self.world_state.story_log.append(
-                        f"[Turn {self.turn_count}] {narrative}"
-                    )
-                self._sync_npcs_to_world_state()
-                try:
-                    self._maybe_summarize()
-                except Exception:
-                    logger.exception("Summarization failed, continuing")
+            self._sync_npcs_to_world_state()
+            try:
+                self._maybe_summarize()
+            except Exception:
+                logger.exception("Summarization failed, continuing")
 
-                state_dict = (
-                    self.world_state.to_dict() if self.world_state is not None else {}
-                )
-                yield {
-                    "event": "state_update",
-                    "data": {
-                        "type": "state_update",
-                        "state": state_dict,
-                        "turn_count": self.turn_count,
-                    },
-                }
-                yield {
-                    "event": "narrative",
-                    "data": {"type": "narrative", "content": narrative},
-                }
-                yield {
-                    "event": "done",
-                    "data": {"type": "done", "turn_count": self.turn_count},
-                }
-                return
-
-            if category in ("implausible", "ambitious"):
-                reason = classification.get("reason", "")
-                suggested_dc = classification.get("dc", "N/A")
-                plausibility_note = (
-                    f"[PLAUSIBILITY NOTE: The player attempts something "
-                    f"{category}. {reason} "
-                    f"Suggested DC: {suggested_dc}. "
-                    f"The player must roll for this — set an appropriately "
-                    f"high DC and describe the stakes before the roll.]"
-                )
+            state_dict = (
+                self.world_state.to_dict() if self.world_state is not None else {}
+            )
+            yield {
+                "event": "state_update",
+                "data": {
+                    "type": "state_update",
+                    "state": state_dict,
+                    "turn_count": self.turn_count,
+                },
+            }
+            yield {
+                "event": "narrative",
+                "data": {"type": "narrative", "content": impossibility_narrative},
+            }
+            yield {
+                "event": "done",
+                "data": {"type": "done", "turn_count": self.turn_count},
+            }
+            return
 
         # ------------------------------------------------------------------
         # 2. Build context
@@ -1084,20 +967,10 @@ class DungeonMaster:
         # ------------------------------------------------------------------
         # 6. Execute tool requests
         # ------------------------------------------------------------------
-        tool_results: list[dict[str, Any]] = []
-        if tool_requests:
-            for req in tool_requests:
-                result = dispatch_tool(req["name"], req.get("params", {}))
-                tool_results.append(
-                    {
-                        "name": req["name"],
-                        "params": req.get("params", {}),
-                        "result": result,
-                    }
-                )
+        tool_results = self._execute_tools(tool_requests)
 
         # ------------------------------------------------------------------
-        # 7. Spawn NPC subagents
+        # 7. Spawn NPC subagents (with npc_thinking yields before spawn)
         # ------------------------------------------------------------------
         npc_results: list[dict[str, Any]] = []
         if npc_requests:
@@ -1112,48 +985,15 @@ class DungeonMaster:
                         "hint": hint,
                     },
                 }
-            npc_results = self._spawn_npcs(npc_requests, player_input)
+        npc_results = self._spawn_and_sync_npcs(npc_requests, player_input)
 
         # ------------------------------------------------------------------
-        # 8. Sync NPC data to world state  ← FIX: missing in game_stream
-        # ------------------------------------------------------------------
-        self._sync_npcs_to_world_state()
-
-        # ------------------------------------------------------------------
-        # 9. Second LLM call — inject tool results and/or NPC results
+        # 8. Second LLM call — inject tool results and/or NPC results
         # ------------------------------------------------------------------
         need_second_call = bool(tool_requests) or bool(npc_results)
         if need_second_call:
-            messages.append({"role": "assistant", "content": full_response})
-
-            context_parts: list[str] = []
-
-            if tool_results:
-                tool_summary = format_tool_results(tool_results)
-                context_parts.append(f"Tool results:\n{tool_summary}")
-
-            if npc_results:
-                npc_block = format_npc_results(npc_results)
-                context_parts.append(
-                    f"NPC interactions produced the following "
-                    f"results:\n\n"
-                    f"{npc_block}\n\n"
-                    f"You may use, modify, or ignore these NPC "
-                    f"responses as you see fit.  Weave them into "
-                    f"the narrative."
-                )
-
-            context_parts.append(
-                "Now continue the narrative, weaving these results "
-                "into the story.  Include the final narrative and "
-                "any necessary state_change tags."
-            )
-
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "\n\n".join(context_parts),
-                }
+            self._build_second_call_messages(
+                messages, full_response, tool_results, npc_results
             )
 
             try:
@@ -1201,72 +1041,19 @@ class DungeonMaster:
                 )
 
         # ------------------------------------------------------------------
-        # 10. Validate and apply state changes
+        # 9. Validate and apply state changes
         # ------------------------------------------------------------------
-        valid_changes: list[dict[str, Any]] = []
-        warnings: list[str] = []
-
-        if self.world_state is not None and state_changes:
-            validation_errors = validate_state_changes(state_changes, self.world_state)
-            if validation_errors:
-                for err in validation_errors:
-                    logger.warning("State change validation error: %s", err)
-                # Filter out invalid changes
-                for i, change in enumerate(state_changes):
-                    change_errors = validate_state_changes([change], self.world_state)
-                    if not change_errors:
-                        valid_changes.append(change)
-                    else:
-                        logger.warning(
-                            "Skipping invalid state change #%d: %s",
-                            i,
-                            change_errors[0],
-                        )
-            else:
-                valid_changes = state_changes
-
-            if valid_changes:
-                try:
-                    self.world_state = apply_changes(self.world_state, valid_changes)
-                except Exception:
-                    logger.exception("Failed to apply state changes")
-                    warnings.append(
-                        f"Failed to apply {len(valid_changes)} state change(s)"
-                    )
-
-        # ------------------------------------------------------------------
-        # 11. Clean up narrative — strip XML tags and artifact markers
-        # ------------------------------------------------------------------
-        narrative = re.sub(r"<[^>]*>", "", narrative)
-        narrative = re.sub(r"\*\*[a-zA-Z_]+\*\*", "", narrative)
-        narrative = re.sub(r"`[^`]*?(?:action=|path=|value=)[^`]*`", "", narrative)
-
-        # Update world state turn count
-        if self.world_state is not None:
-            self.world_state.turn_count = self.turn_count
-
-        # ------------------------------------------------------------------
-        # 12. Bookkeeping — record history + summarise  ← FIX: missing in
-        #     game_stream
-        # ------------------------------------------------------------------
-        self.history.add_turn(player_input, narrative)
-        if narrative and self.world_state is not None:
-            self.world_state.story_log.append(f"[Turn {self.turn_count}] {narrative}")
-        try:
-            self._maybe_summarize()
-        except Exception:
-            logger.exception("Summarization failed, continuing")
-
-        logger.debug(
-            "process_turn_stream[%d]: token usage — prompt=%s, completion=%s, total=%s",
-            self.turn_count,
-            self.token_usage["prompt_tokens"],
-            self.token_usage["completion_tokens"],
-            self.token_usage["total_tokens"],
+        _, warnings, narrative = self._validate_and_apply_state_changes(
+            state_changes, narrative
         )
 
         # ------------------------------------------------------------------
-        # 13. Yield final events
+        # 10. Record turn, update story log, trigger summarization
+        # ------------------------------------------------------------------
+        self._record_turn_and_summarize(player_input, narrative)
+
+        # ------------------------------------------------------------------
+        # 11. Yield final events
         # ------------------------------------------------------------------
         state_dict = self.world_state.to_dict() if self.world_state is not None else {}
         yield {
@@ -1357,6 +1144,275 @@ class DungeonMaster:
                 logger.warning("Invalid token usage data: %s", usage)
 
         return content
+
+    # ------------------------------------------------------------------
+    # Shared helper methods (extracted from process_turn /
+    # process_turn_stream for DRY)
+    # ------------------------------------------------------------------
+
+    def _check_plausibility(
+        self,
+        player_input: str,
+    ) -> tuple[bool, str | None, str | None]:
+        """Check if the player's action is plausible, implausible, or
+        impossible.
+
+        Parameters
+        ----------
+        player_input : str
+            The player's latest action or utterance.
+
+        Returns
+        -------
+        tuple[bool, str | None, str | None]
+            ``(is_impossible, impossibility_narrative, plausibility_note)``.
+            When ``is_impossible`` is ``True``, ``impossibility_narrative``
+            contains the auto-fail narrative and ``plausibility_note`` is
+            ``None``.  For implausible/ambitious actions, ``plausibility_note``
+            is set.  For plausible actions, both are ``None``.
+        """
+        if self.character is None:
+            return False, None, None
+
+        classification = classify_action(self.character, player_input)
+        category = classification.get("category", "plausible")
+
+        if category == "impossible":
+            narrative = self._build_impossible_narrative(classification, player_input)
+            return True, narrative, None
+
+        if category in ("implausible", "ambitious"):
+            reason = classification.get("reason", "")
+            suggested_dc = classification.get("dc", "N/A")
+            plausibility_note = (
+                f"[PLAUSIBILITY NOTE: The player attempts something "
+                f"{category}. {reason} "
+                f"Suggested DC: {suggested_dc}. "
+                f"The player must roll for this — set an appropriately "
+                f"high DC and describe the stakes before the roll.]"
+            )
+            return False, None, plausibility_note
+
+        return False, None, None
+
+    def _execute_tools(
+        self,
+        tool_requests: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Execute tool requests and return results.
+
+        Parameters
+        ----------
+        tool_requests : list[dict]
+            List of tool request dicts with ``name`` and ``params`` keys.
+
+        Returns
+        -------
+        list[dict]
+            List of tool result dicts with ``name``, ``params``, and
+            ``result`` keys.
+        """
+        if not tool_requests:
+            return []
+        tool_results: list[dict[str, Any]] = []
+        for req in tool_requests:
+            result = dispatch_tool(req["name"], req.get("params", {}))
+            tool_results.append(
+                {
+                    "name": req["name"],
+                    "params": req.get("params", {}),
+                    "result": result,
+                }
+            )
+        return tool_results
+
+    def _spawn_and_sync_npcs(
+        self,
+        npc_requests: list[dict[str, Any]],
+        player_input: str,
+    ) -> list[dict[str, Any]]:
+        """Spawn NPC subagents and sync NPC data to world state.
+
+        Parameters
+        ----------
+        npc_requests : list[dict]
+            List of NPC request dicts.
+        player_input : str
+            The player's input to pass to each NPC.
+
+        Returns
+        -------
+        list[dict]
+            List of NPC result dicts.
+        """
+        npc_results: list[dict[str, Any]] = []
+        if npc_requests:
+            npc_results = self._spawn_npcs(npc_requests, player_input)
+        self._sync_npcs_to_world_state()
+        return npc_results
+
+    def _build_second_call_messages(
+        self,
+        messages: list[dict[str, str]],
+        llm_response: str,
+        tool_results: list[dict[str, Any]],
+        npc_results: list[dict[str, Any]],
+    ) -> list[dict[str, str]]:
+        """Augment messages with tool/NPC results for the second LLM call.
+
+        Appends the assistant's first response, followed by a user message
+        containing tool results, NPC results, and a continuation instruction.
+
+        Parameters
+        ----------
+        messages : list[dict]
+            The message list to augment (mutated in place).
+        llm_response : str
+            The first LLM response content.
+        tool_results : list[dict]
+            Results from tool execution.
+        npc_results : list[dict]
+            Results from NPC subagents.
+
+        Returns
+        -------
+        list[dict]
+            The augmented message list (same object as *messages*).
+        """
+        messages.append({"role": "assistant", "content": llm_response})
+
+        context_parts: list[str] = []
+
+        if tool_results:
+            tool_summary = format_tool_results(tool_results)
+            context_parts.append(f"Tool results:\n{tool_summary}")
+
+        if npc_results:
+            npc_block = format_npc_results(npc_results)
+            context_parts.append(
+                f"NPC interactions produced the following results:\n\n"
+                f"{npc_block}\n\n"
+                f"You may use, modify, or ignore these NPC responses "
+                f"as you see fit.  Weave them into the narrative."
+            )
+
+        context_parts.append(
+            "Now continue the narrative, weaving these results into "
+            "the story.  Include the final narrative and any necessary "
+            "state_change tags."
+        )
+
+        messages.append(
+            {
+                "role": "user",
+                "content": "\n\n".join(context_parts),
+            }
+        )
+
+        return messages
+
+    def _validate_and_apply_state_changes(
+        self,
+        state_changes: list[dict[str, Any]],
+        narrative: str = "",
+    ) -> tuple[list[dict[str, Any]], list[str], str]:
+        """Validate and apply state changes, clean narrative of XML tags.
+
+        Iterates through proposed state changes, filters out invalid ones,
+        applies valid changes to world state, strips XML artifact tags from
+        narrative, and updates the world state turn count.
+
+        Parameters
+        ----------
+        state_changes : list[dict]
+            Proposed state changes from the LLM.
+        narrative : str
+            The narrative to clean of XML tags.
+
+        Returns
+        -------
+        tuple[list[dict], list[str], str]
+            ``(applied_changes, warnings, cleaned_narrative)``.
+        """
+        applied_changes: list[dict[str, Any]] = []
+        valid_changes: list[dict[str, Any]] = []
+        warnings: list[str] = []
+
+        if self.world_state is not None and state_changes:
+            validation_errors = validate_state_changes(state_changes, self.world_state)
+            if validation_errors:
+                for err in validation_errors:
+                    logger.warning("State change validation error: %s", err)
+                # Filter out invalid changes
+                for i, change in enumerate(state_changes):
+                    change_errors = validate_state_changes([change], self.world_state)
+                    if not change_errors:
+                        valid_changes.append(change)
+                    else:
+                        logger.warning(
+                            "Skipping invalid state change #%d: %s",
+                            i,
+                            change_errors[0],
+                        )
+            else:
+                valid_changes = state_changes
+
+            if valid_changes:
+                try:
+                    self.world_state = apply_changes(self.world_state, valid_changes)
+                    applied_changes = valid_changes
+                except Exception:
+                    logger.exception("Failed to apply state changes")
+                    warnings.append(
+                        f"Failed to apply {len(valid_changes)} state change(s)"
+                    )
+
+        # Clean narrative — strip XML tags and artifact markers
+        narrative = re.sub(r"<[^>]*>", "", narrative)
+        narrative = re.sub(r"\*\*[a-zA-Z_]+\*\*", "", narrative)
+        narrative = re.sub(r"`[^`]*?(?:action=|path=|value=)[^`]*`", "", narrative)
+
+        # Update world state turn count
+        if self.world_state is not None:
+            self.world_state.turn_count = self.turn_count
+
+        return applied_changes, warnings, narrative
+
+    def _record_turn_and_summarize(
+        self,
+        player_input: str,
+        narrative: str,
+    ) -> None:
+        """Record the turn in history, update story log, and trigger
+        summarization if needed.
+
+        Parameters
+        ----------
+        player_input : str
+            The player's input.
+        narrative : str
+            The cleaned narrative text.
+        """
+        # Update conversation history
+        self.history.add_turn(player_input, narrative)
+
+        # Append to story log if narrative is non-empty and
+        # world state exists
+        if narrative and self.world_state is not None:
+            self.world_state.story_log.append(f"[Turn {self.turn_count}] {narrative}")
+
+        # Check if summarization should trigger
+        try:
+            self._maybe_summarize()
+        except Exception:
+            logger.exception("Summarization failed, continuing")
+
+        logger.debug(
+            "Token usage after turn: prompt=%s, completion=%s, total=%s",
+            self.token_usage["prompt_tokens"],
+            self.token_usage["completion_tokens"],
+            self.token_usage["total_tokens"],
+        )
 
     # ------------------------------------------------------------------
     # NPC spawning
