@@ -29,7 +29,9 @@ class TestSaveEndpoint:
 
     def test_save_success(self, client):
         """POST with valid state and name returns 200 with metadata."""
-        with patch("app.server._storage.save", return_value="20260514_120000_000000"):
+        with patch(
+            "app.routes.saves._storage.save", return_value="20260514_120000_000000"
+        ):
             resp = client.post(
                 "/api/save",
                 json={"state": {"version": "1.0"}, "name": "my_save"},
@@ -43,7 +45,9 @@ class TestSaveEndpoint:
 
     def test_save_autosave_default_name(self, client):
         """POST with state but no name defaults to a timestamped adventure name."""
-        with patch("app.server._storage.save", return_value="20260514_120000_000000"):
+        with patch(
+            "app.routes.saves._storage.save", return_value="20260514_120000_000000"
+        ):
             resp = client.post(
                 "/api/save",
                 json={"state": {"version": "1.0"}},
@@ -78,7 +82,7 @@ class TestSaveEndpoint:
     def test_save_storage_error(self, client):
         """When storage.save raises, the endpoint returns 500."""
         with patch(
-            "app.server._storage.save",
+            "app.routes.saves._storage.save",
             side_effect=ValueError("Invalid save name"),
         ):
             resp = client.post(
@@ -154,7 +158,7 @@ class TestListSavesEndpoint:
 
     def test_list_saves_empty(self, client):
         """GET returns 200 with an empty saves list."""
-        with patch("app.server._storage.list_saves", return_value=[]):
+        with patch("app.routes.saves._storage.list_saves", return_value=[]):
             resp = client.get("/api/saves")
 
         assert resp.status_code == 200
@@ -168,7 +172,7 @@ class TestListSavesEndpoint:
             {"name": "save1", "timestamp": "20260514_120000_000000"},
             {"name": "save2", "timestamp": "20260514_130000_000000"},
         ]
-        with patch("app.server._storage.list_saves", return_value=mock_saves):
+        with patch("app.routes.saves._storage.list_saves", return_value=mock_saves):
             resp = client.get("/api/saves")
 
         assert resp.status_code == 200
@@ -188,7 +192,7 @@ class TestLoadEndpoint:
     def test_load_success(self, client):
         """POST with a valid save name returns the state dict."""
         real_state = WorldState(current_location="forest")
-        with patch("app.server._storage.load", return_value=real_state):
+        with patch("app.routes.saves._storage.load", return_value=real_state):
             resp = client.post("/api/load/my_save")
 
         assert resp.status_code == 200
@@ -199,7 +203,7 @@ class TestLoadEndpoint:
     def test_load_not_found(self, client):
         """POST with a non-existent save returns 404."""
         with patch(
-            "app.server._storage.load",
+            "app.routes.saves._storage.load",
             side_effect=FileNotFoundError("Save 'ghost' not found"),
         ):
             resp = client.post("/api/load/ghost")
@@ -212,7 +216,7 @@ class TestLoadEndpoint:
     def test_load_corrupt(self, client):
         """POST with a corrupt save file returns 400."""
         with patch(
-            "app.server._storage.load",
+            "app.routes.saves._storage.load",
             side_effect=ValueError("Save file is corrupt"),
         ):
             resp = client.post("/api/load/corrupted")
@@ -232,7 +236,7 @@ class TestLoadEndpoint:
         500 response.
         """
         with patch(
-            "app.server._storage.load",
+            "app.routes.saves._storage.load",
             side_effect=PermissionError("Access denied"),
         ):
             resp = client.post("/api/load/my_save")
@@ -296,7 +300,7 @@ class TestSaveLoadIntegration:
 
     def test_save_and_load_round_trip(self, client, real_storage):
         """Save a state, list it, then load it through real endpoints."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             # --- Save ---------------------------------------------------
             resp = client.post(
                 "/api/save",
@@ -340,7 +344,7 @@ class TestSaveLoadIntegration:
 
     def test_save_overwrite_with_real_storage(self, client, real_storage):
         """Saving twice with the same name overwrites; load gets latest."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             client.post(
                 "/api/save",
                 json={"state": {"version": "1.0", "turn_count": 1}, "name": "dup"},
@@ -360,7 +364,7 @@ class TestSaveLoadIntegration:
 
     def test_list_saves_empty_with_real_storage(self, client, real_storage):
         """List saves returns empty list when no saves exist."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             resp = client.get("/api/saves")
 
             assert resp.status_code == 200
@@ -370,7 +374,7 @@ class TestSaveLoadIntegration:
 
     def test_list_saves_multiple_with_real_storage(self, client, real_storage):
         """Multiple saves all appear in the listing."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             client.post("/api/save", json={"state": {}, "name": "save_a"})
             client.post("/api/save", json={"state": {}, "name": "save_b"})
             client.post("/api/save", json={"state": {}, "name": "save_c"})
@@ -385,7 +389,7 @@ class TestSaveLoadIntegration:
 
     def test_save_default_name_with_real_storage(self, client, real_storage):
         """Save without a name defaults to a timestamped adventure name."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             resp = client.post("/api/save", json={"state": {}})
             assert resp.get_json()["name"].startswith("Adventure - ")
 
@@ -398,7 +402,7 @@ class TestSaveLoadIntegration:
 
     def test_load_nonexistent_with_real_storage(self, client, real_storage):
         """Loading a non-existent save returns 404 with real storage."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             resp = client.post("/api/load/ghost")
 
             assert resp.status_code == 404
@@ -417,7 +421,7 @@ class TestDeleteSaveEndpoint:
 
     def test_delete_success(self, client, real_storage):
         """Deleting an existing save returns 200 with ok=True."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             # First save something
             client.post(
                 "/api/save",
@@ -431,13 +435,13 @@ class TestDeleteSaveEndpoint:
         assert data["ok"] is True
 
         # Verify it's actually deleted
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             resp2 = client.get("/api/saves")
             assert len(resp2.get_json()["saves"]) == 0
 
     def test_delete_not_found(self, client, real_storage):
         """Deleting a non-existent save returns 404."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             resp = client.delete("/api/delete/ghost")
 
         assert resp.status_code == 404
@@ -447,7 +451,7 @@ class TestDeleteSaveEndpoint:
 
     def test_delete_with_real_storage_round_trip(self, client, real_storage):
         """Save, list, delete, list again — save should disappear."""
-        with patch("app.server._storage", real_storage):
+        with patch("app.routes.saves._storage", real_storage):
             client.post(
                 "/api/save",
                 json={"state": {"version": "1.0", "turn_count": 5}, "name": "del_test"},

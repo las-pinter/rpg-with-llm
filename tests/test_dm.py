@@ -16,7 +16,7 @@ class TestDMCache:
 
     def test_cache_stores_dm_for_new_character(self) -> None:
         """A new character_id creates a fresh DM and caches it."""
-        from app.server import _dm_cache
+        from app.routes.game import _dm_cache
 
         _dm_cache.clear()
 
@@ -36,7 +36,7 @@ class TestDMCache:
 
     def test_cache_retrieves_dm_for_existing_character(self) -> None:
         """An existing character_id returns the cached DM."""
-        from app.server import _dm_cache
+        from app.routes.game import _dm_cache
 
         _dm_cache.clear()
 
@@ -57,7 +57,7 @@ class TestDMCache:
 
     def test_cache_different_ids_are_separate(self) -> None:
         """Different character_ids produce different DM instances."""
-        from app.server import _dm_cache
+        from app.routes.game import _dm_cache
 
         _dm_cache.clear()
 
@@ -81,7 +81,7 @@ class TestDMCache:
 
     def test_cache_empty_for_none_character_id(self) -> None:
         """When character_id is None, no caching happens."""
-        from app.server import _dm_cache
+        from app.routes.game import _dm_cache
 
         _dm_cache.clear()
 
@@ -160,7 +160,7 @@ class TestDMCacheCleanup:
 
     def test_cleanup_does_nothing_when_cache_small(self) -> None:
         """Cache under the limit is not touched."""
-        from app.server import _cleanup_stale_dms, _dm_cache
+        from app.routes.game import _cleanup_stale_dms, _dm_cache
 
         _dm_cache.clear()
 
@@ -177,13 +177,16 @@ class TestDMCacheCleanup:
 
     def test_cleanup_evicts_when_cache_exceeds_limit(self) -> None:
         """Cache over 50 entries is trimmed to 50."""
-        from app.server import _cleanup_stale_dms, _dm_cache
+        from app.routes.game import (
+            _cleanup_stale_dms,
+            _dm_cache,
+        )
 
         _dm_cache.clear()
         # Reset the throttle so cleanup runs immediately
-        import app.server as server_mod
+        import app.routes.game as game_mod
 
-        server_mod._dm_cache_cleanup_time = 0.0
+        game_mod._dm_cache_cleanup_time = 0.0
 
         for i in range(55):
             _dm_cache[f"hero_{i}"] = DungeonMaster(

@@ -21,8 +21,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Create a test client with isolated storage directories."""
     tmp_world_storage = WorldStorage(data_dir=tmp_path)
     tmp_char_storage = CharacterStorage(data_dir=tmp_path)
-    monkeypatch.setattr("app.server._storage", tmp_world_storage)
-    monkeypatch.setattr("app.server._character_storage", tmp_char_storage)
+    monkeypatch.setattr("app.routes.saves._storage", tmp_world_storage)
+    monkeypatch.setattr("app.routes.characters._character_storage", tmp_char_storage)
 
     with app.test_client() as c:
         yield c
@@ -45,7 +45,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -72,7 +72,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = "Connection refused"
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -180,7 +180,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -205,7 +205,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -234,7 +234,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -260,7 +260,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -282,7 +282,7 @@ class TestHealthEndpoint:
 
     def test_health_provider_raises_unexpected_exception(self, client):
         """When health() raises, the endpoint returns 500."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.side_effect = RuntimeError("unexpected failure")
@@ -329,7 +329,7 @@ class TestHealthEndpoint:
         mock_result.model = "llama3.2"
         mock_result.error = None
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.health.return_value = mock_result
@@ -357,7 +357,7 @@ class TestModelsEndpoint:
 
     def test_list_models_success(self, client):
         """POST with valid config returns models list."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.list_models.return_value = [
@@ -428,7 +428,7 @@ class TestModelsEndpoint:
         """Subsequent calls with same config should use cache."""
         model_list = [ModelInfo(id="cached-model", provider="ollama")]
 
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.list_models.return_value = model_list
@@ -463,7 +463,7 @@ class TestModelsEndpoint:
 
     def test_list_models_cache_isolation(self, client):
         """Different base URLs should not share cache."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
 
@@ -498,7 +498,7 @@ class TestModelsEndpoint:
 
     def test_list_models_empty_result(self, client):
         """Provider returning empty list should work."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.list_models.return_value = []
@@ -518,7 +518,7 @@ class TestModelsEndpoint:
 
     def test_list_models_provider_exception(self, client):
         """When provider raises, returns 200 with error in body."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.list_models.side_effect = RuntimeError("Something broke")
@@ -601,7 +601,7 @@ class TestModelsEndpoint:
 
     def test_list_models_empty_provider_type_defaults_to_ollama(self, client):
         """POST with empty provider_type defaults to ollama."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.list_models.return_value = [
@@ -630,7 +630,7 @@ class TestModelsEndpoint:
 
     def test_list_models_cache_isolation_by_provider_type(self, client):
         """Different provider types with same base URL should not share cache."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
 
@@ -676,7 +676,7 @@ class TestModelsEndpoint:
 
     def test_list_models_extra_unexpected_fields(self, client):
         """POST with unexpected fields ignores them and succeeds."""
-        with patch("app.server.create_provider") as mock_create:
+        with patch("app.routes.health.create_provider") as mock_create:
             mock_prov = MagicMock()
             mock_create.return_value = mock_prov
             mock_prov.list_models.return_value = [
@@ -796,7 +796,7 @@ class TestGameStreamEndpoint:
             "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
         }
 
-        with patch("app.server.create_provider", return_value=mock_provider):
+        with patch("app.routes.game.create_provider", return_value=mock_provider):
             resp = client.get(
                 "/api/game/stream"
                 "?input=Test"
@@ -1354,7 +1354,7 @@ class TestCharacterGenerateEndpoint:
             "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
         }
 
-        with patch("app.server.create_provider", return_value=mock_provider):
+        with patch("app.routes.characters.create_provider", return_value=mock_provider):
             resp = client.post(
                 "/api/character/generate",
                 json={
@@ -1474,7 +1474,7 @@ class TestCharacterGenerateEndpoint:
             "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
         }
 
-        with patch("app.server.create_provider", return_value=mock_provider):
+        with patch("app.routes.characters.create_provider", return_value=mock_provider):
             resp = client.post(
                 "/api/character/generate",
                 json={
@@ -1583,7 +1583,7 @@ class TestCharacterSaveEndpoint:
         """When the storage layer raises an unexpected error, the
         endpoint must return 500."""
         with patch(
-            "app.server.CharacterStorage.save",
+            "app.routes.characters.CharacterStorage.save",
             side_effect=OSError("Disk full"),
         ):
             resp = client.post(
