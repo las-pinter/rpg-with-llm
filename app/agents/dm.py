@@ -24,6 +24,7 @@ from app.agents.tools import dispatch_tool
 from app.character.model import Character
 from app.llm.base import LLMProvider
 from app.rules.plausibility import classify_action
+from app.world.model import WorldState
 from app.world.validator import apply_changes, validate_state_changes
 
 logger = logging.getLogger(__name__)
@@ -429,8 +430,8 @@ class DungeonMaster:
     def __init__(
         self,
         llm_provider: LLMProvider | None,
-        world_state: Any | None,
-        character: Any | None,
+        world_state: WorldState | None,
+        character: Character | None,
         npc_provider: LLMProvider | None = None,
         summarizer_provider: LLMProvider | None = None,
     ) -> None:
