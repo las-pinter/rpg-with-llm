@@ -614,7 +614,7 @@ class TestWorldStorage:
         saves_dir.mkdir(parents=True)
 
         storage = WorldStorage(tmp_dir)
-        monkeypatch.setattr("app.server._storage", storage)
+        monkeypatch.setattr("app.routes.saves._storage", storage)
 
         # Create a state file WITHOUT _character (old format)
         save_name = "backward_compat"
@@ -657,7 +657,7 @@ class TestWorldStorage:
         saves_dir.mkdir(parents=True)
 
         storage = WorldStorage(tmp_dir)
-        monkeypatch.setattr("app.server._storage", storage)
+        monkeypatch.setattr("app.routes.saves._storage", storage)
 
         # Save a game (creates the state file properly)
         save_name = "cleanup_companion"
