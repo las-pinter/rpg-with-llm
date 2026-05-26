@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.agents.context_builder import build_context
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
 from app.agents.history import SessionHistory
 from app.agents.npc import (
@@ -21,6 +22,7 @@ from app.agents.summarizer import (
 from app.agents.tools import TOOL_REGISTRY, dispatch_tool
 
 __all__ = [
+    "build_context",
     "DM_SYSTEM_PROMPT",
     "DungeonMaster",
     "NPC_SYSTEM_PROMPT",

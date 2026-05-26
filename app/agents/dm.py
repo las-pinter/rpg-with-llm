@@ -15,6 +15,7 @@ import re
 from collections.abc import Generator
 from typing import Any
 
+from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
 from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
@@ -484,6 +485,9 @@ class DungeonMaster:
         followed by the current world state summary, character summary, and
         the player's latest input.
 
+        This method now delegates to :func:`build_context` in the
+        ``context_builder`` module.
+
         Parameters
         ----------
         player_input : str
@@ -501,124 +505,7 @@ class DungeonMaster:
             A list of message dicts, each with ``role`` and ``content`` keys,
             suitable for passing to an LLM provider's ``call()`` or ``stream()``.
         """
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": DM_SYSTEM_PROMPT},
-        ]
-
-        # Auto-classify if no note was provided and we have a character
-        if plausibility_note is None and self.character is not None:
-            classification = classify_action(self.character, player_input)
-            category = classification.get("category", "plausible")
-            if category in ("implausible", "ambitious"):
-                reason = classification.get("reason", "")
-                suggested_dc = classification.get("dc", "N/A")
-                plausibility_note = (
-                    f"[PLAUSIBILITY NOTE: The player attempts something "
-                    f"{category}. {reason} "
-                    f"Suggested DC: {suggested_dc}. "
-                    f"The player must roll for this — set an appropriately "
-                    f"high DC and describe the stakes before the roll.]"
-                )
-
-        # Inject plausibility note early if provided
-        if plausibility_note:
-            messages.append({"role": "system", "content": plausibility_note})
-
-        # Incorporate world state summary (if available)
-        if self.world_state is not None:
-            context_parts: list[str] = [
-                f"Current world state:\n"
-                f"  Location: {self.world_state.current_location}\n"
-                f"  Turn: {self.world_state.turn_count}\n",
-            ]
-
-            if self.world_state.established_facts:
-                context_parts.append(
-                    "Established facts:\n"
-                    + "\n".join(
-                        f"  - {fact}" for fact in self.world_state.established_facts
-                    )
-                )
-
-            messages.append(
-                {
-                    "role": "system",
-                    "content": "\n".join(context_parts),
-                }
-            )
-
-            # If the game is already in progress, tell the LLM not to generate
-            # an opening scene (since it has no conversation history, it would
-            # otherwise treat every request as the first turn)
-            if self.world_state.turn_count > 0:
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": (
-                            "IMPORTANT: The adventure is already in progress. "
-                            "Do NOT describe an opening scene or start a new scenario. "
-                            "Continue the current narrative naturally from where the "
-                            "player left off. The player's action is a continuation "
-                            "of the existing story — react to it directly."
-                        ),
-                    }
-                )
-
-        # Incorporate character summary (if available)
-        if self.character is not None:
-            # Build ability scores string
-            abilities = getattr(self.character, "abilities", {})
-            abilities_str = ", ".join(f"{k}={v}" for k, v in sorted(abilities.items()))
-            # Build skills string
-            skills = getattr(self.character, "skills", [])
-            skills_str = ", ".join(skills) if skills else "none"
-            # Build inventory string
-            inventory = getattr(self.character, "inventory", [])
-            inventory_str = ", ".join(inventory) if inventory else "empty"
-            # Gold
-            gold = getattr(self.character, "gold", 0)
-
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        f"Player character:\n"
-                        f"  Name: {self.character.name}\n"
-                        f"  Class: {self.character.character_class} (level "
-                        f"{self.character.level})\n"
-                        f"  HP: {self.character.hp}/{self.character.max_hp}\n"
-                        f"  AC: {self.character.ac}\n"
-                        f"  Abilities: {abilities_str}\n"
-                        f"  Skills: {skills_str}\n"
-                        f"  XP: {self.character.xp}\n"
-                        f"  Gold: {gold} GP\n"
-                        f"  Inventory: {inventory_str}\n"
-                    ),
-                }
-            )
-
-        # Append compressed summary if available
-        summary_text = self.history.get_summary()
-        if summary_text:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": f"Session summary (previous events):\n{summary_text}",
-                }
-            )
-
-        # Append conversation history (last few exchanges for context)
-        for msg in self.history.get_context_messages():
-            messages.append(msg)
-
-        # Add the player's input
-        messages.append({"role": "user", "content": player_input})
-
-        total_chars = sum(len(m.get("content", "")) for m in messages)
-        logger.debug(
-            "_build_context: %d messages, ~%d chars", len(messages), total_chars
-        )
-        return messages
+        return build_context(self, player_input, plausibility_note)
 
     def process_turn(self, player_input: str) -> dict[str, Any]:
         """Process a single turn of player input.
