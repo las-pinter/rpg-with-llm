@@ -21,6 +21,7 @@ from typing import Any
 import requests
 
 from app.llm.base import (
+    DEFAULT_TIMEOUT,
     HealthResult,
     LLMConnectionError,
     LLMProvider,
@@ -29,8 +30,12 @@ from app.llm.base import (
     ProviderError,
 )
 
-# Default timeout in seconds for HTTP requests.
-DEFAULT_TIMEOUT: int = 300
+# Length of SSE "data: " prefix for stripping stream chunks.
+SSE_PREFIX_LEN: int = 6
+# Sentinel value indicating end of SSE stream.
+SSE_DONE_SENTINEL: str = "[DONE]"
+# Milliseconds per second for latency conversions.
+MS_PER_SECOND: int = 1000
 
 # Sentinel value to distinguish "not provided" from "explicitly None".
 _UNSET: object = object()
@@ -286,8 +291,8 @@ class OpenAICompatibleProvider(LLMProvider):
                 line_str = line.decode("utf-8").strip()
                 if not line_str.startswith("data: "):
                     continue
-                payload_str = line_str[len("data: ") :]
-                if payload_str == "[DONE]":
+                payload_str = line_str[SSE_PREFIX_LEN:]
+                if payload_str == SSE_DONE_SENTINEL:
                     break
                 try:
                     chunk = json.loads(payload_str)
@@ -393,7 +398,7 @@ class OpenAICompatibleProvider(LLMProvider):
         except requests.exceptions.Timeout:
             return HealthResult(
                 ok=False,
-                latency_ms=(time.monotonic() - start) * 1000,
+                latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
                 model=self.model,
                 error=f"{self._spec.provider_name} health check: Timeout",
             )
@@ -403,7 +408,7 @@ class OpenAICompatibleProvider(LLMProvider):
         if not response.ok:
             return HealthResult(
                 ok=False,
-                latency_ms=(time.monotonic() - start) * 1000,
+                latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
                 model=self.model,
                 error=(
                     f"{self._spec.provider_name} returned HTTP {response.status_code}"
@@ -420,13 +425,13 @@ class OpenAICompatibleProvider(LLMProvider):
             # Server responded, but data is malformed — still healthy.
             return HealthResult(
                 ok=True,
-                latency_ms=(time.monotonic() - start) * 1000,
+                latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
                 model=self.model,
             )
 
         return HealthResult(
             ok=True,
-            latency_ms=(time.monotonic() - start) * 1000,
+            latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
             model=model_name or self.model,
         )
 
@@ -453,7 +458,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 except requests.exceptions.ConnectionError:
                     return HealthResult(
                         ok=False,
-                        latency_ms=(time.monotonic() - start) * 1000,
+                        latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
                         model=self.model,
                         error=(
                             f"{self._spec.provider_name} health check: Connection error"
@@ -461,14 +466,14 @@ class OpenAICompatibleProvider(LLMProvider):
                     )
             return HealthResult(
                 ok=False,
-                latency_ms=(time.monotonic() - start) * 1000,
+                latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
                 model=self.model,
                 error=(f"{self._spec.provider_name} health check: Connection error"),
             )
         except Exception:
             return HealthResult(
                 ok=False,
-                latency_ms=(time.monotonic() - start) * 1000,
+                latency_ms=(time.monotonic() - start) * MS_PER_SECOND,
                 model=self.model,
                 error=f"{self._spec.provider_name} health check failed",
             )

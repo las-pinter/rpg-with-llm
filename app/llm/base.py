@@ -12,6 +12,9 @@ import time
 from collections.abc import Generator
 from dataclasses import dataclass
 
+# Default timeout in seconds for HTTP requests.
+DEFAULT_TIMEOUT: int = 300
+
 # ---------------------------------------------------------------------------
 # Error hierarchy
 # ---------------------------------------------------------------------------
@@ -100,7 +103,7 @@ class ProviderConfig:
     model: str
     provider_type: str = "ollama"
     api_key: str | None = None
-    timeout: int = 300
+    timeout: int = DEFAULT_TIMEOUT
     max_tokens: int | None = None
     temperature: float | None = None
 
@@ -147,7 +150,7 @@ class ProviderConfig:
                 model=data["model"],
                 provider_type=data.get("provider_type", "ollama"),
                 api_key=data.get("api_key"),
-                timeout=data.get("timeout", 300),
+                timeout=data.get("timeout", DEFAULT_TIMEOUT),
                 max_tokens=data.get("max_tokens"),
                 temperature=data.get("temperature"),
             )
