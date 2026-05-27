@@ -2,8 +2,10 @@
  * LLM-Powered RPG — Character View
  *
  * Character creation with point-buy ability scores, class-based
- * defaults, and localStorage persistence.  "Load Existing" tab
- * lists saved characters for quick loading or deletion.
+ * defaults, and server-side persistence.  "Load Existing" tab
+ * lists saved characters fetched from the backend API.
+ *
+ * The server is the single source of truth — no localStorage.
  */
 const CharacterView = {
     // ------------------------------------------------------------------
@@ -56,21 +58,21 @@ const CharacterView = {
         answers: [],
         questions: [
             "Where were you born and raised? What did your family do — and what did " +
-                "you do before you picked up a sword (or a spellbook, or a set of lockpicks)?",
+            "you do before you picked up a sword (or a spellbook, or a set of lockpicks)?",
             "Describe a single moment that changed everything — a betrayal, a loss, a " +
-                "discovery, or a choice you couldn't take back. What happened, and why " +
-                "did it leave you no choice but to adventure?",
+            "discovery, or a choice you couldn't take back. What happened, and why " +
+            "did it leave you no choice but to adventure?",
             "What is your deepest flaw — the thing about yourself you're trying to hide " +
-                "or outrun? And what strength do you lean on when you fall?",
+            "or outrun? And what strength do you lean on when you fall?",
             "What are you looking for out there — really? Treasure? A name for yourself? " +
-                "Revenge? Something you lost? And what would make you turn back?",
+            "Revenge? Something you lost? And what would make you turn back?",
             "Describe someone you left behind — a person you love, fear, owe, or hate. " +
-                "What would they say about you if you never came back?",
+            "What would they say about you if you never came back?",
             "What do you look like? What marks, scars, or gear does a stranger notice " +
-                "first — and what story do those marks tell?",
+            "first — and what story do those marks tell?",
             "What's one thing about your past that, if it ever caught up to you, would " +
-                "ruin everything? A debt? A crime? A promise you broke? A secret you're " +
-                "keeping?",
+            "ruin everything? A debt? A crime? A promise you broke? A secret you're " +
+            "keeping?",
         ],
     },
 
@@ -134,7 +136,7 @@ const CharacterView = {
             this._switchTab(tab.dataset.tab);
         });
 
-        // Class change → update ability defaults + skills
+        // Class change => update ability defaults + skills
         this.els.classSelect.addEventListener("change", () => {
             this.selectedClass = this.els.classSelect.value;
             this._applyClassDefaults();
@@ -181,8 +183,11 @@ const CharacterView = {
         this._updateSkills();
         this._updateUI();
 
-        // Load existing characters list on tab switch
+        // Load existing characters list on init
         this._renderLoadList();
+
+        // One-time migration from legacy localStorage to server
+        this._migrateLocalCharacters();
     },
 
     // ------------------------------------------------------------------
@@ -326,8 +331,8 @@ const CharacterView = {
     // Character Creation
     // ------------------------------------------------------------------
 
-    /** Validate and create the character, storing in localStorage. */
-    _createCharacter() {
+    /** Validate and create the character via the backend. */
+    async _createCharacter() {
         // Assisted creation path
         if (this.els.assistedToggle.checked) {
             this._startAssistedCreation();
@@ -343,43 +348,49 @@ const CharacterView = {
         const cls = this.els.classSelect.value;
         const appearance = this.els.appearance.value.trim();
         const backstory = this.els.backstory.value.trim();
-        const conScore = this.abilities.CON || 10;
-        const conMod = Math.floor((conScore - 10) / 2);
-        const baseHp = this.CLASS_HP[cls] || 10;
-        const maxHp = baseHp + conMod;
-        const ac = this.CLASS_AC[cls] || 10;
 
-        const character = {
-            name: name,
-            character_class: cls,
-            level: 1,
-            xp: 0,
-            abilities: { ...this.abilities },
-            skills: [...(this.CLASS_SKILLS[cls] || [])],
-            hp: maxHp,
-            max_hp: maxHp,
-            ac: ac,
-            inventory: [],
-            appearance: appearance,
-            personality: "",
-            backstory: backstory,
-            hooks: [],
-            created: new Date().toISOString(),
-        };
+        this._showValidation("Creating character...", "info");
 
-        // Store in App state
-        App.state.character = character;
+        try {
+            const resp = await fetch("/api/character/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: name,
+                    character_class: cls,
+                    appearance: appearance || undefined,
+                    backstory: backstory || undefined,
+                }),
+            });
 
-        // Persist to localStorage
-        this._saveCharacter(character);
+            const data = await resp.json();
 
-        this._showValidation(
-            `Character "${name}" created! Entering the world...`,
-            "success",
-        );
+            if (!resp.ok || !data.ok) {
+                throw new Error(
+                    data.error || `Server responded with ${resp.status}`,
+                );
+            }
 
-        // Navigate to game view after a brief pause
-        setTimeout(() => App.navigate("game"), 800);
+            const character = data.character;
+
+            // Store in App state
+            App.state.character = character;
+
+            // Server is the source of truth — no localStorage persistence
+
+            this._showValidation(
+                `Character "${name}" created! Entering the world...`,
+                "success",
+            );
+
+            // Navigate to game view
+            App.navigate("game");
+        } catch (err) {
+            this._showValidation(
+                `Failed to create character: ${err.message}`,
+                "error",
+            );
+        }
     },
 
     /** Display a validation/success message. */
@@ -541,8 +552,7 @@ const CharacterView = {
             // Store in App state
             App.state.character = character;
 
-            // Persist to localStorage
-            this._saveCharacter(character);
+            // Server is the source of truth — no localStorage persistence
 
             // Hide page-level overlay
             this.els.charGeneratingOverlay.classList.add("hidden");
@@ -578,141 +588,91 @@ const CharacterView = {
     },
 
     // ------------------------------------------------------------------
-    // localStorage Persistence
+    // Load Tab — Server-Backed Character Management
     // ------------------------------------------------------------------
 
-    _storageKey() {
-        return "rpg_characters";
-    },
-
-    /** Get all saved characters from localStorage. */
-    _getSavedCharacters() {
+    /** Delete a character on the server by UUID. */
+    async _deleteCharacter(id) {
         try {
-            const raw = localStorage.getItem(this._storageKey());
-            return raw ? JSON.parse(raw) : [];
-        } catch (e) {
-            return [];
-        }
-    },
-
-    /** Save a character to localStorage and fire-and-forget to server. */
-    _saveCharacter(char) {
-        const chars = this._getSavedCharacters();
-        // Replace if name already exists
-        const idx = chars.findIndex((c) => c.name === char.name);
-        if (idx >= 0) {
-            chars[idx] = char;
-        } else {
-            chars.push(char);
-        }
-        try {
-            localStorage.setItem(this._storageKey(), JSON.stringify(chars));
-        } catch (e) {
-            // localStorage full — silently fail
-        }
-
-        // Fire-and-forget server save — don't block navigation
-        try {
-            fetch("/api/character/save", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ character: char }),
-            }).catch(() => {});  // ignore network errors
-        } catch (_e) {
-            // Server unreachable — no harm, localStorage has it
-        }
-    },
-
-    /** Delete a character from localStorage and server by name. */
-    _deleteCharacter(name) {
-        // Delete from localStorage
-        let chars = this._getSavedCharacters();
-        chars = chars.filter((c) => c.name !== name);
-        try {
-            localStorage.setItem(this._storageKey(), JSON.stringify(chars));
-        } catch (e) {
-            // ignore
-        }
-
-        // Fire-and-forget DELETE to server — don't block UI
-        try {
-            fetch(`/api/character/delete/${encodeURIComponent(name)}`, {
-                method: "DELETE",
-            }).catch(() => {});  // ignore network errors
-        } catch (_e) {
-            // Server unreachable
+            const resp = await fetch(
+                `/api/character/id/${encodeURIComponent(id)}`,
+                { method: "DELETE" },
+            );
+            if (!resp.ok) {
+                const data = await resp.json();
+                throw new Error(
+                    data.error || `Server responded with ${resp.status}`,
+                );
+            }
+        } catch (err) {
+            this._showLoadError(
+                `Failed to delete character: ${err.message}`,
+            );
+            return;
         }
 
         this._renderLoadList();
     },
 
-    // ------------------------------------------------------------------
-    // Load Tab Rendering
-    // ------------------------------------------------------------------
-
-    /** Render the list of saved characters in the Load tab. */
+    /** Render the list of characters from the server in the Load tab. */
     async _renderLoadList() {
         const container = this.els.characterList;
 
-        // Show loading state while fetching from server
+        // Show loading state
         container.innerHTML =
             '<p class="empty-state">Loading characters...</p>';
 
-        // Get local characters immediately
-        const localChars = this._getSavedCharacters();
-
-        // Fetch server characters (non-blocking — failures use local only)
-        let serverChars = [];
         try {
             const resp = await fetch("/api/characters");
-            if (resp.ok) {
-                const data = await resp.json();
-                if (data.ok && Array.isArray(data.characters)) {
-                    serverChars = data.characters;
-                }
+            const data = await resp.json();
+
+            if (!resp.ok || !data.ok || !Array.isArray(data.characters)) {
+                throw new Error(
+                    data.error || "Invalid response from server",
+                );
             }
-        } catch (_e) {
-            // Server unreachable — use local only, no harm done
-        }
 
-        // Merge: deduplicate by name, prefer localStorage (most recent data)
-        const merged = this._mergeCharacterLists(localChars, serverChars);
+            const characters = data.characters;
 
-        if (merged.length === 0) {
+            if (characters.length === 0) {
+                container.innerHTML =
+                    '<p class="empty-state">No saved characters yet. Create one!</p>';
+            } else {
+                container.innerHTML = characters
+                    .map(
+                        (c) => `
+                    <div class="char-card">
+                        <div class="char-info">
+                            <h3>${_esc(c.name)}</h3>
+                            <p class="char-meta">
+                                ${_esc(c.class)} · Level ${c.level}
+                                ${c.timestamp ? " · " + _formatTimestamp(c.timestamp) : ""}
+                            </p>
+                        </div>
+                        <div class="char-actions">
+                            <button class="btn btn-sm btn-load" data-id="${_esc(c.id)}" data-name="${_esc(c.name)}">Load</button>
+                            <button class="btn btn-sm btn-danger btn-delete" data-id="${_esc(c.id)}" data-name="${_esc(c.name)}">Del</button>
+                        </div>
+                    </div>
+                `,
+                    )
+                    .join("");
+
+                // Bind events for load/delete buttons
+                container.querySelectorAll(".btn-load").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        this._loadCharacter(btn.dataset.id);
+                    });
+                });
+                container.querySelectorAll(".btn-delete").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        this._deleteCharacter(btn.dataset.id);
+                    });
+                });
+            }
+        } catch (err) {
             container.innerHTML =
-                '<p class="empty-state">No saved characters yet. Create one!</p>';
-        } else {
-            container.innerHTML = merged
-                .map(
-                    (c) => `
-                <div class="char-card">
-                    <div class="char-info">
-                        <h3>${_esc(c.name)}</h3>
-                        <p class="char-meta">
-                            ${_esc(c.character_class)} · Level ${c.level}
-                            ${c.created ? " · " + new Date(c.created).toLocaleDateString() : ""}
-                        </p>
-                    </div>
-                    <div class="char-actions">
-                        <button class="btn btn-sm btn-load" data-name="${_esc(c.name)}">Load</button>
-                        <button class="btn btn-sm btn-danger btn-delete" data-name="${_esc(c.name)}">Del</button>
-                    </div>
-                </div>
-            `,
-                )
-                .join("");
-
-            // Bind events for load/delete buttons
-            container.querySelectorAll(".btn-load").forEach((btn) => {
-                btn.addEventListener("click", () => {
-                    this._loadCharacter(btn.dataset.name);
-                });
-            });
-            container.querySelectorAll(".btn-delete").forEach((btn) => {
-                btn.addEventListener("click", () => {
-                    this._deleteCharacter(btn.dataset.name);
-                });
-            });
+                '<p class="empty-state">Could not load characters from server.</p>';
         }
 
         // ---- Render saved games section ----
@@ -782,64 +742,140 @@ const CharacterView = {
         }
     },
 
-    /**
-     * Merge localStorage and server character lists.
-     *
-     * Server metadata uses `class` instead of `character_class` and
-     * `timestamp` instead of `created`.  This normalises both to a
-     * common shape and deduplicates by name, preferring the localStorage
-     * version since it has the most recent data.
-     */
-    _mergeCharacterLists(localChars, serverChars) {
-        const map = new Map();
-
-        // Add server chars first (will be overridden by local for same name)
-        for (const c of serverChars || []) {
-            map.set(c.name, {
-                name: c.name,
-                character_class: c.class,
-                level: c.level,
-                created: c.timestamp,
-            });
-        }
-
-        // Add local chars (overrides server for matching names)
-        for (const c of localChars || []) {
-            map.set(c.name, c);
-        }
-
-        return Array.from(map.values());
-    },
-
-    /** Load a character from localStorage or server into App state and navigate. */
-    async _loadCharacter(name) {
-        // Try localStorage first (it's the primary persistence)
-        const chars = this._getSavedCharacters();
-        const localChar = chars.find((c) => c.name === name);
-        if (localChar) {
-            App.state.character = localChar;
-            App.navigate("game");
-            return;
-        }
-
-        // Not in localStorage — try loading from server
+    /** Load a character by UUID from the server. */
+    async _loadCharacter(id) {
         try {
             const resp = await fetch(
-                `/api/character/load/${encodeURIComponent(name)}`,
+                `/api/character/id/${encodeURIComponent(id)}`,
             );
-            if (resp.ok) {
-                const data = await resp.json();
-                if (data.ok && data.character) {
-                    App.state.character = data.character;
-                    App.navigate("game");
-                    return;
-                }
+            const data = await resp.json();
+
+            if (!resp.ok || !data.ok || !data.character) {
+                throw new Error(
+                    data.error || "Character not found",
+                );
             }
+
+            App.state.character = data.character;
+            App.navigate("game");
+        } catch (err) {
+            this._showLoadError(
+                `Failed to load character: ${err.message}`,
+            );
+        }
+    },
+
+    // ------------------------------------------------------------------
+    // Migration from Legacy localStorage
+    // ------------------------------------------------------------------
+
+    /**
+     * One-time migration: POST any characters still in localStorage
+     * to the server, then remove the localStorage key.
+     */
+    async _migrateLocalCharacters() {
+        let raw;
+        try {
+            raw = localStorage.getItem("rpg_characters");
         } catch (_e) {
-            // Server unreachable
+            return; // localStorage unavailable
+        }
+        if (!raw) return;
+
+        let chars;
+        try {
+            chars = JSON.parse(raw);
+        } catch (_e) {
+            return; // corrupt JSON, skip
+        }
+        if (!Array.isArray(chars) || chars.length === 0) return;
+
+        let migrated = 0;
+        for (const char of chars) {
+            try {
+                // Build payload with ALL available fields from localStorage
+                const payload = {
+                    name: char.name,
+                    character_class: char.character_class,
+                };
+
+                // Narrative / identity fields
+                for (const field of ["appearance", "backstory", "personality",
+                                     "ideals", "bonds", "flaws", "plot_hooks"]) {
+                    if (char[field]) payload[field] = char[field];
+                }
+
+                // Numeric fields
+                for (const field of ["level", "xp", "hp", "max_hp", "ac", "gold"]) {
+                    if (char[field] != null) payload[field] = char[field];
+                }
+
+                // Ability scores — send full dict if available, else individual fields
+                if (char.abilities && typeof char.abilities === "object") {
+                    payload.abilities = char.abilities;
+                } else {
+                    for (const key of ["strength", "dexterity", "constitution",
+                                       "intelligence", "wisdom", "charisma"]) {
+                        if (char[key] != null) payload[key] = char[key];
+                    }
+                }
+
+                // Array fields
+                if (Array.isArray(char.skills)) payload.skills = char.skills;
+                if (Array.isArray(char.inventory)) payload.inventory = char.inventory;
+
+                const resp = await fetch("/api/character/create", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (resp.ok) migrated++;
+            } catch (_e) {
+                // Skip individual failures — character data remains in
+                // localStorage so nothing is lost.
+            }
         }
 
-        console.warn(`Character "${name}" not found in localStorage or on server.`);
+        if (migrated > 0) {
+            try {
+                localStorage.removeItem("rpg_characters");
+            } catch (_e) {
+                // Ignore — data already on server
+            }
+        }
+
+        if (migrated > 0) {
+            this._showMigrationBanner(migrated);
+        }
+    },
+
+    /** Show a dismissible banner confirming migration. */
+    _showMigrationBanner(count) {
+        const existing = document.querySelector(".migration-banner");
+        if (existing) existing.remove();
+
+        const banner = document.createElement("div");
+        banner.className = "migration-banner";
+        banner.innerHTML = `
+            <span class="migration-banner-text">
+                Your local character${count !== 1 ? "s have" : " has"} been saved to the server!
+            </span>
+            <button class="migration-banner-close" aria-label="Dismiss">&times;</button>
+        `;
+        banner.querySelector(".migration-banner-close")
+            .addEventListener("click", () => banner.remove());
+
+        this.els.tabLoad.prepend(banner);
+    },
+
+    /** Show an inline error banner inside the Load tab (auto-dismiss). */
+    _showLoadError(message) {
+        const el = document.createElement("p");
+        el.className = "validation-msg error";
+        el.textContent = message;
+        el.style.marginBottom = "0.5rem";
+        this.els.tabLoad.prepend(el);
+        setTimeout(() => el.remove(), 5000);
     },
 
     // ------------------------------------------------------------------

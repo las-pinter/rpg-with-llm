@@ -15,7 +15,7 @@ function _esc(str) {
 
 /** Format a YYYYMMDD_HHMMSS[_ffffff] timestamp for display. */
 function _formatTimestamp(ts) {
-    const match = ts.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/);
+    const match = ts.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:_\d+)?$/);
     if (!match) return ts;
     const date = new Date(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]);
     return date.toLocaleString();

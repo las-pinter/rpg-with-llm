@@ -4583,7 +4583,6 @@ class TestLlamacppProvider:
         import requests
 
         from app.llm.base import ProviderError
-
         from app.llm.llamacpp import LlamacppProvider
 
         provider = LlamacppProvider(
@@ -4611,7 +4610,6 @@ class TestLlamacppProvider:
         import requests
 
         from app.llm.base import ProviderError
-
         from app.llm.llamacpp import LlamacppProvider
 
         provider = LlamacppProvider(
@@ -4641,7 +4639,6 @@ class TestLlamacppProvider:
         import requests
 
         from app.llm.base import ProviderError
-
         from app.llm.llamacpp import LlamacppProvider
 
         provider = LlamacppProvider(
@@ -4676,7 +4673,6 @@ class TestLlamacppProvider:
         import requests
 
         from app.llm.base import ProviderError
-
         from app.llm.llamacpp import LlamacppProvider
 
         provider = LlamacppProvider(

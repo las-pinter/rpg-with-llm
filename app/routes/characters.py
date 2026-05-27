@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import flask as flask
 from flask import jsonify, request
@@ -13,7 +14,7 @@ from app.character.creation import (
     CharacterGenerationError,
     CharacterStorage,
 )
-from app.character.model import Character
+from app.character.model import VALID_CLASSES, Character
 from app.llm.config import ProviderConfig, create_provider
 
 logger = logging.getLogger(__name__)
@@ -124,23 +125,28 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
     return jsonify({"ok": True, "character": character.to_dict()})
 
 
-@bp.route("/character/save", methods=["POST"])
-def save_character() -> tuple[flask.Response, int] | flask.Response:
-    """Save a character to disk.
+@bp.route("/character/create", methods=["POST"])
+def create_character() -> tuple[flask.Response, int] | flask.Response:
+    """Create a new character and persist it.
 
-    Accepts JSON body with ``character`` (serialised Character dict)
-    and optional ``name`` (defaults to the character's own name).
+    Accepts JSON body with:
+
+    * ``name`` (required, non-empty string)
+    * ``character_class`` (required, one of ``VALID_CLASSES``)
+    * ``appearance`` (optional string)
+    * ``backstory`` (optional string)
 
     Returns
     -------
-    JSON with ``ok``, ``name``, and ``timestamp`` on success.
+    JSON with ``ok`` and the full ``character`` dict on success.
 
     Errors
     ------
     400
-        If the request body is invalid or character data is missing.
+        If the request body is invalid, name is missing, or
+        character_class is not recognised.
     500
-        If the persistence layer raises an error.
+        If an internal error occurs.
     """
     if not request.is_json:
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
@@ -149,27 +155,106 @@ def save_character() -> tuple[flask.Response, int] | flask.Response:
     if data is None:
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
 
-    char_data = data.get("character")
-    if not isinstance(char_data, dict):
+    name = data.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"ok": False, "error": "Character name is required"}), 400
+
+    character_class = data.get("character_class")
+    if character_class not in VALID_CLASSES:
         return (
-            jsonify({"ok": False, "error": "Missing 'character' dict in request body"}),
+            jsonify(
+                {
+                    "ok": False,
+                    "error": (
+                        f"Invalid character class '{character_class}'. "
+                        f"Must be one of {sorted(VALID_CLASSES)}"
+                    ),
+                }
+            ),
             400,
         )
 
-    name = data.get("name")
+    # Check if extended fields are present (e.g. from localStorage migration)
+    has_extended = any(
+        k in data
+        for k in (
+            "level",
+            "xp",
+            "hp",
+            "max_hp",
+            "ac",
+            "gold",
+            "strength",
+            "dexterity",
+            "constitution",
+            "intelligence",
+            "wisdom",
+            "charisma",
+            "skills",
+            "personality",
+            "ideals",
+            "bonds",
+            "flaws",
+            "plot_hooks",
+        )
+    )
 
     try:
-        character = Character.from_dict(char_data)
-        timestamp = _character_storage.save(character, name=name)
-        saved_name = name if name and name.strip() else character.name
-    except ValueError:
-        logger.warning("Invalid character data in save_character", exc_info=True)
-        return jsonify({"ok": False, "error": "Invalid character data"}), 400
+        if has_extended:
+            # Build abilities dict from individual fields or direct dict
+            abilities: dict[str, int] = {}
+            if "abilities" in data and isinstance(data["abilities"], dict):
+                for k, v in data["abilities"].items():
+                    if v is not None:
+                        abilities[k.upper()] = int(v)
+            else:
+                ability_map: dict[str, str] = {
+                    "strength": "STR",
+                    "dexterity": "DEX",
+                    "constitution": "CON",
+                    "intelligence": "INT",
+                    "wisdom": "WIS",
+                    "charisma": "CHA",
+                }
+                for src_key, dst_key in ability_map.items():
+                    if src_key in data and data[src_key] is not None:
+                        abilities[dst_key] = int(data[src_key])
+
+            # Build character dict for from_dict (handles validation/defaults)
+            char_data: dict[str, Any] = {
+                "name": name.strip(),
+                "character_class": character_class,
+            }
+            if abilities:
+                char_data["abilities"] = abilities
+            for field in ("level", "xp", "hp", "max_hp", "ac", "gold"):
+                if field in data and data[field] is not None:
+                    char_data[field] = data[field]
+            for field in ("appearance", "backstory", "personality"):
+                if field in data and data[field] is not None:
+                    char_data[field] = str(data[field])
+            for field in ("skills", "inventory", "hooks"):
+                if field in data and isinstance(data[field], list):
+                    char_data[field] = data[field]
+
+            character = Character.from_dict(char_data)
+        else:
+            character = Character.create_default(name.strip(), character_class)
+            appearance = data.get("appearance", "")
+            backstory = data.get("backstory", "")
+            if appearance and isinstance(appearance, str):
+                character.appearance = appearance
+            if backstory and isinstance(backstory, str):
+                character.backstory = backstory
+        _character_storage.save(character)
+    except ValueError as e:
+        logger.warning("Invalid character creation request: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 400
     except Exception:
-        logger.exception("Failed to save character")
+        logger.exception("Failed to create character")
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
-    return jsonify({"ok": True, "name": saved_name, "timestamp": timestamp})
+    return jsonify({"ok": True, "character": character.to_dict()})
 
 
 @bp.route("/characters", methods=["GET"])
@@ -251,6 +336,89 @@ def delete_character(name: str) -> tuple[flask.Response, int] | flask.Response:
         return jsonify({"ok": False, "error": f"Character '{name}' not found"}), 404
     except Exception:
         logger.exception("Failed to delete character '%s'", name)
+        return (
+            jsonify({"ok": False, "error": "Internal server error"}),
+            500,
+        )
+
+    return jsonify({"ok": True})
+
+
+@bp.route("/character/id/<char_id>", methods=["GET"])
+def load_character_by_id(
+    char_id: str,
+) -> tuple[flask.Response, int] | flask.Response:
+    """Load a single character's full data by UUID.
+
+    Parameters
+    ----------
+    char_id : str
+        The character's UUID string.
+
+    Returns
+    -------
+    JSON with ``ok`` and the full ``character`` dict on success.
+
+    Errors
+    ------
+    404
+        If no character with the given *char_id* exists.
+    500
+        If an internal error occurs.
+    """
+    try:
+        character = _character_storage.load_by_id(char_id)
+    except FileNotFoundError:
+        return (
+            jsonify({"ok": False, "error": f"Character with id '{char_id}' not found"}),
+            404,
+        )
+    except ValueError:
+        logger.warning(
+            "Invalid or corrupt character data for id '%s'", char_id, exc_info=True
+        )
+        return (
+            jsonify({"ok": False, "error": "Invalid or corrupt character data"}),
+            400,
+        )
+    except Exception:
+        logger.exception("Failed to load character by id '%s'", char_id)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True, "character": character.to_dict()})
+
+
+@bp.route("/character/id/<char_id>", methods=["DELETE"])
+def delete_character_by_id(
+    char_id: str,
+) -> tuple[flask.Response, int] | flask.Response:
+    """Delete a saved character by UUID.
+
+    Parameters
+    ----------
+    char_id : str
+        The character's UUID string.
+
+    Returns
+    -------
+    JSON with ``ok`` on success.
+
+    Errors
+    ------
+    404
+        If no character with the given *char_id* exists.
+    500
+        If an internal error occurs.
+    """
+    try:
+        _character_storage.delete_by_id(char_id)
+    except FileNotFoundError:
+        return (
+            jsonify({"ok": False, "error": f"Character with id '{char_id}' not found"}),
+            404,
+        )
+    except Exception:
+        logger.exception("Failed to delete character by id '%s'", char_id)
         return (
             jsonify({"ok": False, "error": "Internal server error"}),
             500,

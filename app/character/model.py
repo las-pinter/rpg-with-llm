@@ -10,6 +10,7 @@ Wizard can save, load, and teleport characters across sessions.
 from __future__ import annotations
 
 import dataclasses
+import uuid
 import warnings
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -87,7 +88,8 @@ class Character:
     """
 
     # -- Identity -----------------------------------------------------------
-    name: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
     appearance: str = ""
     personality: str = ""
 

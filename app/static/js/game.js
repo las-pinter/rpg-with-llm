@@ -731,8 +731,12 @@ const GameView = {
             // Embed character data inside the state dict for single-file save
             const stateData = this.state.worldState ? { ...this.state.worldState } : {};
             if (App.state.character) {
-                stateData._character = App.state.character;
-                stateData.character_name = App.state.character.name || "";
+                // Ensure character ID is always a string (UUID), not a number
+                const charData = { ...App.state.character };
+                if (charData.id != null) charData.id = String(charData.id);
+                stateData._character = charData;
+                stateData.character_name = charData.name || "";
+                stateData.character_id = charData.id;
             }
             const resp = await fetch("/api/save", {
                 method: "POST",
@@ -834,8 +838,17 @@ const GameView = {
                     const saveName = card.dataset.name;
                     if (!confirm(`Delete save "${saveName}"?`)) return;
                     try {
-                        await fetch(`/api/delete/${encodeURIComponent(saveName)}`, { method: "DELETE" });
-                    } catch (_) { /* ignore */ }
+                        const resp = await fetch(
+                            `/api/delete/${encodeURIComponent(saveName)}`,
+                            { method: "DELETE" },
+                        );
+                        if (!resp.ok) {
+                            const errData = await resp.json().catch(() => ({}));
+                            console.warn(
+                                `Failed to delete save: ${errData.error || resp.statusText}`,
+                            );
+                        }
+                    } catch (_) { /* ignore network errors */ }
                     this._showLoadModal(); // Refresh list
                 });
             });
@@ -874,6 +887,8 @@ const GameView = {
                     ? data.state._character
                     : data.character || null;
                 if (charData) {
+                    // Ensure character ID is always a string (UUID), not a number
+                    if (charData.id != null) charData.id = String(charData.id);
                     App.state.character = charData;
                 }
 

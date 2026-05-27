@@ -6,38 +6,15 @@
  * they can proceed to character creation.
  */
 const ConnectionView = {
-    /** Provider definitions with default URLs and key requirements. */
+    /** Provider metadata — label, API key requirement. URLs come from the
+     *  backend settings API or user input. */
     providers: {
-        ollama: {
-            url: "http://localhost:11434",
-            needsKey: false,
-            label: "Ollama",
-        },
-        groq: {
-            url: "https://api.groq.com/openai",
-            needsKey: true,
-            label: "Groq",
-        },
-        openrouter: {
-            url: "https://openrouter.ai/api",
-            needsKey: true,
-            label: "OpenRouter",
-        },
-        custom: {
-            url: "http://localhost:11434",
-            needsKey: false,
-            label: "Custom",
-        },
-        unsloth: {
-            url: "http://localhost:8000",
-            needsKey: false,
-            label: "Unsloth",
-        },
-        llamacpp: {
-            url: "http://localhost:8080",
-            needsKey: false,
-            label: "llama.cpp",
-        },
+        ollama: { needsKey: false, label: "Ollama" },
+        groq: { needsKey: true, label: "Groq" },
+        openrouter: { needsKey: true, label: "OpenRouter" },
+        custom: { needsKey: false, label: "Custom" },
+        unsloth: { needsKey: false, label: "Unsloth" },
+        llamacpp: { needsKey: false, label: "llama.cpp" },
     },
 
     /** DOM element references (populated in init). */
@@ -100,7 +77,7 @@ const ConnectionView = {
             summarizerTimeout: document.getElementById("summarizer-timeout"),
         };
 
-        // Provider change → update URL default + API key visibility
+        // Provider change → update API key visibility
         this.els.providerSelect.addEventListener(
             "change",
             () => this._onProviderChange(),
@@ -185,7 +162,7 @@ const ConnectionView = {
             });
         }
 
-        // Set initial provider state
+        // Set initial provider state (API key visibility, etc.)
         this._onProviderChange();
 
         // Initialise per-agent provider defaults
@@ -194,21 +171,19 @@ const ConnectionView = {
             this._onAgentProviderChange("summarizer");
         }
 
-        // Restore previous connection if available
-        this._restoreState();
+        // Fetch settings from backend, then restore saved state
+        this._fetchSettings();
     },
 
     // ------------------------------------------------------------------
     // Provider switching
     // ------------------------------------------------------------------
 
-    /** Handle provider dropdown change — update URL and API key field. */
+    /** Handle provider dropdown change — update API key field visibility. */
     _onProviderChange() {
         const key = this.els.providerSelect.value;
         const provider = this.providers[key];
         if (!provider) return;
-
-        this.els.baseUrl.value = provider.url;
 
         // Show/hide API key field based on provider
         if (provider.needsKey) {
@@ -226,25 +201,21 @@ const ConnectionView = {
         this.els.startBtn.disabled = true;
     },
 
-    /** Handle per-agent provider dropdown change — update URL and API key. */
+    /** Handle per-agent provider dropdown change — update API key visibility. */
     _onAgentProviderChange(prefix) {
         const selectKey = prefix + "ProviderSelect";
-        const urlKey = prefix + "BaseUrl";
         const apiKeyKey = prefix + "ApiKey";
         const apiKeyGroupKey = prefix + "ApiKeyGroup";
 
         const sel = this.els[selectKey];
-        const url = this.els[urlKey];
         const apiKeyGroup = this.els[apiKeyGroupKey];
         const apiKeyInput = this.els[apiKeyKey];
 
-        if (!sel || !url) return;
+        if (!sel) return;
 
         const key = sel.value;
         const provider = this.providers[key];
         if (!provider) return;
-
-        url.value = provider.url;
 
         if (provider.needsKey) {
             apiKeyGroup.style.display = "block";
@@ -374,6 +345,37 @@ const ConnectionView = {
     },
 
     // ------------------------------------------------------------------
+    // Settings persistence (backend)
+    // ------------------------------------------------------------------
+
+    /** POST settings to the backend and return the response data.
+     *
+     *  Returns the full response JSON on success, or null on failure.
+     *  Does NOT throw — callers should check the return value.
+     *  This is a best-effort operation; failures are only logged.
+     */
+    async _postSettings(payload) {
+        try {
+            const resp = await fetch("/api/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(10000),
+            });
+            const data = await resp.json();
+            if (data.ok) return data;
+            console.warn(
+                "Settings POST returned error:",
+                data.error || data.errors,
+            );
+            return null;
+        } catch (e) {
+            console.warn("Failed to save settings to backend:", e.message);
+            return null;
+        }
+    },
+
+    // ------------------------------------------------------------------
     // Connection testing
     // ------------------------------------------------------------------
 
@@ -413,13 +415,29 @@ const ConnectionView = {
             const data = await resp.json();
 
             if (data.ok) {
-                this._setStatus(
-                    "success",
-                    `Connected! Latency: ${data.latency_ms.toFixed(1)}ms — Model: ${data.model}`,
-                );
+                // POST provider config to backend settings (best-effort)
+                const settingsResult = await this._postSettings({
+                    base_url: baseUrl,
+                    model: model,
+                    api_key: apiKey,
+                    provider_type: this.els.providerSelect.value,
+                });
+
+                if (settingsResult && settingsResult.settings) {
+                    this._setStatus(
+                        "success",
+                        `Connected! Latency: ${data.latency_ms.toFixed(1)}ms — Settings saved`,
+                    );
+                } else {
+                    this._setStatus(
+                        "success",
+                        `Connected! Latency: ${data.latency_ms.toFixed(1)}ms — Model: ${data.model}`,
+                    );
+                }
                 this.els.startBtn.disabled = false;
 
-                // Save to app state
+                // Save to app state (authoritative source is backend,
+                // localStorage is secondary cache)
                 App.state.provider = {
                     base_url: baseUrl,
                     model: model,
@@ -455,7 +473,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Save provider configs and navigate to character creation. */
-    _startAdventure() {
+    async _startAdventure() {
         if (this.els.startBtn.disabled) return;
 
         // Save DM provider config
@@ -477,6 +495,34 @@ const ConnectionView = {
         // Save per-agent provider configs (null = use DM provider)
         App.state.npcProvider = this._buildAgentProvider("npc");
         App.state.summarizerProvider = this._buildAgentProvider("summarizer");
+
+        // Build full flat settings payload for the backend
+        const settingsPayload = {
+            base_url: baseUrl,
+            model: model,
+            api_key: apiKey,
+            provider_type: this.els.providerSelect.value,
+            dm_max_tokens:
+                parseInt(this.els.dmMaxTokens.value, 10) || undefined,
+            dm_temperature:
+                parseFloat(this.els.dmTemperature.value) || undefined,
+            dm_timeout:
+                parseInt(this.els.dmTimeout.value, 10) || undefined,
+            npc_max_tokens:
+                parseInt(this.els.npcMaxTokens.value, 10) || undefined,
+            npc_temperature:
+                parseFloat(this.els.npcTemperature.value) || undefined,
+            npc_timeout:
+                parseInt(this.els.npcTimeout.value, 10) || undefined,
+            summarizer_max_tokens:
+                parseInt(this.els.summarizerMaxTokens.value, 10) || undefined,
+            summarizer_temperature:
+                parseFloat(this.els.summarizerTemperature.value) || undefined,
+            summarizer_timeout:
+                parseInt(this.els.summarizerTimeout.value, 10) || undefined,
+        };
+        // POST settings to the backend (best-effort — don't block navigation)
+        await this._postSettings(settingsPayload);
 
         this._saveState();
         App.navigate("character");
@@ -540,10 +586,105 @@ const ConnectionView = {
         return typed || "";
     },
 
+    /** Populate form fields from backend settings response. */
+    _populateFromSettings(settings) {
+        if (!settings) return;
+
+        // Provider type
+        if (settings.provider_type) {
+            this.els.providerSelect.value = settings.provider_type;
+        }
+        // Base URL
+        if (settings.base_url) {
+            this.els.baseUrl.value = settings.base_url;
+        }
+        // API key (backend may return null — skip it)
+        if (settings.api_key) {
+            this.els.apiKey.value = settings.api_key;
+        }
+        // Model
+        if (settings.model) {
+            this.els.modelInput.value = settings.model;
+        }
+
+        // DM generation settings
+        if (settings.dm_max_tokens != null && this.els.dmMaxTokens) {
+            this.els.dmMaxTokens.value = settings.dm_max_tokens;
+        }
+        if (settings.dm_temperature != null && this.els.dmTemperature) {
+            this.els.dmTemperature.value = settings.dm_temperature;
+        }
+        if (settings.dm_timeout != null && this.els.dmTimeout) {
+            this.els.dmTimeout.value = settings.dm_timeout;
+        }
+
+        // NPC generation settings
+        if (settings.npc_max_tokens != null && this.els.npcMaxTokens) {
+            this.els.npcMaxTokens.value = settings.npc_max_tokens;
+        }
+        if (settings.npc_temperature != null && this.els.npcTemperature) {
+            this.els.npcTemperature.value = settings.npc_temperature;
+        }
+        if (settings.npc_timeout != null && this.els.npcTimeout) {
+            this.els.npcTimeout.value = settings.npc_timeout;
+        }
+
+        // Summarizer generation settings
+        if (settings.summarizer_max_tokens != null && this.els.summarizerMaxTokens) {
+            this.els.summarizerMaxTokens.value = settings.summarizer_max_tokens;
+        }
+        if (settings.summarizer_temperature != null && this.els.summarizerTemperature) {
+            this.els.summarizerTemperature.value = settings.summarizer_temperature;
+        }
+        if (settings.summarizer_timeout != null && this.els.summarizerTimeout) {
+            this.els.summarizerTimeout.value = settings.summarizer_timeout;
+        }
+
+        // Sync UI after populating provider-related fields
+        this._onProviderChange();
+
+        // Sync per-agent provider dropdowns to match the main provider type
+        if (settings.provider_type && this.els.npcProviderSelect) {
+            this.els.npcProviderSelect.value = settings.provider_type;
+            this._onAgentProviderChange("npc");
+        }
+        if (settings.provider_type && this.els.summarizerProviderSelect) {
+            this.els.summarizerProviderSelect.value = settings.provider_type;
+            this._onAgentProviderChange("summarizer");
+        }
+    },
+
+    /** Fetch settings from the backend API, then restore saved state. */
+    async _fetchSettings() {
+        try {
+            const resp = await fetch("/api/settings", {
+                signal: AbortSignal.timeout(5000),
+            });
+            const data = await resp.json();
+            if (data.ok && data.settings) {
+                this._populateFromSettings(data.settings);
+            }
+        } catch (e) {
+            // API unavailable — fall back to HTML defaults (value attributes
+            // in the markup) and localStorage. This is graceful degradation.
+        }
+        // Always restore user's saved state on top of API defaults so that
+        // localStorage overrides backend settings.
+        this._restoreState();
+    },
+
     // ------------------------------------------------------------------
     // State persistence (localStorage)
     // ------------------------------------------------------------------
 
+    /** Persist to localStorage as a secondary cache.
+     *
+     *  The authoritative source of settings is the backend
+     *  (``/api/settings``).  localStorage is a fallback for offline
+     *  resilience.  On page load, ``_fetchSettings()`` fetches fresh
+     *  settings from the backend before ``_restoreState()`` overlays
+     *  any cached values.
+     */
     _saveState() {
         try {
             const data = {
