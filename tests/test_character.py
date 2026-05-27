@@ -1305,3 +1305,84 @@ class TestAssistedCreation:
         assert mock_llm.call.called
         assert isinstance(char, Character)
         assert char.name == "Rurik Stoneheart"
+
+    # ------------------------------------------------------------------
+    # Name integration — Task 1 of Campfire campaign
+    # ------------------------------------------------------------------
+
+    def test_assisted_creation_passes_name_to_llm(self) -> None:
+        """The player's name must appear in the LLM call messages when
+        provided."""
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        creation.generate_character(_VALID_ANSWERS, name="Thorne Ironveil")
+
+        assert mock_llm.call.called
+        messages = mock_llm.call.call_args[0][0]
+        all_text = " ".join(m["content"] for m in messages)
+        assert "Thorne Ironveil" in all_text
+
+    def test_assisted_creation_uses_provided_name(self) -> None:
+        """When a name is provided, the LLM response with that name must
+        produce a character with that same name."""
+        named_json = json.dumps(
+            {
+                "name": "Thorne Ironveil",
+                "character_class": "Fighter",
+                "level": 1,
+                "abilities": {a: 10 for a in STANDARD_ABILITIES},
+                "skills": [],
+                "hp": 10,
+                "max_hp": 10,
+                "ac": 10,
+                "appearance": "",
+                "backstory": "",
+                "inventory": [],
+            }
+        )
+        mock_llm = _make_mock_llm(named_json)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS, name="Thorne Ironveil")
+
+        assert char.name == "Thorne Ironveil"
+
+    def test_assisted_creation_without_name_generates_one(self) -> None:
+        """Without a provided name, the LLM-generated name from the
+        response must be used."""
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS)
+
+        assert char.name == "Rurik Stoneheart"
+        assert isinstance(char, Character)
+
+    def test_assisted_creation_empty_name_treated_as_none(self) -> None:
+        """An empty-string name must behave identically to no name —
+        backward compatible."""
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        char = creation.generate_character(_VALID_ANSWERS, name="")
+
+        assert char.name == "Rurik Stoneheart"
+        assert isinstance(char, Character)
+
+    def test_assisted_creation_name_included_in_prompt_system_message(
+        self,
+    ) -> None:
+        """The player name must appear in the system message, not the
+        user message, to verify the prompt formatting is correct."""
+        mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
+        creation = AssistedCreation(mock_llm)
+
+        creation.generate_character(_VALID_ANSWERS, name="Thorne Ironveil")
+
+        assert mock_llm.call.called
+        messages = mock_llm.call.call_args[0][0]
+        system_content = next(m["content"] for m in messages if m["role"] == "system")
+        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        assert "Thorne Ironveil" in system_content
+        assert "Thorne Ironveil" not in user_content

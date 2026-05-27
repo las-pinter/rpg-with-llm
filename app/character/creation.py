@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from app.character.model import (
+    ASSISTED_CREATION_QUESTIONS,
     STANDARD_ABILITIES,
     VALID_CLASSES,
     Character,
@@ -50,7 +51,8 @@ Assign ability scores (STR, DEX, CON, INT, WIS, CHA) between 3 and 18, with \
 a reasonable distribution for the chosen class.
 Pick 2-4 skills appropriate for the class and backstory.
 Set HP, AC, and starting inventory appropriate for the class.
-If the player did not provide a name, generate one.
+
+{NAME_INSTRUCTION}
 
 --- ABILITY SCORES (USE THESE) ---
 The player has chosen the following ability scores. Let these numbers shape
@@ -122,24 +124,10 @@ class AssistedCreation:
     (an LLM call) generates a complete Character from those answers.
     """
 
-    QUESTIONS: list[str] = [
-        "Where were you born and raised? What did your family do — and what did you "
-        "do before you picked up a sword (or a spellbook, or a set of lockpicks)?",
-        "Describe a single moment that changed everything — a betrayal, a loss, a "
-        "discovery, or a choice you couldn't take back. What happened, and why did "
-        "it leave you no choice but to adventure?",
-        "What is your deepest flaw — the thing about yourself you're trying to hide "
-        "or outrun? And what strength do you lean on when you fall?",
-        "What are you looking for out there — really? Treasure? A name for yourself? "
-        "Revenge? Something you lost? And what would make you turn back?",
-        "Describe someone you left behind — a person you love, fear, owe, or hate. "
-        "What would they say about you if you never came back?",
-        "What do you look like? What marks, scars, or gear does a stranger notice "
-        "first — and what story do those marks tell?",
-        "What's one thing about your past that, if it ever caught up to you, would "
-        "ruin everything? A debt? A crime? A promise you broke? A secret you're "
-        "keeping?",
-    ]
+    # Uses the canonical question list from model.py so the frontend
+    # (served via /api/config/character-rules) and the LLM backend
+    # always see the same questions.
+    QUESTIONS: list[str] = ASSISTED_CREATION_QUESTIONS
 
     def __init__(self, llm_provider: LLMProvider) -> None:
         """Store the LLM provider used to generate characters.
@@ -159,6 +147,7 @@ class AssistedCreation:
         self,
         answers: dict[int, str],
         abilities: dict[str, int] | None = None,
+        name: str | None = None,
     ) -> Character:
         """Send up to 7 narrative answers to the LLM and parse the response
         into a complete Character object.
@@ -172,6 +161,10 @@ class AssistedCreation:
             Player-chosen ability scores (STR, DEX, CON, INT, WIS, CHA).
             When provided, the LLM will weave these into appearance
             and backstory.
+        name : str | None
+            Optional player-chosen name.  When provided and non-empty,
+            the LLM is instructed to use it exactly.  When None or empty,
+            the LLM generates a fitting name.
 
         Returns
         -------
@@ -203,7 +196,25 @@ class AssistedCreation:
             user_parts.append(f"Q{idx + 1}: {answers[idx]}")
         user_message = "\n\n".join(user_parts)
 
+        # Build name instruction
+        name = name.strip() if name else ""
+        if name:
+            name_instruction = (
+                "--- PLAYER NAME ---\n"
+                f"The player has chosen the name: {name}\n"
+                "You MUST use this exact name. Do not change it."
+                f' The character\'s name field MUST be exactly "{name}".\n'
+                "---"
+            )
+        else:
+            name_instruction = (
+                "--- NAME GENERATION ---\n"
+                "Generate a fitting name for this character.\n"
+                "---"
+            )
+
         system_prompt = _SYSTEM_PROMPT.format(
+            NAME_INSTRUCTION=name_instruction,
             STR=abilities.get("STR", 10) if abilities else 10,
             DEX=abilities.get("DEX", 10) if abilities else 10,
             CON=abilities.get("CON", 10) if abilities else 10,

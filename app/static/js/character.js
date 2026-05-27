@@ -1,9 +1,9 @@
 /**
  * LLM-Powered RPG — Character View
  *
- * Character creation with point-buy ability scores, class-based
- * defaults, and server-side persistence.  "Load Existing" tab
- * lists saved characters fetched from the backend API.
+ * "The Campfire" story-first character creation flow with sub-tabs
+ * for Campfire (narrative) and Manual (point-buy) creation, plus a
+ * review screen that both paths converge on before starting the game.
  *
  * The server is the single source of truth — no localStorage.
  * Game rules data (point-buy costs, class templates, etc.) is
@@ -23,29 +23,23 @@ const CharacterView = {
     selectedClass: "",
     remainingPoints: 0,
 
-    /** Assisted creation state. */
-    _assistedState: {
-        currentQuestion: 0,
-        totalQuestions: 0,
-        answers: [],
-    },
-
     /** DOM element references. */
     els: {},
 
-    // ------------------------------------------------------------------
-    // Rule Access Helpers
-    // ------------------------------------------------------------------
+    /** 'campfire' | 'manual' | 'review' */
+    _mode: "campfire",
 
-    /** Get the assisted creation questions array (with fallback). */
-    _getQuestions() {
-        return this._rules?.assisted_creation_questions ?? [];
-    },
+    /** Array of 7 answer strings from the story questions. */
+    _storyAnswers: [],
 
-    /** Get the total number of assisted creation questions. */
-    _getQuestionCount() {
-        return this._getQuestions().length;
-    },
+    /** Index of the currently visible story question. */
+    _currentQuestion: 0,
+
+    /** Character data returned from the generate / create API. */
+    _generatedCharacter: null,
+
+    /** Whether the review sheet is in edit mode. */
+    _isEditing: false,
 
     // ------------------------------------------------------------------
     // Initialisation
@@ -58,20 +52,31 @@ const CharacterView = {
         // Set initial values from loaded rules
         this._initDefaults();
 
+        // Populate class dropdowns
+        this._populateClassDropdowns();
+
         this.els = {
             // Tabs
             tabBar: document.querySelector(".tab-bar"),
             tabCreate: document.getElementById("tab-create"),
             tabLoad: document.getElementById("tab-load"),
 
-            // Create form
-            name: document.getElementById("char-name"),
-            classSelect: document.getElementById("char-class"),
+            // Sub-tabs
+            campfireTab: document.getElementById("campfire-tab"),
+            manualTab: document.getElementById("manual-tab"),
+            campfireContent: document.getElementById("campfire-content"),
+            manualContent: document.getElementById("manual-content"),
+
+            // Create form — campfire
+            charName: document.getElementById("char-name"),
+            charClass: document.getElementById("char-class"),
+
+            // Create form — manual
+            nameManual: document.getElementById("char-name-manual"),
+            classManual: document.getElementById("char-class-manual"),
             appearance: document.getElementById("char-appearance"),
             backstory: document.getElementById("char-backstory"),
-            assistedToggle: document.getElementById("assisted-toggle"),
-            assistedInfo: document.getElementById("assisted-info"),
-            createBtn: document.getElementById("create-character"),
+            manualCreateBtn: document.getElementById("manual-create-btn"),
             validationMsg: document.getElementById("char-validation"),
 
             // Ability scores
@@ -80,39 +85,51 @@ const CharacterView = {
             // Skills display
             skillsDisplay: document.getElementById("skills-display"),
 
+            // Story / Campfire section
+            storyQuestions: document.getElementById("story-questions"),
+            storyProgressFill: document.getElementById("story-progress-fill"),
+            storyChapterNum: document.getElementById("story-chapter-num"),
+            storyChapterTotal: document.getElementById("story-chapter-total"),
+            storyStepDots: document.getElementById("story-step-dots"),
+            storyPrevBtn: document.getElementById("story-prev-btn"),
+            storyNextBtn: document.getElementById("story-next-btn"),
+            storyGenerateBtn: document.getElementById("story-generate-btn"),
+
+            // Review section
+            reviewSection: document.getElementById("review-section"),
+            reviewCharacterSheet: document.getElementById(
+                "review-character-sheet",
+            ),
+            reviewLoading: document.getElementById("review-loading"),
+            reviewEditBtn: document.getElementById("review-edit-btn"),
+            reviewRegenerateBtn: document.getElementById(
+                "review-regenerate-btn",
+            ),
+            reviewStartBtn: document.getElementById("review-start-btn"),
+
             // Load tab
             characterList: document.getElementById("character-list"),
             savedGamesList: document.getElementById("saved-games-list"),
-
-            // Assisted creation modal
-            assistedModal: document.getElementById("assisted-modal"),
-            assistedOverlay: document.getElementById("assisted-modal-overlay"),
-            assistedQuestions: document.getElementById("assisted-questions"),
-            assistedQuestionNum: document.getElementById("assisted-question-num"),
-            assistedProgressFill: document.getElementById("assisted-progress-fill"),
-            assistedQuestionText: document.getElementById("assisted-question-text"),
-            assistedAnswerInput: document.getElementById("assisted-answer-input"),
-            assistedPrevBtn: document.getElementById("assisted-prev-btn"),
-            assistedNextBtn: document.getElementById("assisted-next-btn"),
-            assistedLoading: document.getElementById("assisted-loading"),
-            assistedError: document.getElementById("assisted-error"),
-            assistedClose: document.getElementById("assisted-modal-close"),
-
-            // Full-page generating overlay
-            charGeneratingOverlay: document.getElementById("char-generating-overlay"),
-            charGeneratingText: document.getElementById("char-generating-text"),
         };
 
-        // Tab switching
+        // Tab switching (Create ↔ Load)
         this.els.tabBar.addEventListener("click", (e) => {
             const tab = e.target.closest(".tab");
             if (!tab) return;
             this._switchTab(tab.dataset.tab);
         });
 
+        // Sub-tab switching (Campfire ↔ Manual)
+        this.els.campfireTab.addEventListener("click", () =>
+            this._switchCreationMode("campfire"),
+        );
+        this.els.manualTab.addEventListener("click", () =>
+            this._switchCreationMode("manual"),
+        );
+
         // Class change => update ability defaults + skills
-        this.els.classSelect.addEventListener("change", () => {
-            this.selectedClass = this.els.classSelect.value;
+        this.els.charClass.addEventListener("change", () => {
+            this.selectedClass = this.els.charClass.value;
             this._applyClassDefaults();
             this._updateSkills();
             this._updateUI();
@@ -133,24 +150,42 @@ const CharacterView = {
                 }
             });
 
-        // Assisted creation toggle
-        this.els.assistedToggle.addEventListener("change", () => {
-            const show = this.els.assistedToggle.checked;
-            this.els.assistedInfo.classList.toggle("hidden", !show);
+        // Story navigation
+        this.els.storyPrevBtn.addEventListener("click", () =>
+            this._prevStoryQuestion(),
+        );
+        this.els.storyNextBtn.addEventListener("click", () =>
+            this._nextStoryQuestion(),
+        );
+        this.els.storyGenerateBtn.addEventListener("click", () =>
+            this._submitStoryAnswers(),
+        );
+
+        // Step dots — click to jump
+        this.els.storyStepDots.addEventListener("click", (e) => {
+            const dot = e.target.closest(".story-step-dot");
+            if (dot) {
+                const idx = parseInt(dot.dataset.index, 10);
+                this._saveCurrentAnswer();
+                this._showStoryQuestion(idx);
+            }
         });
 
-        // Assisted creation modal navigation
-        this.els.assistedPrevBtn.addEventListener("click",
-            () => this._prevAssistedQuestion());
-        this.els.assistedNextBtn.addEventListener("click",
-            () => this._nextAssistedQuestion());
-        this.els.assistedClose.addEventListener("click",
-            () => this._hideAssistedModal());
-        this.els.assistedOverlay.addEventListener("click",
-            () => this._hideAssistedModal());
+        // Review buttons
+        this.els.reviewEditBtn.addEventListener("click", () =>
+            this._toggleEditMode(),
+        );
+        this.els.reviewRegenerateBtn.addEventListener("click", () =>
+            this._regenerateCharacter(),
+        );
+        this.els.reviewStartBtn.addEventListener("click", () =>
+            this._startAdventure(),
+        );
 
-        // Create character
-        this.els.createBtn.addEventListener("click", () => this._createCharacter());
+        // Manual create character
+        this.els.manualCreateBtn.addEventListener("click", () =>
+            this._createCharacter(),
+        );
 
         // Apply initial class defaults
         this._applyClassDefaults();
@@ -162,6 +197,25 @@ const CharacterView = {
 
         // One-time migration from legacy localStorage to server
         this._migrateLocalCharacters();
+
+        // Build story questions and start in campfire mode
+        this._buildStoryQuestions();
+        this._showStoryQuestion(0);
+        this._switchCreationMode("campfire");
+    },
+
+    /** Populate both class dropdowns from the loaded rules. */
+    _populateClassDropdowns() {
+        const classes = this._rules?.valid_classes || [];
+        const options = classes
+            .map((c) => `<option value="${_esc(c)}">${_esc(c)}</option>`)
+            .join("");
+
+        const campfireSelect = this.els.charClass;
+        const manualSelect = this.els.classManual;
+
+        if (campfireSelect) campfireSelect.innerHTML = options;
+        if (manualSelect) manualSelect.innerHTML = options;
     },
 
     /** Initialise defaults from the loaded rules. */
@@ -176,18 +230,29 @@ const CharacterView = {
                 this.selectedClass = firstClass;
             } else {
                 // Fallback — flat 8s
-                this.abilities = { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 };
+                this.abilities = {
+                    STR: 8,
+                    DEX: 8,
+                    CON: 8,
+                    INT: 8,
+                    WIS: 8,
+                    CHA: 8,
+                };
                 this.selectedClass = rules.valid_classes?.[0] || "";
             }
         } else {
-            this.abilities = { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 };
+            this.abilities = {
+                STR: 8,
+                DEX: 8,
+                CON: 8,
+                INT: 8,
+                WIS: 8,
+                CHA: 8,
+            };
             this.selectedClass = "";
         }
 
         this.remainingPoints = rules?.point_buy?.max_points ?? 27;
-
-        // Track total questions in assisted state
-        this._assistedState.totalQuestions = this._getQuestionCount();
     },
 
     /** Fetch character creation rules from the backend. */
@@ -219,6 +284,662 @@ const CharacterView = {
         if (tabName === "load") {
             this._renderLoadList();
         }
+    },
+
+    // ------------------------------------------------------------------
+    // Sub-Tab / Creation Mode Switching
+    // ------------------------------------------------------------------
+
+    /**
+     * Toggle between 'campfire' and 'manual' creation modes.
+     * The 'review' mode is set separately by _showReviewScreen.
+     */
+    _switchCreationMode(mode) {
+        this._mode = mode;
+
+        // Update sub-tab button active states
+        const campfireTab = this.els.campfireTab;
+        const manualTab = this.els.manualTab;
+        if (campfireTab) {
+            campfireTab.classList.toggle("active", mode === "campfire");
+        }
+        if (manualTab) {
+            manualTab.classList.toggle("active", mode === "manual");
+        }
+
+        // Show/hide sub-tab content
+        if (this.els.campfireContent) {
+            this.els.campfireContent.classList.toggle(
+                "active",
+                mode === "campfire",
+            );
+        }
+        if (this.els.manualContent) {
+            this.els.manualContent.classList.toggle(
+                "active",
+                mode === "manual",
+            );
+        }
+
+        // When switching to campfire mode, ensure the review section
+        // is hidden and the story section is visible
+        if (mode === "campfire") {
+            const storySection = document.getElementById("story-section");
+            if (storySection) storySection.style.display = "";
+            if (this.els.reviewSection) {
+                this.els.reviewSection.style.display = "none";
+            }
+        }
+    },
+
+    // ------------------------------------------------------------------
+    // Story Question Flow ("The Campfire")
+    // ------------------------------------------------------------------
+
+    /** Build story question DOM from rules or fallback questions. */
+    _buildStoryQuestions() {
+        const questions =
+            this._rules?.assisted_creation_questions || [
+                "Where were you born, and what was your childhood like?",
+                "What drove you to become an adventurer?",
+                "Describe a pivotal moment that shaped who you are.",
+                "What is your greatest fear, and why?",
+                "Who or what do you value above all else?",
+                "Tell me about a mentor or rival who influenced you.",
+                "What is your ultimate goal or ambition?",
+            ];
+
+        const container = this.els.storyQuestions;
+        if (!container) return;
+        container.innerHTML = "";
+
+        questions.forEach((q, i) => {
+            const div = document.createElement("div");
+            div.className = "journal-chapter";
+            div.dataset.index = i;
+            div.innerHTML =
+                `
+                <div class="journal-chapter-number">Chapter ${i + 1}</div>
+                <div class="journal-chapter-question">${_esc(q)}</div>
+                <textarea class="journal-chapter-textarea"
+                    placeholder="Type your answer here..."
+                    data-index="${i}"></textarea>
+            `.trim();
+            container.appendChild(div);
+        });
+
+        // Update chapter total
+        if (this.els.storyChapterTotal) {
+            this.els.storyChapterTotal.textContent = questions.length;
+        }
+
+        // Build step dots
+        this._buildStepDots(questions.length);
+    },
+
+    /** Create clickable step dots for the story progress bar. */
+    _buildStepDots(count) {
+        const dotsContainer = this.els.storyStepDots;
+        if (!dotsContainer) return;
+        dotsContainer.innerHTML = "";
+        for (let i = 0; i < count; i++) {
+            const dot = document.createElement("span");
+            dot.className = "story-step-dot";
+            dot.dataset.index = i;
+            dotsContainer.appendChild(dot);
+        }
+    },
+
+    /** Show the story question at the given index. */
+    _showStoryQuestion(index) {
+        const chapters = this.els.storyQuestions?.querySelectorAll(
+            ".journal-chapter",
+        );
+        if (!chapters || chapters.length === 0) return;
+
+        const total = chapters.length;
+
+        // Hide all, show target
+        chapters.forEach((ch, i) => {
+            ch.classList.toggle("active", i === index);
+        });
+
+        this._currentQuestion = index;
+
+        // Update progress bar
+        if (this.els.storyProgressFill) {
+            const pct = ((index + 1) / total) * 100;
+            this.els.storyProgressFill.style.width = pct + "%";
+        }
+
+        // Update chapter number text
+        if (this.els.storyChapterNum) {
+            this.els.storyChapterNum.textContent = index + 1;
+        }
+
+        // Update step dots
+        const dots = this.els.storyStepDots?.querySelectorAll(
+            ".story-step-dot",
+        );
+        if (dots) {
+            dots.forEach((dot, i) => {
+                dot.classList.toggle("active", i === index);
+                dot.classList.toggle("done", i < index);
+            });
+        }
+
+        // Nav buttons
+        if (this.els.storyPrevBtn) {
+            this.els.storyPrevBtn.disabled = index === 0;
+        }
+
+        const isLast = index === total - 1;
+        if (this.els.storyNextBtn) {
+            this.els.storyNextBtn.style.display = isLast ? "none" : "";
+        }
+        if (this.els.storyGenerateBtn) {
+            this.els.storyGenerateBtn.style.display = isLast ? "" : "none";
+        }
+    },
+
+    /** Save the current question's textarea value into _storyAnswers. */
+    _saveCurrentAnswer() {
+        const chapters = this.els.storyQuestions?.querySelectorAll(
+            ".journal-chapter",
+        );
+        if (!chapters || !chapters[this._currentQuestion]) return;
+
+        const textarea = chapters[this._currentQuestion].querySelector(
+            ".journal-chapter-textarea",
+        );
+        if (textarea) {
+            this._storyAnswers[this._currentQuestion] = textarea.value;
+        }
+    },
+
+    /** Move to the next story question. */
+    _nextStoryQuestion() {
+        this._saveCurrentAnswer();
+        const total = this.els.storyQuestions?.querySelectorAll(
+            ".journal-chapter",
+        ).length;
+        if (this._currentQuestion < (total || 1) - 1) {
+            this._showStoryQuestion(this._currentQuestion + 1);
+        }
+    },
+
+    /** Move to the previous story question. */
+    _prevStoryQuestion() {
+        this._saveCurrentAnswer();
+        if (this._currentQuestion > 0) {
+            this._showStoryQuestion(this._currentQuestion - 1);
+        }
+    },
+
+    /** Return a default ability score for the selected class. */
+    _getDefaultAbility(abilName) {
+        const cls = this.els.charClass?.value || this.selectedClass;
+        const template =
+            this._rules?.class_templates?.[cls];
+        if (template && template.abilities && template.abilities[abilName] != null) {
+            return template.abilities[abilName];
+        }
+        return 10;
+    },
+
+    /** Submit story answers to the backend for AI character generation. */
+    async _submitStoryAnswers() {
+        this._saveCurrentAnswer();
+
+        // Check that at least 3 answers are filled
+        const filled = this._storyAnswers.filter(
+            (a) => a && a.trim().length > 0,
+        );
+        if (filled.length < 3) {
+            alert(
+                "Please answer at least 3 questions so the Dungeon Master " +
+                    "has enough to weave your story.",
+            );
+            return;
+        }
+
+        // Check provider config
+        if (!App.state.provider) {
+            alert(
+                "No LLM provider configured! Go to the Connection screen " +
+                    "and set up a provider first.",
+            );
+            return;
+        }
+
+        const name = this.els.charName?.value.trim() || "";
+
+        // Build the abilities object from class defaults
+        const standardAbilities =
+            this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+        const abilities = {};
+        for (const abil of standardAbilities) {
+            abilities[abil] = this._getDefaultAbility(abil);
+        }
+
+        // Build answers as { "0": "...", "1": "...", ... }
+        const answersObj = {};
+        this._storyAnswers.forEach((a, i) => {
+            answersObj[String(i)] = a || "";
+        });
+
+        const body = {
+            answers: answersObj,
+            abilities: abilities,
+            provider: App.state.provider,
+        };
+        if (name) {
+            body.name = name;
+        }
+
+        // Show loading state
+        const genBtn = this.els.storyGenerateBtn;
+        if (genBtn) {
+            genBtn.disabled = true;
+            genBtn.textContent = "Weaving...";
+        }
+
+        try {
+            const resp = await fetch("/api/character/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok || !data.ok) {
+                throw new Error(
+                    data.error || `Server responded with ${resp.status}`,
+                );
+            }
+
+            this._showReviewScreen(data.character);
+        } catch (err) {
+            alert("Failed to generate character: " + err.message);
+        } finally {
+            if (genBtn) {
+                genBtn.disabled = false;
+                genBtn.textContent = "✨ Weave My Story";
+            }
+        }
+    },
+
+    // ------------------------------------------------------------------
+    // Review Screen
+    // ------------------------------------------------------------------
+
+    /** Display the review screen with the generated/created character. */
+    _showReviewScreen(character) {
+        this._generatedCharacter = character;
+        this._mode = "review";
+        this._isEditing = false;
+
+        // Hide the story section
+        const storySection = document.getElementById("story-section");
+        if (storySection) storySection.style.display = "none";
+
+        // Show the review section
+        if (this.els.reviewSection) {
+            this.els.reviewSection.style.display = "";
+        }
+
+        // Ensure campfire content is visible (review lives inside it)
+        if (this.els.campfireContent) {
+            this.els.campfireContent.classList.add("active");
+        }
+        if (this.els.manualContent) {
+            this.els.manualContent.classList.remove("active");
+        }
+
+        // Make sure sub-tab highlighting reflects campfire is active
+        if (this.els.campfireTab) {
+            this.els.campfireTab.classList.add("active");
+        }
+        if (this.els.manualTab) {
+            this.els.manualTab.classList.remove("active");
+        }
+
+        // Render the character sheet
+        this._renderCharacterSheet(character);
+
+        // Hide generate loading if it was visible
+        const genBtn = this.els.storyGenerateBtn;
+        if (genBtn) {
+            genBtn.disabled = false;
+            genBtn.textContent = "✨ Weave My Story";
+        }
+
+        // Ensure review loading is hidden
+        if (this.els.reviewLoading) {
+            this.els.reviewLoading.style.display = "none";
+        }
+        if (this.els.reviewCharacterSheet) {
+            this.els.reviewCharacterSheet.style.display = "";
+        }
+
+        // Reset edit button text
+        if (this.els.reviewEditBtn) {
+            this.els.reviewEditBtn.textContent = "✏️ Edit";
+        }
+    },
+
+    /** Render the full character sheet in the review section. */
+    _renderCharacterSheet(character) {
+        const container = this.els.reviewCharacterSheet;
+        if (!container) return;
+
+        // Determine standard abilities list
+        const abilities = this._rules?.standard_abilities || [
+            "STR",
+            "DEX",
+            "CON",
+            "INT",
+            "WIS",
+            "CHA",
+        ];
+
+        container.innerHTML = `
+            <div class="review-sheet-name" data-field="name">
+                ${_esc(character.name || "Unnamed Hero")}
+            </div>
+            <div class="review-sheet-class">
+                ${_esc(character.character_class || "Unknown")} —
+                Level ${character.level ?? 1}
+            </div>
+
+            <div class="review-sheet-stats">
+                ${abilities
+                    .map(
+                        (abil) => `
+                    <div class="review-stat">
+                        <div class="review-stat-label">${_esc(abil)}</div>
+                        <div class="review-stat-value"
+                             data-field="abilities.${_esc(abil)}">
+                            ${character.abilities?.[abil] ?? 10}
+                        </div>
+                    </div>
+                `,
+                    )
+                    .join("")}
+            </div>
+
+            <div class="review-sheet-details">
+                <div class="review-field">
+                    <div class="review-field-label">Hit Points</div>
+                    <div class="review-field-value" data-field="hp">
+                        ${character.hp ?? 0} / ${character.max_hp ?? 0}
+                    </div>
+                </div>
+                <div class="review-field">
+                    <div class="review-field-label">Armour Class</div>
+                    <div class="review-field-value" data-field="ac">
+                        ${character.ac ?? 10}
+                    </div>
+                </div>
+                <div class="review-field">
+                    <div class="review-field-label">Gold</div>
+                    <div class="review-field-value" data-field="gold">
+                        ${character.gold ?? 0} gp
+                    </div>
+                </div>
+                <div class="review-field">
+                    <div class="review-field-label">Skills</div>
+                    <div class="review-field-value" data-field="skills">
+                        ${(character.skills || []).join(", ") || "None"}
+                    </div>
+                </div>
+                <div class="review-field">
+                    <div class="review-field-label">Appearance</div>
+                    <div class="review-field-value" data-field="appearance">
+                        ${_esc(character.appearance || "None")}
+                    </div>
+                </div>
+                <div class="review-field">
+                    <div class="review-field-label">Backstory</div>
+                    <div class="review-field-value" data-field="backstory">
+                        ${_esc(character.backstory || "None")}
+                    </div>
+                </div>
+                <div class="review-field">
+                    <div class="review-field-label">Inventory</div>
+                    <div class="review-field-value" data-field="inventory">
+                        ${(character.inventory || []).join(", ") || "None"}
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    /** Toggle between display and edit mode for review fields. */
+    _toggleEditMode() {
+        const container = this.els.reviewCharacterSheet;
+        if (!container) return;
+        const character = this._generatedCharacter;
+        if (!character) return;
+
+        const fields = container.querySelectorAll("[data-field]");
+
+        if (!this._isEditing) {
+            // Switch to edit mode — replace text with inputs
+            fields.forEach((el) => {
+                const path = el.dataset.field;
+                const value = this._getFieldByPath(character, path);
+                const display = el.textContent.trim();
+
+                if (path === "backstory" || path === "appearance") {
+                    const textarea = document.createElement("textarea");
+                    textarea.value =
+                        value != null ? String(value) : display;
+                    textarea.dataset.field = path;
+                    el.textContent = "";
+                    el.appendChild(textarea);
+                } else if (path.startsWith("abilities.")) {
+                    const input = document.createElement("input");
+                    input.type = "number";
+                    input.min = 3;
+                    input.max = 18;
+                    input.value =
+                        value != null ? String(value) : display;
+                    input.dataset.field = path;
+                    el.textContent = "";
+                    el.appendChild(input);
+                } else if (
+                    path === "skills" ||
+                    path === "inventory"
+                ) {
+                    const input = document.createElement("input");
+                    input.type = "text";
+                    input.value = Array.isArray(value)
+                        ? value.join(", ")
+                        : display;
+                    input.dataset.field = path;
+                    el.textContent = "";
+                    el.appendChild(input);
+                } else if (
+                    path === "hp" ||
+                    path === "max_hp" ||
+                    path === "ac" ||
+                    path === "gold"
+                ) {
+                    const parts = display.split(" / ");
+                    const rawVal = parts[0];
+                    const input = document.createElement("input");
+                    input.type = "number";
+                    input.min = 0;
+                    input.value =
+                        value != null ? String(value) : rawVal;
+                    input.dataset.field = path;
+                    el.textContent = "";
+                    el.appendChild(input);
+                } else {
+                    // Default: text input
+                    const input = document.createElement("input");
+                    input.type = "text";
+                    input.value =
+                        value != null ? String(value) : display;
+                    input.dataset.field = path;
+                    el.textContent = "";
+                    el.appendChild(input);
+                }
+            });
+
+            this._isEditing = true;
+            if (this.els.reviewEditBtn) {
+                this.els.reviewEditBtn.textContent = "💾 Save";
+            }
+        } else {
+            // Save mode — read inputs and update character
+            fields.forEach((el) => {
+                const input = el.querySelector(
+                    "input, textarea",
+                );
+                if (!input) return;
+                const path = input.dataset.field || el.dataset.field;
+                let rawValue = input.value;
+
+                if (path.startsWith("abilities.")) {
+                    const abilName = path.split(".")[1];
+                    const num = parseInt(rawValue, 10);
+                    if (!isNaN(num) && num >= 3 && num <= 18) {
+                        if (!character.abilities) {
+                            character.abilities = {};
+                        }
+                        character.abilities[abilName] = num;
+                    }
+                } else if (
+                    path === "skills" ||
+                    path === "inventory"
+                ) {
+                    const items = rawValue
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean);
+                    character[path] = items;
+                } else if (
+                    path === "hp" ||
+                    path === "max_hp" ||
+                    path === "ac" ||
+                    path === "gold"
+                ) {
+                    const num = parseInt(rawValue, 10);
+                    if (!isNaN(num)) {
+                        character[path] = num;
+                    }
+                } else {
+                    character[path] = rawValue;
+                }
+            });
+
+            // Re-render the sheet with updated values
+            this._renderCharacterSheet(character);
+
+            this._isEditing = false;
+            if (this.els.reviewEditBtn) {
+                this.els.reviewEditBtn.textContent = "✏️ Edit";
+            }
+        }
+    },
+
+    /** Get a nested field value by dot-separated path (e.g. "abilities.STR"). */
+    _getFieldByPath(obj, path) {
+        const parts = path.split(".");
+        let current = obj;
+        for (const part of parts) {
+            if (current == null || typeof current !== "object") {
+                return undefined;
+            }
+            current = current[part];
+        }
+        return current;
+    },
+
+    /** Re-call the generate API to create a new variant of the character. */
+    async _regenerateCharacter() {
+        // Show loading, hide sheet
+        if (this.els.reviewLoading) {
+            this.els.reviewLoading.style.display = "";
+        }
+        if (this.els.reviewCharacterSheet) {
+            this.els.reviewCharacterSheet.style.display = "none";
+        }
+
+        // Re-build the same request body
+        const standardAbilities =
+            this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+        const abilities = {};
+        for (const abil of standardAbilities) {
+            abilities[abil] = this._getDefaultAbility(abil);
+        }
+
+        const answersObj = {};
+        this._storyAnswers.forEach((a, i) => {
+            answersObj[String(i)] = a || "";
+        });
+
+        const name = this.els.charName?.value.trim() || "";
+
+        const body = {
+            answers: answersObj,
+            abilities: abilities,
+            provider: App.state.provider,
+        };
+        if (name) {
+            body.name = name;
+        }
+
+        try {
+            const resp = await fetch("/api/character/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok || !data.ok) {
+                throw new Error(
+                    data.error || `Server responded with ${resp.status}`,
+                );
+            }
+
+            this._generatedCharacter = data.character;
+            this._renderCharacterSheet(data.character);
+
+            // Hide loading, show sheet
+            if (this.els.reviewLoading) {
+                this.els.reviewLoading.style.display = "none";
+            }
+            if (this.els.reviewCharacterSheet) {
+                this.els.reviewCharacterSheet.style.display = "";
+            }
+
+            // Reset edit state
+            this._isEditing = false;
+            if (this.els.reviewEditBtn) {
+                this.els.reviewEditBtn.textContent = "✏️ Edit";
+            }
+        } catch (err) {
+            alert("Failed to regenerate character: " + err.message);
+            if (this.els.reviewLoading) {
+                this.els.reviewLoading.style.display = "none";
+            }
+            if (this.els.reviewCharacterSheet) {
+                this.els.reviewCharacterSheet.style.display = "";
+            }
+        }
+    },
+
+    /** Store the character and navigate to the game view. */
+    _startAdventure() {
+        if (!this._generatedCharacter) return;
+        App.state.character = this._generatedCharacter;
+        App.navigate("game");
     },
 
     // ------------------------------------------------------------------
@@ -294,8 +1015,8 @@ const CharacterView = {
         if (!template) return;
         this.abilities = { ...template.abilities };
         this.remainingPoints =
-            (this._rules?.point_buy?.max_points ?? 27)
-            - this._totalPointsForScores(template.abilities);
+            (this._rules?.point_buy?.max_points ?? 27) -
+            this._totalPointsForScores(template.abilities);
     },
 
     /** Calculate total point-buy cost for a set of scores. */
@@ -348,26 +1069,20 @@ const CharacterView = {
     },
 
     // ------------------------------------------------------------------
-    // Character Creation
+    // Character Creation — Manual Build
     // ------------------------------------------------------------------
 
-    /** Validate and create the character via the backend. */
+    /** Validate and create the character via the backend (manual build). */
     async _createCharacter() {
-        // Assisted creation path
-        if (this.els.assistedToggle.checked) {
-            this._startAssistedCreation();
-            return;
-        }
-
-        const name = this.els.name.value.trim();
+        const name = this.els.nameManual?.value.trim();
         if (!name) {
             this._showValidation("Enter a character name.", "error");
             return;
         }
 
-        const cls = this.els.classSelect.value;
-        const appearance = this.els.appearance.value.trim();
-        const backstory = this.els.backstory.value.trim();
+        const cls = this.els.classManual?.value;
+        const appearance = this.els.appearance?.value.trim();
+        const backstory = this.els.backstory?.value.trim();
 
         this._showValidation("Creating character...", "info");
 
@@ -378,6 +1093,7 @@ const CharacterView = {
                 body: JSON.stringify({
                     name: name,
                     character_class: cls,
+                    abilities: this.abilities,
                     appearance: appearance || undefined,
                     backstory: backstory || undefined,
                 }),
@@ -391,20 +1107,8 @@ const CharacterView = {
                 );
             }
 
-            const character = data.character;
-
-            // Store in App state
-            App.state.character = character;
-
-            // Server is the source of truth — no localStorage persistence
-
-            this._showValidation(
-                `Character "${name}" created! Entering the world...`,
-                "success",
-            );
-
-            // Navigate to game view
-            App.navigate("game");
+            // Show the review screen instead of navigating directly
+            this._showReviewScreen(data.character);
         } catch (err) {
             this._showValidation(
                 `Failed to create character: ${err.message}`,
@@ -419,195 +1123,6 @@ const CharacterView = {
         el.textContent = msg;
         el.className = "validation-msg " + type;
         el.classList.remove("hidden");
-    },
-
-    // ------------------------------------------------------------------
-    // Assisted Creation Question Flow
-    // ------------------------------------------------------------------
-
-    /** Open the assisted creation modal and start the question flow. */
-    _startAssistedCreation() {
-        const state = this._assistedState;
-        state.currentQuestion = 0;
-        state.answers = [];
-        state.totalQuestions = this._getQuestionCount();
-
-        // Hide error and loading
-        this.els.assistedError.classList.add("hidden");
-        this.els.assistedError.textContent = "";
-        this.els.assistedLoading.classList.add("hidden");
-
-        // Reset visibility of question elements
-        this._assistedResetVisibility();
-
-        // Show modal
-        this.els.assistedOverlay.classList.remove("hidden");
-        this.els.assistedModal.classList.remove("hidden");
-
-        // Show first question
-        this._showAssistedQuestion(0);
-    },
-
-    /** Reset all visibility toggles inside the assisted modal. */
-    _assistedResetVisibility() {
-        const qs = this.els.assistedQuestions;
-        const visibleIds = [
-            "#assisted-progress",
-            "#assisted-question-text",
-            "#assisted-answer-input",
-        ];
-        visibleIds.forEach((id) => {
-            const el = qs.querySelector(id);
-            if (el) el.classList.remove("hidden");
-        });
-        const nav = qs.querySelector(".assisted-nav");
-        if (nav) nav.classList.remove("hidden");
-    },
-
-    /** Display the question at the given index. */
-    _showAssistedQuestion(index) {
-        const state = this._assistedState;
-        const questions = this._getQuestions();
-        const totalQuestions = this._getQuestionCount();
-        state.currentQuestion = index;
-
-        // Update question text
-        this.els.assistedQuestionText.textContent = questions[index];
-
-        // Load existing answer if typed before
-        this.els.assistedAnswerInput.value = state.answers[index] || "";
-
-        // Update progress
-        const qNum = index + 1;
-        this.els.assistedQuestionNum.textContent =
-            `Question ${qNum} of ${totalQuestions}`;
-        const pct = ((qNum) / totalQuestions) * 100;
-        this.els.assistedProgressFill.style.width = `${pct}%`;
-
-        // Update navigation buttons
-        this.els.assistedPrevBtn.disabled = index === 0;
-
-        if (index === totalQuestions - 1) {
-            this.els.assistedNextBtn.textContent = "Submit";
-        } else {
-            this.els.assistedNextBtn.textContent = "Next";
-        }
-
-        // Focus the textarea
-        this.els.assistedAnswerInput.focus();
-    },
-
-    /** Save current answer and advance to the next question or submit. */
-    _nextAssistedQuestion() {
-        const state = this._assistedState;
-        const index = state.currentQuestion;
-        state.answers[index] = this.els.assistedAnswerInput.value.trim();
-
-        if (index >= this._getQuestionCount() - 1) {
-            this._submitAssistedAnswers();
-        } else {
-            this._showAssistedQuestion(index + 1);
-        }
-    },
-
-    /** Save current answer and go back to the previous question. */
-    _prevAssistedQuestion() {
-        const state = this._assistedState;
-        const index = state.currentQuestion;
-        state.answers[index] = this.els.assistedAnswerInput.value.trim();
-        this._showAssistedQuestion(index - 1);
-    },
-
-    /** Submit answers to the backend and handle the response. */
-    async _submitAssistedAnswers() {
-        const state = this._assistedState;
-
-        // Save the last answer
-        state.answers[state.currentQuestion] =
-            this.els.assistedAnswerInput.value.trim();
-
-        // Show loading, hide question UI
-        const qs = this.els.assistedQuestions;
-        const hideIds = [
-            "#assisted-progress",
-            "#assisted-question-text",
-            "#assisted-answer-input",
-        ];
-        hideIds.forEach((id) => {
-            const el = qs.querySelector(id);
-            if (el) el.classList.add("hidden");
-        });
-        const nav = qs.querySelector(".assisted-nav");
-        if (nav) nav.classList.add("hidden");
-        this.els.assistedError.classList.add("hidden");
-        this.els.assistedLoading.classList.remove("hidden");
-
-        // Show page-level overlay for visibility even if modal is dismissed
-        this.els.charGeneratingOverlay.classList.remove("hidden");
-
-        try {
-            // Build answers object with numeric keys
-            const answers = {};
-            for (let i = 0; i < state.answers.length; i++) {
-                answers[i] = state.answers[i] || "";
-            }
-
-            const resp = await fetch("/api/character/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    answers: answers,
-                    abilities: CharacterView.abilities,
-                    provider: App.state.provider,
-                }),
-            });
-
-            const data = await resp.json();
-
-            if (!resp.ok || !data.ok) {
-                throw new Error(
-                    data.error || `Server responded with ${resp.status}`,
-                );
-            }
-
-            const character = data.character;
-
-            // Store in App state
-            App.state.character = character;
-
-            // Server is the source of truth — no localStorage persistence
-
-            // Hide page-level overlay
-            this.els.charGeneratingOverlay.classList.add("hidden");
-
-            // Hide modal
-            this._hideAssistedModal();
-
-            // Navigate to game
-            App.navigate("game");
-        } catch (err) {
-            // Hide page-level overlay and modal loading
-            this.els.charGeneratingOverlay.classList.add("hidden");
-            this.els.assistedLoading.classList.add("hidden");
-
-            // Restore question UI
-            this._assistedResetVisibility();
-
-            this.els.assistedError.textContent =
-                `Failed to generate character: ${err.message}. ` +
-                "Check your provider connection and try again.";
-            this.els.assistedError.classList.remove("hidden");
-        }
-    },
-
-    /** Hide the assisted creation modal and reset visibility. */
-    _hideAssistedModal() {
-        this.els.assistedOverlay.classList.add("hidden");
-        this.els.assistedModal.classList.add("hidden");
-        this.els.assistedLoading.classList.add("hidden");
-        this.els.assistedError.classList.add("hidden");
-        this.els.charGeneratingOverlay.classList.add("hidden");
-        this._assistedResetVisibility();
     },
 
     // ------------------------------------------------------------------
@@ -669,12 +1184,20 @@ const CharacterView = {
                             <h3>${_esc(c.name)}</h3>
                             <p class="char-meta">
                                 ${_esc(c.class)} · Level ${c.level}
-                                ${c.timestamp ? " · " + _formatTimestamp(c.timestamp) : ""}
+                                ${
+                                    c.timestamp
+                                        ? " · " + _formatTimestamp(c.timestamp)
+                                        : ""
+                                }
                             </p>
                         </div>
                         <div class="char-actions">
-                            <button class="btn btn-sm btn-load" data-id="${_esc(c.id)}" data-name="${_esc(c.name)}">Load</button>
-                            <button class="btn btn-sm btn-danger btn-delete" data-id="${_esc(c.id)}" data-name="${_esc(c.name)}">Del</button>
+                            <button class="btn btn-sm btn-load"
+                                data-id="${_esc(c.id)}"
+                                data-name="${_esc(c.name)}">Load</button>
+                            <button class="btn btn-sm btn-danger btn-delete"
+                                data-id="${_esc(c.id)}"
+                                data-name="${_esc(c.name)}">Del</button>
                         </div>
                     </div>
                 `,
@@ -722,15 +1245,15 @@ const CharacterView = {
             }
 
             savesContainer.innerHTML = saves
-                .map(
-                    (s) => {
-                        const saveName = s.name || s.character_name || "Unknown";
-                        const charName = s.character_name || "Unknown";
-                        const turnCount = s.turn_count ?? "?";
-                        const ts = s.timestamp
-                            ? _formatTimestamp(s.timestamp)
-                            : "";
-                        return `
+                .map((s) => {
+                    const saveName =
+                        s.name || s.character_name || "Unknown";
+                    const charName = s.character_name || "Unknown";
+                    const turnCount = s.turn_count ?? "?";
+                    const ts = s.timestamp
+                        ? _formatTimestamp(s.timestamp)
+                        : "";
+                    return `
                     <div class="save-card" data-name="${_esc(saveName)}">
                         <div class="save-info">
                             <h3>${_esc(charName)}</h3>
@@ -745,20 +1268,19 @@ const CharacterView = {
                         </div>
                     </div>
                 `;
-                    },
-                )
+                })
                 .join("");
 
-            savesContainer.querySelectorAll(".btn-continue-save").forEach(
-                (btn) => {
+            savesContainer
+                .querySelectorAll(".btn-continue-save")
+                .forEach((btn) => {
                     btn.addEventListener("click", () => {
                         const card = btn.closest(".save-card");
                         const saveName = card.dataset.name;
                         App.state.loadSaveName = saveName;
                         App.navigate("game");
                     });
-                },
-            );
+                });
         } catch (e) {
             savesContainer.innerHTML =
                 '<p class="empty-state">Could not load saved games.</p>';
@@ -823,29 +1345,53 @@ const CharacterView = {
                 };
 
                 // Narrative / identity fields
-                for (const field of ["appearance", "backstory", "personality",
-                                     "ideals", "bonds", "flaws", "plot_hooks"]) {
+                for (const field of [
+                    "appearance",
+                    "backstory",
+                    "personality",
+                    "ideals",
+                    "bonds",
+                    "flaws",
+                    "plot_hooks",
+                ]) {
                     if (char[field]) payload[field] = char[field];
                 }
 
                 // Numeric fields
-                for (const field of ["level", "xp", "hp", "max_hp", "ac", "gold"]) {
+                for (const field of [
+                    "level",
+                    "xp",
+                    "hp",
+                    "max_hp",
+                    "ac",
+                    "gold",
+                ]) {
                     if (char[field] != null) payload[field] = char[field];
                 }
 
                 // Ability scores — send full dict if available, else individual fields
-                if (char.abilities && typeof char.abilities === "object") {
+                if (
+                    char.abilities &&
+                    typeof char.abilities === "object"
+                ) {
                     payload.abilities = char.abilities;
                 } else {
-                    for (const key of ["strength", "dexterity", "constitution",
-                                       "intelligence", "wisdom", "charisma"]) {
+                    for (const key of [
+                        "strength",
+                        "dexterity",
+                        "constitution",
+                        "intelligence",
+                        "wisdom",
+                        "charisma",
+                    ]) {
                         if (char[key] != null) payload[key] = char[key];
                     }
                 }
 
                 // Array fields
                 if (Array.isArray(char.skills)) payload.skills = char.skills;
-                if (Array.isArray(char.inventory)) payload.inventory = char.inventory;
+                if (Array.isArray(char.inventory))
+                    payload.inventory = char.inventory;
 
                 const resp = await fetch("/api/character/create", {
                     method: "POST",
@@ -885,7 +1431,8 @@ const CharacterView = {
             </span>
             <button class="migration-banner-close" aria-label="Dismiss">&times;</button>
         `;
-        banner.querySelector(".migration-banner-close")
+        banner
+            .querySelector(".migration-banner-close")
             .addEventListener("click", () => banner.remove());
 
         this.els.tabLoad.prepend(banner);
@@ -904,7 +1451,6 @@ const CharacterView = {
     // ------------------------------------------------------------------
     // Utilities
     // ------------------------------------------------------------------
-
 };
 
 document.addEventListener("DOMContentLoaded", () => CharacterView.init());

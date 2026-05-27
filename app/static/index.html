@@ -212,187 +212,198 @@
 
                 <!-- Create Tab -->
                 <div id="tab-create" class="tab-content active">
-                    <div class="form-row">
-                        <div class="form-group flex-grow">
-                            <label for="char-name">Name</label>
-                            <input type="text" id="char-name" placeholder="e.g. Thorne Ironveil">
-                        </div>
-                        <div class="form-group">
-                            <label for="char-class">Class</label>
-                            <select id="char-class">
-                                <option value="Fighter">Fighter</option>
-                                <option value="Rogue">Rogue</option>
-                                <option value="Mage">Mage</option>
-                                <option value="Cleric">Cleric</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Ability Scores (Point Buy) -->
-                    <div class="abilities-section">
-                        <div class="section-header">
-                            <h2>Ability Scores</h2>
-                            <span class="point-buy-remaining">
-                                Points: <strong id="remaining-points">27</strong>
-                            </span>
-                        </div>
-                        <p class="section-hint">Point-buy: 27 points to spend.
-                            Each score starts at 8 (max 15).</p>
-                        <div class="abilities-grid" id="abilities-grid">
-                            <div class="ability-card" data-abil="STR">
-                                <span class="abil-label">Strength</span>
-                                <span class="abil-abbr">STR</span>
-                                <div class="abil-controls">
-                                    <button class="abil-btn dec" title="Decrease">−</button>
-                                    <span class="abil-score" id="abil-STR">8</span>
-                                    <button class="abil-btn inc" title="Increase">+</button>
-                                </div>
-                                <span class="abil-cost" id="cost-STR">(0 pts)</span>
-                            </div>
-                            <div class="ability-card" data-abil="DEX">
-                                <span class="abil-label">Dexterity</span>
-                                <span class="abil-abbr">DEX</span>
-                                <div class="abil-controls">
-                                    <button class="abil-btn dec">−</button>
-                                    <span class="abil-score" id="abil-DEX">8</span>
-                                    <button class="abil-btn inc">+</button>
-                                </div>
-                                <span class="abil-cost" id="cost-DEX">(0 pts)</span>
-                            </div>
-                            <div class="ability-card" data-abil="CON">
-                                <span class="abil-label">Constitution</span>
-                                <span class="abil-abbr">CON</span>
-                                <div class="abil-controls">
-                                    <button class="abil-btn dec">−</button>
-                                    <span class="abil-score" id="abil-CON">8</span>
-                                    <button class="abil-btn inc">+</button>
-                                </div>
-                                <span class="abil-cost" id="cost-CON">(0 pts)</span>
-                            </div>
-                            <div class="ability-card" data-abil="INT">
-                                <span class="abil-label">Intelligence</span>
-                                <span class="abil-abbr">INT</span>
-                                <div class="abil-controls">
-                                    <button class="abil-btn dec">−</button>
-                                    <span class="abil-score" id="abil-INT">8</span>
-                                    <button class="abil-btn inc">+</button>
-                                </div>
-                                <span class="abil-cost" id="cost-INT">(0 pts)</span>
-                            </div>
-                            <div class="ability-card" data-abil="WIS">
-                                <span class="abil-label">Wisdom</span>
-                                <span class="abil-abbr">WIS</span>
-                                <div class="abil-controls">
-                                    <button class="abil-btn dec">−</button>
-                                    <span class="abil-score" id="abil-WIS">8</span>
-                                    <button class="abil-btn inc">+</button>
-                                </div>
-                                <span class="abil-cost" id="cost-WIS">(0 pts)</span>
-                            </div>
-                            <div class="ability-card" data-abil="CHA">
-                                <span class="abil-label">Charisma</span>
-                                <span class="abil-abbr">CHA</span>
-                                <div class="abil-controls">
-                                    <button class="abil-btn dec">−</button>
-                                    <span class="abil-score" id="abil-CHA">8</span>
-                                    <button class="abil-btn inc">+</button>
-                                </div>
-                                <span class="abil-cost" id="cost-CHA">(0 pts)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Skills (class-dependent) -->
-                    <div class="form-group">
-                        <label>Skills</label>
-                        <div id="skills-display" class="skills-display">
-                            <span class="skill-tag">Athletics</span>
-                            <span class="skill-tag">Perception</span>
-                        </div>
-                    </div>
-
-                    <!-- Narrative Fields -->
-                    <div class="form-group">
-                        <label for="char-appearance">Appearance</label>
-                        <textarea id="char-appearance" placeholder="Describe your character's look..."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="char-backstory">Backstory</label>
-                        <textarea id="char-backstory" placeholder="What past haunts or drives you?"></textarea>
-                    </div>
-
-                    <!-- Assisted Creation Toggle -->
-                    <div class="form-group toggle-row">
-                        <label class="toggle-label">
-                            <input type="checkbox" id="assisted-toggle">
-                            <span class="toggle-slider"></span>
-                            Assisted Creation
-                        </label>
-                        <span class="toggle-hint">Answer narrative questions instead</span>
-                    </div>
-                    <div id="assisted-info" class="assisted-info hidden">
-                        <p>Assisted creation lets the Dungeon Master guide you
-                            through 7 narrative questions to build your character.
-                            Turn it on and click "Create Character" to begin!</p>
-                    </div>
-
-                    <!-- Assisted Creation Modal -->
-                    <div id="assisted-modal-overlay" class="modal-overlay hidden"></div>
-                    <div id="assisted-modal" class="modal hidden" role="dialog" aria-labelledby="assisted-modal-title">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h2 id="assisted-modal-title">Create Your Character</h2>
-                                <button class="modal-close" aria-label="Close"
-                                    id="assisted-modal-close">&times;</button>
-                            </div>
-                            <div class="modal-body">
-                                <div id="assisted-questions">
-                                    <!-- Question progress -->
-                                    <div id="assisted-progress" class="assisted-progress">
-                                        <span id="assisted-question-num">Question 1 of 7</span>
-                                        <div class="progress-bar">
-                                            <div id="assisted-progress-fill" class="progress-fill" style="width: 14%">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <!-- Question text -->
-                                    <p id="assisted-question-text" class="assisted-question"></p>
-                                    <!-- Answer input -->
-                                    <textarea id="assisted-answer-input" class="assisted-answer-input"
-                                        placeholder="Type your answer here..." rows="4"></textarea>
-                                    <!-- Navigation buttons -->
-                                    <div class="assisted-nav">
-                                        <button id="assisted-prev-btn" class="btn" disabled>Previous</button>
-                                        <button id="assisted-next-btn" class="btn btn-primary">Next</button>
-                                    </div>
-                                    <!-- Loading state -->
-                                    <div id="assisted-loading" class="assisted-loading hidden">
-                                        <p>The Dungeon Master is weaving your story...</p>
-                                        <div class="spinner"></div>
-                                    </div>
-                                    <!-- Error state -->
-                                    <div id="assisted-error" class="assisted-error hidden"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Full-page loading overlay for character generation -->
-                    <div id="char-generating-overlay" class="hidden">
-                        <div class="char-generating-content">
-                            <div class="spinner"></div>
-                            <p class="char-generating-text" id="char-generating-text">
-                                The Dungeon Master is weaving your story...
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="btn-row">
-                        <button id="create-character" class="btn btn-primary btn-block">
-                            Create Character
+                    <!-- Sub-tabs -->
+                    <div class="sub-tab-bar">
+                        <button class="sub-tab active" data-subtab="campfire" id="campfire-tab">
+                            📖 Tell Your Story
+                        </button>
+                        <button class="sub-tab" data-subtab="manual" id="manual-tab">
+                            ⚔️ Manual Build
                         </button>
                     </div>
-                    <p id="char-validation" class="validation-msg hidden"></p>
+
+                    <!-- Campfire Mode (default) -->
+                    <div class="sub-tab-content active" id="campfire-content">
+                        <!-- Character Header -->
+                        <div class="character-title-card" id="char-name-header">
+                            <input type="text" id="char-name" class="character-title-name"
+                                placeholder="Your Name">
+                            <div class="character-title-row">
+                                <span class="character-title-class">
+                                    <select id="char-class"></select>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Story Questions -->
+                        <div class="story-section" id="story-section">
+                            <div class="story-progress" id="story-progress">
+                                <div class="story-progress-text">
+                                    Chapter <span id="story-chapter-num">1</span> of
+                                    <span id="story-chapter-total">7</span>
+                                </div>
+                                <div class="story-progress-bar">
+                                    <div class="story-progress-fill" id="story-progress-fill"
+                                        style="width: 0%"></div>
+                                </div>
+                                <div class="story-step-dots" id="story-step-dots"></div>
+                            </div>
+
+                            <div class="story-questions" id="story-questions">
+                                <!-- Questions are generated by JS -->
+                            </div>
+
+                            <div class="story-nav">
+                                <button class="btn" id="story-prev-btn" disabled>Previous</button>
+                                <button class="btn btn-primary" id="story-next-btn">Next</button>
+                            </div>
+
+                            <button class="btn btn-primary btn-block" id="story-generate-btn"
+                                style="display:none">
+                                ✨ Weave My Story
+                            </button>
+                        </div>
+
+                        <!-- Review Section (hidden until character is generated) -->
+                        <div class="review-section" id="review-section" style="display:none">
+                            <div class="review-header">
+                                <h2>Your Character</h2>
+                                <div class="review-buttons">
+                                    <button class="btn" id="review-edit-btn">✏️ Edit</button>
+                                    <button class="btn" id="review-regenerate-btn">🔄 Regenerate</button>
+                                    <button class="btn btn-primary" id="review-start-btn">
+                                        ⚔️ Start Adventure
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="review-loading" id="review-loading" style="display:none">
+                                <div class="spinner"></div>
+                                <p>The Dungeon Master is weaving your story...</p>
+                            </div>
+                            <div class="review-character-sheet" id="review-character-sheet"></div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Build Mode (hidden by default) -->
+                    <div class="sub-tab-content" id="manual-content">
+                        <div class="form-row">
+                            <div class="form-group flex-grow">
+                                <label for="char-name-manual">Name</label>
+                                <input type="text" id="char-name-manual" placeholder="e.g. Thorne Ironveil">
+                            </div>
+                            <div class="form-group">
+                                <label for="char-class-manual">Class</label>
+                                <select id="char-class-manual">
+                                    <option value="Fighter">Fighter</option>
+                                    <option value="Rogue">Rogue</option>
+                                    <option value="Mage">Mage</option>
+                                    <option value="Cleric">Cleric</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Ability Scores (Point Buy) -->
+                        <div class="abilities-section">
+                            <div class="section-header">
+                                <h2>Ability Scores</h2>
+                                <span class="point-buy-remaining">
+                                    Points: <strong id="remaining-points">27</strong>
+                                </span>
+                            </div>
+                            <p class="section-hint">Point-buy: 27 points to spend.
+                                Each score starts at 8 (max 15).</p>
+                            <div class="abilities-grid" id="abilities-grid">
+                                <div class="ability-card" data-abil="STR">
+                                    <span class="abil-label">Strength</span>
+                                    <span class="abil-abbr">STR</span>
+                                    <div class="abil-controls">
+                                        <button class="abil-btn dec" title="Decrease">−</button>
+                                        <span class="abil-score" id="abil-STR">8</span>
+                                        <button class="abil-btn inc" title="Increase">+</button>
+                                    </div>
+                                    <span class="abil-cost" id="cost-STR">(0 pts)</span>
+                                </div>
+                                <div class="ability-card" data-abil="DEX">
+                                    <span class="abil-label">Dexterity</span>
+                                    <span class="abil-abbr">DEX</span>
+                                    <div class="abil-controls">
+                                        <button class="abil-btn dec">−</button>
+                                        <span class="abil-score" id="abil-DEX">8</span>
+                                        <button class="abil-btn inc">+</button>
+                                    </div>
+                                    <span class="abil-cost" id="cost-DEX">(0 pts)</span>
+                                </div>
+                                <div class="ability-card" data-abil="CON">
+                                    <span class="abil-label">Constitution</span>
+                                    <span class="abil-abbr">CON</span>
+                                    <div class="abil-controls">
+                                        <button class="abil-btn dec">−</button>
+                                        <span class="abil-score" id="abil-CON">8</span>
+                                        <button class="abil-btn inc">+</button>
+                                    </div>
+                                    <span class="abil-cost" id="cost-CON">(0 pts)</span>
+                                </div>
+                                <div class="ability-card" data-abil="INT">
+                                    <span class="abil-label">Intelligence</span>
+                                    <span class="abil-abbr">INT</span>
+                                    <div class="abil-controls">
+                                        <button class="abil-btn dec">−</button>
+                                        <span class="abil-score" id="abil-INT">8</span>
+                                        <button class="abil-btn inc">+</button>
+                                    </div>
+                                    <span class="abil-cost" id="cost-INT">(0 pts)</span>
+                                </div>
+                                <div class="ability-card" data-abil="WIS">
+                                    <span class="abil-label">Wisdom</span>
+                                    <span class="abil-abbr">WIS</span>
+                                    <div class="abil-controls">
+                                        <button class="abil-btn dec">−</button>
+                                        <span class="abil-score" id="abil-WIS">8</span>
+                                        <button class="abil-btn inc">+</button>
+                                    </div>
+                                    <span class="abil-cost" id="cost-WIS">(0 pts)</span>
+                                </div>
+                                <div class="ability-card" data-abil="CHA">
+                                    <span class="abil-label">Charisma</span>
+                                    <span class="abil-abbr">CHA</span>
+                                    <div class="abil-controls">
+                                        <button class="abil-btn dec">−</button>
+                                        <span class="abil-score" id="abil-CHA">8</span>
+                                        <button class="abil-btn inc">+</button>
+                                    </div>
+                                    <span class="abil-cost" id="cost-CHA">(0 pts)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Skills (class-dependent) -->
+                        <div class="form-group">
+                            <label>Skills</label>
+                            <div id="skills-display" class="skills-display">
+                                <span class="skill-tag">Athletics</span>
+                                <span class="skill-tag">Perception</span>
+                            </div>
+                        </div>
+
+                        <!-- Narrative Fields -->
+                        <div class="form-group">
+                            <label for="char-appearance">Appearance</label>
+                            <textarea id="char-appearance"
+                                placeholder="Describe your character's look..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="char-backstory">Backstory</label>
+                            <textarea id="char-backstory"
+                                placeholder="What past haunts or drives you?"></textarea>
+                        </div>
+
+                        <div class="manual-create-btn-row">
+                            <button class="btn btn-primary btn-block" id="manual-create-btn">
+                                ⚔️ Create Character
+                            </button>
+                        </div>
+                        <p id="char-validation" class="validation-msg hidden"></p>
+                    </div>
                 </div>
 
                 <!-- Load Tab -->
