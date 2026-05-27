@@ -166,10 +166,10 @@ def save_settings() -> tuple[flask.Response, int] | flask.Response:
     try:
         config = ProviderConfig(**provider_kwargs)
         _config_manager.save_config(config, name="default")
-    except (ConfigError, ValueError, TypeError) as e:
-        logger.warning("Failed to save provider config: %s", e)
+    except (ConfigError, ValueError, TypeError):
+        logger.exception("Failed to save provider config")
         return (
-            jsonify({"ok": False, "error": f"Failed to save settings: {e}"}),
+            jsonify({"ok": False, "error": "Failed to save settings"}),
             400,
         )
 
