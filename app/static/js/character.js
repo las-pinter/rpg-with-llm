@@ -6,84 +6,58 @@
  * lists saved characters fetched from the backend API.
  *
  * The server is the single source of truth — no localStorage.
+ * Game rules data (point-buy costs, class templates, etc.) is
+ * fetched from the backend at startup via /api/config/character-rules.
  */
 const CharacterView = {
     // ------------------------------------------------------------------
-    // D&D 5e Point-Buy Constants
+    // Runtime State
     // ------------------------------------------------------------------
-    POINT_BUY_COST: { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 },
-    MAX_POINTS: 27,
-    MIN_SCORE: 8,
-    MAX_SCORE: 15,
 
-    /** Default ability arrays for each class (standard array assigned). */
-    CLASS_DEFAULTS: {
-        Fighter: { STR: 15, DEX: 13, CON: 14, WIS: 12, INT: 10, CHA: 8 },
-        Rogue: { STR: 8, DEX: 15, CON: 13, INT: 14, WIS: 12, CHA: 10 },
-        Mage: { STR: 8, DEX: 13, CON: 14, INT: 15, WIS: 12, CHA: 10 },
-        Cleric: { STR: 13, DEX: 8, CON: 14, INT: 10, WIS: 15, CHA: 12 },
-    },
-
-    CLASS_SKILLS: {
-        Fighter: ["Athletics", "Perception"],
-        Rogue: ["Stealth", "Sleight of Hand", "Perception"],
-        Mage: ["Arcana", "Investigation"],
-        Cleric: ["Religion", "Medicine"],
-    },
-
-    CLASS_HP: {
-        Fighter: 12,
-        Rogue: 9,
-        Mage: 8,
-        Cleric: 10,
-    },
-
-    CLASS_AC: {
-        Fighter: 18,
-        Rogue: 14,
-        Mage: 12,
-        Cleric: 16,
-    },
+    /** Holds game rules fetched from the API (null until loaded). */
+    _rules: null,
 
     /** Current ability scores (mutable during point-buy). */
-    abilities: { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 },
+    abilities: {},
 
-    selectedClass: "Fighter",
-    remainingPoints: 27,
+    selectedClass: "",
+    remainingPoints: 0,
 
-    /** Assisted creation state and questions. */
+    /** Assisted creation state. */
     _assistedState: {
         currentQuestion: 0,
-        totalQuestions: 7,
+        totalQuestions: 0,
         answers: [],
-        questions: [
-            "Where were you born and raised? What did your family do — and what did " +
-            "you do before you picked up a sword (or a spellbook, or a set of lockpicks)?",
-            "Describe a single moment that changed everything — a betrayal, a loss, a " +
-            "discovery, or a choice you couldn't take back. What happened, and why " +
-            "did it leave you no choice but to adventure?",
-            "What is your deepest flaw — the thing about yourself you're trying to hide " +
-            "or outrun? And what strength do you lean on when you fall?",
-            "What are you looking for out there — really? Treasure? A name for yourself? " +
-            "Revenge? Something you lost? And what would make you turn back?",
-            "Describe someone you left behind — a person you love, fear, owe, or hate. " +
-            "What would they say about you if you never came back?",
-            "What do you look like? What marks, scars, or gear does a stranger notice " +
-            "first — and what story do those marks tell?",
-            "What's one thing about your past that, if it ever caught up to you, would " +
-            "ruin everything? A debt? A crime? A promise you broke? A secret you're " +
-            "keeping?",
-        ],
     },
 
     /** DOM element references. */
     els: {},
 
     // ------------------------------------------------------------------
+    // Rule Access Helpers
+    // ------------------------------------------------------------------
+
+    /** Get the assisted creation questions array (with fallback). */
+    _getQuestions() {
+        return this._rules?.assisted_creation_questions ?? [];
+    },
+
+    /** Get the total number of assisted creation questions. */
+    _getQuestionCount() {
+        return this._getQuestions().length;
+    },
+
+    // ------------------------------------------------------------------
     // Initialisation
     // ------------------------------------------------------------------
 
-    init() {
+    async init() {
+        // Fetch game rules from the API before setting up UI
+        await this._fetchRules();
+
+        // Set initial values from loaded rules
+        this._initDefaults();
+
         this.els = {
             // Tabs
             tabBar: document.querySelector(".tab-bar"),
@@ -190,6 +164,45 @@ const CharacterView = {
         this._migrateLocalCharacters();
     },
 
+    /** Initialise defaults from the loaded rules. */
+    _initDefaults() {
+        const rules = this._rules;
+
+        // Default abilities: first class template or flat 8s
+        if (rules?.class_templates) {
+            const firstClass = rules.valid_classes?.[0];
+            if (firstClass && rules.class_templates[firstClass]) {
+                this.abilities = { ...rules.class_templates[firstClass].abilities };
+                this.selectedClass = firstClass;
+            } else {
+                // Fallback — flat 8s
+                this.abilities = { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 };
+                this.selectedClass = rules.valid_classes?.[0] || "";
+            }
+        } else {
+            this.abilities = { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 };
+            this.selectedClass = "";
+        }
+
+        this.remainingPoints = rules?.point_buy?.max_points ?? 27;
+
+        // Track total questions in assisted state
+        this._assistedState.totalQuestions = this._getQuestionCount();
+    },
+
+    /** Fetch character creation rules from the backend. */
+    async _fetchRules() {
+        try {
+            const resp = await fetch("/api/config/character-rules");
+            const data = await resp.json();
+            if (data.ok) {
+                this._rules = data.rules;
+            }
+        } catch (e) {
+            console.warn("Failed to fetch character rules, using defaults", e);
+        }
+    },
+
     // ------------------------------------------------------------------
     // Tab Switching
     // ------------------------------------------------------------------
@@ -214,7 +227,8 @@ const CharacterView = {
 
     /** Get the point-buy cost for a given ability score. */
     _getCost(score) {
-        return this.POINT_BUY_COST[score] || 0;
+        const costs = this._rules?.point_buy?.costs || {};
+        return parseInt(costs[score]) || 0;
     },
 
     /** Calculate total points spent across all abilities. */
@@ -229,7 +243,8 @@ const CharacterView = {
     /** Check if an ability can be increased. */
     _canIncrease(abil) {
         const score = this.abilities[abil];
-        if (score >= this.MAX_SCORE) return false;
+        const maxScore = this._rules?.point_buy?.max_score ?? 15;
+        if (score >= maxScore) return false;
         const nextScore = score + 1;
         const nextCost = this._getCost(nextScore);
         const currentCost = this._getCost(score);
@@ -239,7 +254,8 @@ const CharacterView = {
 
     /** Check if an ability can be decreased. */
     _canDecrease(abil) {
-        return this.abilities[abil] > this.MIN_SCORE;
+        const minScore = this._rules?.point_buy?.min_score ?? 8;
+        return this.abilities[abil] > minScore;
     },
 
     /** Increase an ability score by 1 (point-buy permitting). */
@@ -272,11 +288,14 @@ const CharacterView = {
 
     /** Apply class default ability scores to the point-buy. */
     _applyClassDefaults() {
-        const defaults = this.CLASS_DEFAULTS[this.selectedClass];
-        if (!defaults) return;
-        this.abilities = { ...defaults };
+        const templates = this._rules?.class_templates;
+        if (!templates) return;
+        const template = templates[this.selectedClass];
+        if (!template) return;
+        this.abilities = { ...template.abilities };
         this.remainingPoints =
-            this.MAX_POINTS - this._totalPointsForScores(defaults);
+            (this._rules?.point_buy?.max_points ?? 27)
+            - this._totalPointsForScores(template.abilities);
     },
 
     /** Calculate total point-buy cost for a set of scores. */
@@ -290,7 +309,8 @@ const CharacterView = {
 
     /** Update the skills display based on selected class. */
     _updateSkills() {
-        const skills = this.CLASS_SKILLS[this.selectedClass] || [];
+        const template = this._rules?.class_templates?.[this.selectedClass];
+        const skills = template?.skills || [];
         this.els.skillsDisplay.innerHTML = skills
             .map((s) => `<span class="skill-tag">${s}</span>`)
             .join("");
@@ -410,6 +430,7 @@ const CharacterView = {
         const state = this._assistedState;
         state.currentQuestion = 0;
         state.answers = [];
+        state.totalQuestions = this._getQuestionCount();
 
         // Hide error and loading
         this.els.assistedError.classList.add("hidden");
@@ -446,10 +467,12 @@ const CharacterView = {
     /** Display the question at the given index. */
     _showAssistedQuestion(index) {
         const state = this._assistedState;
+        const questions = this._getQuestions();
+        const totalQuestions = this._getQuestionCount();
         state.currentQuestion = index;
 
         // Update question text
-        this.els.assistedQuestionText.textContent = state.questions[index];
+        this.els.assistedQuestionText.textContent = questions[index];
 
         // Load existing answer if typed before
         this.els.assistedAnswerInput.value = state.answers[index] || "";
@@ -457,14 +480,14 @@ const CharacterView = {
         // Update progress
         const qNum = index + 1;
         this.els.assistedQuestionNum.textContent =
-            `Question ${qNum} of ${state.totalQuestions}`;
-        const pct = ((qNum) / state.totalQuestions) * 100;
+            `Question ${qNum} of ${totalQuestions}`;
+        const pct = ((qNum) / totalQuestions) * 100;
         this.els.assistedProgressFill.style.width = `${pct}%`;
 
         // Update navigation buttons
         this.els.assistedPrevBtn.disabled = index === 0;
 
-        if (index === state.totalQuestions - 1) {
+        if (index === totalQuestions - 1) {
             this.els.assistedNextBtn.textContent = "Submit";
         } else {
             this.els.assistedNextBtn.textContent = "Next";
@@ -480,7 +503,7 @@ const CharacterView = {
         const index = state.currentQuestion;
         state.answers[index] = this.els.assistedAnswerInput.value.trim();
 
-        if (index >= state.totalQuestions - 1) {
+        if (index >= this._getQuestionCount() - 1) {
             this._submitAssistedAnswers();
         } else {
             this._showAssistedQuestion(index + 1);

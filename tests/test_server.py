@@ -1126,12 +1126,14 @@ class TestStaticRoutes:
         assert "AbortSignal.timeout" in js
 
     def test_character_js_exposes_character_view(self, client):
-        """character.js defines CharacterView with expected constants and methods."""
+        """character.js defines CharacterView with expected API-fetched rules."""
         resp = client.get("/static/js/character.js")
         js = resp.get_data(as_text=True)
         assert "const CharacterView =" in js or "var CharacterView =" in js
-        assert "POINT_BUY_COST" in js
-        assert "MAX_POINTS" in js
+        assert "_rules" in js
+        assert "_fetchRules" in js
+        assert "_initDefaults" in js
+        assert "character-rules" in js
         assert "init()" in js
         assert "_createCharacter" in js
         assert "_deleteCharacter" in js
@@ -1139,14 +1141,15 @@ class TestStaticRoutes:
         assert "_loadCharacter" in js
         assert "_esc" in js
 
-    def test_character_js_has_class_defaults(self, client):
-        """character.js defines class defaults for all four classes."""
+    def test_character_js_fetches_rules_from_api(self, client):
+        """character.js fetches game rules from the API instead of hardcoding them."""
         resp = client.get("/static/js/character.js")
         js = resp.get_data(as_text=True)
-        assert "Fighter" in js
-        assert "Rogue" in js
-        assert "Mage" in js
-        assert "Cleric" in js
+        assert "class_templates" in js
+        assert "valid_classes" in js
+        assert "point_buy" in js
+        assert "_getCost" in js
+        assert "assisted_creation_questions" in js
 
     def test_game_js_exposes_game_view(self, client):
         """game.js defines GameView with expected methods."""
