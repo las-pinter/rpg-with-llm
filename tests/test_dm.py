@@ -125,7 +125,7 @@ class TestDMCacheCleanup:
         # Reset the throttle so cleanup runs immediately
         import app.routes.game as game_mod
 
-        game_mod._dm_cache_cleanup_time = 0.0
+        game_mod._dm_cache_cleanup_time = -game_mod._DM_CACHE_CLEANUP_INTERVAL
 
         for i in range(55):
             _dm_cache[f"hero_{i}"] = DungeonMaster(
