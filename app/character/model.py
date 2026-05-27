@@ -25,6 +25,32 @@ STANDARD_ABILITIES: frozenset[str] = frozenset(
     {"STR", "DEX", "CON", "INT", "WIS", "CHA"}
 )
 
+# Point-buy system rules
+POINT_BUY_COST: dict[int, int] = {
+    8: 0,
+    9: 1,
+    10: 2,
+    11: 3,
+    12: 4,
+    13: 5,
+    14: 7,
+    15: 9,
+}
+MAX_POINTS: int = 27
+MIN_SCORE: int = 8
+MAX_SCORE: int = 15
+
+# Assisted creation prompts
+ASSISTED_CREATION_QUESTIONS: list[str] = [
+    "Where were you born, and what was your childhood like?",
+    "What drove you to become an adventurer?",
+    "Describe a pivotal moment that shaped who you are.",
+    "What is your greatest fear, and why?",
+    "Who or what do you value above all else?",
+    "Tell me about a mentor or rival who influenced you.",
+    "What is your ultimate goal or ambition?",
+]
+
 # Default templates: (ability_scores, hp, ac, skills, inventory)
 # Standard array: 15, 14, 13, 12, 10, 8
 _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
