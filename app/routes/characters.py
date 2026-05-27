@@ -256,7 +256,7 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
         _character_storage.save(character)
     except ValueError as e:
         logger.warning("Invalid character creation request: %s", e)
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": "Invalid character data"}), 400
     except Exception:
         logger.exception("Failed to create character")
         return jsonify({"ok": False, "error": "Internal server error"}), 500
