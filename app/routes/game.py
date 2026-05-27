@@ -11,6 +11,7 @@ import flask as flask
 from flask import Response, current_app, jsonify, request, stream_with_context
 
 from app.agents.dm import DungeonMaster
+from app.character.model import Character
 from app.llm.base import (
     LLMProvider,  # noqa: F401 — used in type hint for _build_provider_from_dict
 )
@@ -107,45 +108,52 @@ def _build_provider_from_dict(config_data: dict) -> LLMProvider | None:
     return create_provider(config)
 
 
+def _prov_from_json(body: dict, prefix: str = "") -> dict:
+    """Extract a provider config from parsed JSON body with optional key prefix."""
+    raw: dict = body.get(f"{prefix}provider") or {}  # type: ignore[assignment]
+    if not isinstance(raw, dict):
+        raw = {}
+    base_url = str(raw.get("base_url") or "").strip()
+    model = str(raw.get("model") or "").strip()
+    if not base_url or not model:
+        return {}
+    timeout_val = _safe_int(raw.get("timeout"))
+    max_tokens_val = _safe_int(raw.get("max_tokens"))
+    temperature_val = _safe_float(raw.get("temperature"))
+    return {
+        "base_url": base_url,
+        "model": model,
+        "provider_type": str(raw.get("provider_type") or "").strip() or "ollama",
+        "api_key": raw.get("api_key"),
+        "timeout": timeout_val,
+        "max_tokens": max_tokens_val,
+        "temperature": temperature_val,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Game Stream (SSE endpoint)
 # ---------------------------------------------------------------------------
 
 
-@bp.route("/api/game/stream", methods=["GET"])
+@bp.route("/api/game/stream", methods=["POST"])
 def game_stream() -> tuple[flask.Response, int] | flask.Response:
-    """SSE endpoint for streaming DM responses.
+    """SSE endpoint for streaming DM responses via POST with JSON body.
 
-    Accepts ``?input=player+action`` query parameter, plus optional
-    ``state``, ``character``, ``npc_provider``, and
-    ``summarizer_provider`` (all JSON-encoded) to restore continuity.
+    Accepts a JSON body containing:
+      ``input`` (str): The player's action text (required).
+      ``provider`` (dict): Main LLM provider config.
+      ``state`` (dict): Current world state dict for continuity.
+      ``character`` (dict): Current character data.
+      ``npc_provider`` (dict): NPC subagent provider config.
+      ``summarizer_provider`` (dict): Summarizer provider config.
 
-    Creates a DungeonMaster, collects the LLM streaming response,
-    parses it, executes any tool requests, spawns NPC subagents, and
-    yields the final result as SSE events.
-
-    SSE events:
-      ``data: {"type": "token", "content": "..."}``
-        Individual tokens as they stream from the LLM.
-      ``data: {"type": "npc_thinking", "npc_id": "...", "hint": "..."}``
-        Indicates an NPC agent is processing.
-      ``data: {"type": "narrative", "content": "..."}``
-        The final parsed narrative.
-      ``data: {"type": "state_update", "state": ..., "turn_count": N}``
-        The updated world state and turn count for the client.
-      ``data: {"type": "token_usage", "usage": ...}``
-        Token usage stats.
-      ``data: {"type": "done", "turn_count": N}``
-        Signals completion.
-      ``data: {"type": "error", "message": "..."}``
-        Signals an error.
+    SSE events: (same as before — token, narrative, state_update, done, etc.)
     """
-    player_input = request.args.get("input", "").strip()
+    body = request.get_json(silent=True) or {}
+    player_input = (body.get("input") or "").strip()
     if not player_input:
-        return (
-            jsonify({"ok": False, "error": "Missing 'input' query parameter"}),
-            400,
-        )
+        return jsonify({"ok": False, "error": "Missing 'input' in request body"}), 400
 
     logger.debug(
         "game_stream: received player input (len=%d): %s",
@@ -153,29 +161,9 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
         player_input,
     )
 
-    # Build provider configs from query params
-    def _prov_from_args(prefix: str = "") -> dict:
-        """Extra a provider config dict from query args with optional prefix."""
-        base = request.args.get(f"{prefix}base_url", "").strip()
-        model = request.args.get(f"{prefix}model", "").strip()
-        if not base or not model:
-            return {}
-        timeout = _safe_int(request.args.get(f"{prefix}timeout"))
-        max_tokens = _safe_int(request.args.get(f"{prefix}max_tokens"))
-        temperature = _safe_float(request.args.get(f"{prefix}temperature"))
-        return {
-            "base_url": base,
-            "model": model,
-            "provider_type": request.args.get(f"{prefix}provider_type", "ollama"),
-            "api_key": request.args.get(f"{prefix}api_key"),
-            "timeout": timeout,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-
-    dm_provider_cfg = _prov_from_args()
-    npc_provider_cfg = _prov_from_args("npc_")
-    summarizer_provider_cfg = _prov_from_args("summarizer_")
+    dm_provider_cfg = _prov_from_json(body)
+    npc_provider_cfg = _prov_from_json(body, "npc_")
+    summarizer_provider_cfg = _prov_from_json(body, "summarizer_")
 
     dm_provider = (
         _build_provider_from_dict(dm_provider_cfg) if dm_provider_cfg else None
@@ -192,27 +180,19 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
     # Clean up stale DMs periodically
     _cleanup_stale_dms()
 
-    # Restore world state from query param (JSON-encoded)
-    state_raw = request.args.get("state")
-    if state_raw:
-        try:
-            world_state = WorldState.from_dict(json.loads(state_raw))
-        except (json.JSONDecodeError, Exception):
-            world_state = WorldState()
+    world_state_data = body.get("state") or {}
+    if isinstance(world_state_data, dict):
+        world_state = WorldState.from_dict(world_state_data)
     else:
         world_state = WorldState()
 
-    # Restore character from query param (JSON-encoded)
-    character_raw = request.args.get("character")
-    character = None
-    if character_raw:
-        try:
-            character = json.loads(character_raw)
-        except (json.JSONDecodeError, Exception):
-            character = None
+    character_data = (
+        body.get("character") if isinstance(body.get("character"), dict) else None
+    )
+    character = Character.from_dict(character_data) if character_data else None
 
     # Create or retrieve persistent DungeonMaster for this character.
-    character_id = character.get("id") if isinstance(character, dict) else None
+    character_id = character.id if character else None
     if character_id and character_id in _dm_cache:
         dm = _dm_cache[character_id]
         # Keep world_state fresh from the request while preserving history

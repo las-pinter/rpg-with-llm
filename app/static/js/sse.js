@@ -1,158 +1,152 @@
 /**
- * SSE client for streaming DM narrative from the backend.
+ * SSE client using fetch (POST) instead of EventSource (GET).
  *
- * Connects to GET /api/game/stream?input=... and emits events for
- * streaming tokens, final narrative, NPC thinking, state updates,
- * token usage, and completion.
+ * Sends input and config as a JSON body to avoid HTTP 414 URL-too-long
+ * errors when the story log grows large. Reads the SSE response via
+ * ReadableStream with manual chunk buffering and event parsing.
  */
 const SSEClient = {
-    eventSource: null,
+    reader: null,        // ReadableStreamDefaultReader
+    controller: null,    // AbortController for cancellation
+    decoder: new TextDecoder(),
+    buffer: "",          // Accumulates partial SSE data across chunks
 
     /**
-     * Open an SSE connection to stream the DM's response.
+     * Connect to the streaming endpoint via POST + JSON body.
      *
      * @param {string} input - The player's action text.
      * @param {object|null} provider - Main provider config.
-     * @param {object} callbacks - Event callbacks.
+     * @param {object} callbacks - Event callback handlers.
      * @param {function} callbacks.onToken - Called with each streamed token.
      * @param {function} callbacks.onNarrative - Called with the final narrative.
      * @param {function} callbacks.onNpcThinking - Called with {npc_id, hint}.
-     * @param {function} callbacks.onStateUpdate - Called with {state, turn_count}.
-     * @param {function} callbacks.onTokenUsage - Called with {usage: ...}.
-     * @param {function} callbacks.onDone - Called with turn_count.
-     * @param {function} callbacks.onError - Called with error message.
+     * @param {function} callbacks.onStateUpdate - Called with state update data.
+     * @param {function} callbacks.onTokenUsage - Called with token usage info.
+     * @param {function} callbacks.onDone - Called when stream finishes.
+     * @param {function} callbacks.onError - Called on network or server error.
      * @param {object|null} state - Current world state dict (for continuity).
-     * @param {object|null} character - Current character dict.
-     * @param {object|null} npcProvider - NPC provider config.
+     * @param {object|null} character - Current character creation data.
+     * @param {object|null} npcProvider - NPC subagent provider config.
      * @param {object|null} summarizerProvider - Summarizer provider config.
      */
-    connect(input, provider, callbacks, state, character, npcProvider, summarizerProvider) {
-        this.disconnect();
+    connect(input, provider, callbacks, state, character, npcProvider,
+        summarizerProvider) {
+        this.disconnect();  // Always clean up before connecting
+        this.controller = new AbortController();
 
-        let url = `/api/game/stream?input=${encodeURIComponent(input)}`;
+        const body = { input };
+        if (provider)       body.provider         = provider;
+        if (state)          body.state            = state;
+        if (character)      body.character        = character;
+        if (npcProvider)    body.npc_provider     = npcProvider;
+        if (summarizerProvider) body.summarizer_provider = summarizerProvider;
 
-        // Main provider query params
-        if (provider) {
-            url += `&base_url=${encodeURIComponent(provider.base_url || '')}`;
-            url += `&model=${encodeURIComponent(provider.model || '')}`;
-            url += `&provider_type=${encodeURIComponent(provider.provider_type || 'ollama')}`;
-            if (provider.api_key) {
-                url += `&api_key=${encodeURIComponent(provider.api_key)}`;
-            }
-            if (provider.timeout) {
-                url += `&timeout=${encodeURIComponent(provider.timeout)}`;
-            }
-            if (provider.max_tokens) {
-                url += `&max_tokens=${encodeURIComponent(provider.max_tokens)}`;
-            }
-            if (provider.temperature) {
-                url += `&temperature=${encodeURIComponent(provider.temperature)}`;
-            }
-        }
+        fetch("/api/game/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: this.controller.signal,
+        })
+        .then(async (response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const reader = response.body.getReader();
+            this.reader = reader;
 
-        // NPC provider (separate agent)
-        if (npcProvider && npcProvider.base_url && npcProvider.model) {
-            url += `&npc_base_url=${encodeURIComponent(npcProvider.base_url)}`;
-            url += `&npc_model=${encodeURIComponent(npcProvider.model)}`;
-            url += `&npc_provider_type=${encodeURIComponent(npcProvider.provider_type || 'ollama')}`;
-            if (npcProvider.api_key) {
-                url += `&npc_api_key=${encodeURIComponent(npcProvider.api_key)}`;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                this.buffer += this.decoder.decode(value, { stream: true });
+                this._processBuffer(callbacks);
             }
-            if (npcProvider.timeout) {
-                url += `&npc_timeout=${encodeURIComponent(npcProvider.timeout)}`;
-            }
-            if (npcProvider.max_tokens) {
-                url += `&npc_max_tokens=${encodeURIComponent(npcProvider.max_tokens)}`;
-            }
-            if (npcProvider.temperature) {
-                url += `&npc_temperature=${encodeURIComponent(npcProvider.temperature)}`;
-            }
-        }
-
-        // Summarizer provider (separate agent)
-        if (summarizerProvider && summarizerProvider.base_url && summarizerProvider.model) {
-            url += `&summarizer_base_url=${encodeURIComponent(summarizerProvider.base_url)}`;
-            url += `&summarizer_model=${encodeURIComponent(summarizerProvider.model)}`;
-            url += `&summarizer_provider_type=${encodeURIComponent(summarizerProvider.provider_type || 'ollama')}`;
-            if (summarizerProvider.api_key) {
-                url += `&summarizer_api_key=${encodeURIComponent(summarizerProvider.api_key)}`;
-            }
-            if (summarizerProvider.timeout) {
-                url += `&summarizer_timeout=${encodeURIComponent(summarizerProvider.timeout)}`;
-            }
-            if (summarizerProvider.max_tokens) {
-                url += `&summarizer_max_tokens=${encodeURIComponent(summarizerProvider.max_tokens)}`;
-            }
-            if (summarizerProvider.temperature) {
-                url += `&summarizer_temperature=${encodeURIComponent(summarizerProvider.temperature)}`;
-            }
-        }
-
-        // World state (JSON-encoded for continuity)
-        if (state) {
-            url += `&state=${encodeURIComponent(JSON.stringify(state))}`;
-        }
-
-        // Character data (JSON-encoded)
-        if (character) {
-            url += `&character=${encodeURIComponent(JSON.stringify(character))}`;
-        }
-
-        this.eventSource = new EventSource(url);
-
-        this.eventSource.addEventListener("token", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (callbacks.onToken) callbacks.onToken(data.content);
-            } catch (_) { /* skip malformed events */ }
-        });
-
-        this.eventSource.addEventListener("narrative", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (callbacks.onNarrative) callbacks.onNarrative(data.content);
-            } catch (_) { /* skip malformed events */ }
-        });
-
-        this.eventSource.addEventListener("npc_thinking", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (callbacks.onNpcThinking) callbacks.onNpcThinking(data);
-            } catch (_) { /* skip malformed events */ }
-        });
-
-        this.eventSource.addEventListener("state_update", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (callbacks.onStateUpdate) callbacks.onStateUpdate(data);
-            } catch (_) { /* skip malformed events */ }
-        });
-
-        this.eventSource.addEventListener("done", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (callbacks.onDone) callbacks.onDone(data.turn_count);
-            } catch (_) { /* skip malformed events */ }
+        })
+        .catch((err) => {
+            if (err.name === "AbortError") return;  // Clean disconnect
+            if (callbacks.onError) callbacks.onError(
+                err.message || "Connection lost"
+            );
+        })
+        .finally(() => {
             this.disconnect();
         });
-
-        this.eventSource.addEventListener("token_usage", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (callbacks.onTokenUsage) callbacks.onTokenUsage(data.usage);
-            } catch (_) { /* skip malformed events */ }
-        });
-
-        this.eventSource.onerror = () => {
-            if (callbacks.onError) callbacks.onError("Connection lost");
-        };
     },
 
-    /** Close the current SSE connection if any. */
-    disconnect() {
-        if (this.eventSource) {
-            this.eventSource.close();
-            this.eventSource = null;
+    /** Parse complete SSE blocks from the accumulated buffer. */
+    _processBuffer(callbacks) {
+        let lineBreak = this.buffer.indexOf("\n\n");
+        while (lineBreak !== -1) {
+            const block = this.buffer.slice(0, lineBreak);
+            this.buffer = this.buffer.slice(lineBreak + 2);
+
+            // Parse event: and data: lines from the block
+            let eventType = "";
+            let eventData = "";
+            const lines = block.split("\n");
+            for (const line of lines) {
+                if (line.startsWith("event: ")) {
+                    eventType = line.slice(7).trim();
+                } else if (line.startsWith("data: ")) {
+                    // SSE spec: multiple data: lines joined with \n
+                    eventData += (eventData ? "\n" : "") + line.slice(6);
+                }
+            }
+
+            if (!eventType || !eventData) continue;
+
+            try {
+                const parsed = JSON.parse(eventData);
+                this._dispatchEvent(eventType, parsed, callbacks);
+            } catch (_) { /* skip malformed events */ }
+
+            lineBreak = this.buffer.indexOf("\n\n");
         }
+    },
+
+    /** Dispatch a parsed SSE event to the appropriate callback. */
+    _dispatchEvent(type, data, callbacks) {
+        switch (type) {
+            case "token":
+                if (callbacks.onToken) callbacks.onToken(data.content);
+                break;
+            case "narrative":
+                if (callbacks.onNarrative) callbacks.onNarrative(
+                    data.content
+                );
+                break;
+            case "npc_thinking":
+                if (callbacks.onNpcThinking) callbacks.onNpcThinking(data);
+                break;
+            case "state_update":
+                if (callbacks.onStateUpdate) callbacks.onStateUpdate(data);
+                break;
+            case "done":
+                if (callbacks.onDone) callbacks.onDone(data.turn_count);
+                this.disconnect();  // Close after done
+                break;
+            case "token_usage":
+                if (callbacks.onTokenUsage) callbacks.onTokenUsage(
+                    data.usage
+                );
+                break;
+            case "error":
+                if (callbacks.onError) callbacks.onError(
+                    data.message || "Server error"
+                );
+                this.disconnect();
+                break;
+        }
+    },
+
+    /** Close the current connection and clean up all resources. */
+    disconnect() {
+        if (this.reader) {
+            this.reader.cancel().catch(() => {});
+            this.reader = null;
+        }
+        if (this.controller) {
+            this.controller.abort();
+            this.controller = null;
+        }
+        this.buffer = "";
     },
 };
