@@ -1054,13 +1054,15 @@ class TestStaticRoutes:
         assert 'id="char-class"' in html
         assert 'id="char-appearance"' in html
         assert 'id="char-backstory"' in html
-        assert 'id="assisted-toggle"' in html
-        assert 'id="assisted-info"' in html
-        assert 'id="create-character"' in html
+        assert 'id="manual-create-btn"' in html
         assert 'id="char-validation"' in html
         assert 'id="remaining-points"' in html
         assert 'id="skills-display"' in html
         assert 'id="character-list"' in html
+        assert 'id="campfire-tab"' in html
+        assert 'id="manual-tab"' in html
+        assert 'id="story-section"' in html
+        assert 'id="review-section"' in html
 
     def test_static_html_has_game_view_input_elements(self, client):
         """HTML contains all game view input elements."""
@@ -1149,7 +1151,6 @@ class TestStaticRoutes:
         assert "valid_classes" in js
         assert "point_buy" in js
         assert "_getCost" in js
-        assert "assisted_creation_questions" in js
 
     def test_game_js_exposes_game_view(self, client):
         """game.js defines GameView with expected methods."""
@@ -1497,6 +1498,132 @@ class TestCharacterGenerateEndpoint:
         data = resp.get_json()
         assert data["ok"] is False
         assert "Unable to generate" in data.get("error", "")
+
+    def test_generate_with_name_passes_name_to_creation(self, client):
+        """POST with name field must pass it through to the LLM and
+        return the character with that name."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": json.dumps(
+                {
+                    "name": "Thorne Ironveil",
+                    "character_class": "Fighter",
+                    "level": 1,
+                    "abilities": {
+                        "STR": 15,
+                        "DEX": 13,
+                        "CON": 14,
+                        "WIS": 12,
+                        "INT": 10,
+                        "CHA": 8,
+                    },
+                    "skills": ["Athletics", "Perception"],
+                    "hp": 12,
+                    "max_hp": 12,
+                    "ac": 18,
+                    "appearance": "A sturdy dwarf.",
+                    "backstory": "Blacksmith turned warrior.",
+                    "inventory": ["Longsword", "Chain Mail"],
+                }
+            ),
+            "finish_reason": "stop",
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 10,
+                "total_tokens": 20,
+            },
+        }
+
+        with patch(
+            "app.routes.characters.create_provider",
+            return_value=mock_provider,
+        ):
+            resp = client.post(
+                "/api/character/generate",
+                json={
+                    "answers": {
+                        "0": "I was a blacksmith's apprentice.",
+                        "1": "Orcs raided my village.",
+                        "2": "I am stubborn and brave.",
+                        "3": "I seek treasure.",
+                    },
+                    "provider": {
+                        "base_url": "http://localhost:11434",
+                        "model": "llama3.2",
+                    },
+                    "name": "Thorne Ironveil",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["character"]["name"] == "Thorne Ironveil"
+
+        # Verify name was included in the LLM call messages
+        messages = mock_provider.call.call_args[0][0]
+        all_text = " ".join(m["content"] for m in messages)
+        assert "Thorne Ironveil" in all_text
+
+    def test_generate_without_name_still_works(self, client):
+        """POST without name field must still generate a character
+        (backward compatibility)."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": json.dumps(
+                {
+                    "name": "Rurik Stoneheart",
+                    "character_class": "Fighter",
+                    "level": 1,
+                    "abilities": {
+                        "STR": 15,
+                        "DEX": 13,
+                        "CON": 14,
+                        "WIS": 12,
+                        "INT": 10,
+                        "CHA": 8,
+                    },
+                    "skills": ["Athletics", "Perception"],
+                    "hp": 12,
+                    "max_hp": 12,
+                    "ac": 18,
+                    "appearance": "A sturdy dwarf.",
+                    "backstory": "Blacksmith turned warrior.",
+                    "inventory": ["Longsword", "Chain Mail"],
+                }
+            ),
+            "finish_reason": "stop",
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 10,
+                "total_tokens": 20,
+            },
+        }
+
+        with patch(
+            "app.routes.characters.create_provider",
+            return_value=mock_provider,
+        ):
+            resp = client.post(
+                "/api/character/generate",
+                json={
+                    "answers": {
+                        "0": "I was a blacksmith's apprentice.",
+                        "1": "Orcs raided my village.",
+                        "2": "I am stubborn and brave.",
+                        "3": "I seek treasure.",
+                    },
+                    "provider": {
+                        "base_url": "http://localhost:11434",
+                        "model": "llama3.2",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["character"]["name"] == "Rurik Stoneheart"
 
 
 class TestCharacterCreateEndpoint:

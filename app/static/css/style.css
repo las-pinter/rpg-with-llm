@@ -679,17 +679,6 @@ label.toggle-label {
     color: var(--text-muted);
     padding-left: calc(36px + 0.75rem);
 }
-.assisted-info {
-    padding: 0.75rem;
-    background: var(--accent-glow);
-    border: 1px solid var(--accent-border);
-    border-radius: var(--radius);
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-style: italic;
-    margin-bottom: 1rem;
-}
-.assisted-info.hidden { display: none; }
 
 /* ----- Saved Games Section (Load tab) ----- */
 .section-divider {
@@ -1585,68 +1574,6 @@ label.toggle-label {
     width: 100%;
 }
 
-/* ============================================================
-   ASSISTED CREATION — Question flow modal
-   ============================================================ */
-.assisted-progress {
-    margin-bottom: 1.25rem;
-}
-.assisted-progress span {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    display: block;
-    margin-bottom: 0.5rem;
-}
-.progress-bar {
-    width: 100%;
-    height: 6px;
-    background: var(--bg-elevated);
-    border-radius: 3px;
-    overflow: hidden;
-}
-.progress-fill {
-    height: 100%;
-    background: var(--accent-gold);
-    border-radius: 3px;
-    transition: width 0.3s ease;
-}
-.assisted-question {
-    font-size: 1.1rem;
-    color: var(--text-primary);
-    line-height: 1.6;
-    margin-bottom: 1rem;
-    min-height: 3.2rem;
-}
-.assisted-answer-input {
-    width: 100%;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: 0.95rem;
-    padding: 0.75rem;
-    resize: vertical;
-    transition: border-color var(--transition);
-}
-.assisted-answer-input:focus {
-    outline: none;
-    border-color: var(--accent-gold);
-}
-.assisted-nav {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 1.25rem;
-    gap: 0.5rem;
-}
-.assisted-loading {
-    text-align: center;
-    padding: 2rem 1rem;
-}
-.assisted-loading p {
-    color: var(--text-muted);
-    margin-bottom: 1rem;
-}
 .spinner {
     width: 32px;
     height: 32px;
@@ -1659,76 +1586,6 @@ label.toggle-label {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
-.assisted-error {
-    background: var(--danger-bg);
-    border: 1px solid var(--danger-border);
-    color: var(--danger);
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius);
-    margin-top: 1rem;
-    font-size: 0.9rem;
-}
-
-/* Full-page loading overlay for character generation */
-#char-generating-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
-    background-image:
-        radial-gradient(ellipse at center, rgba(212, 165, 71, 0.06) 0%, transparent 60%),
-        radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    animation: overlayFadeIn 0.3s ease;
-}
-#char-generating-overlay.hidden {
-    display: none;
-}
-.char-generating-content {
-    text-align: center;
-    padding: 2rem;
-    animation: contentPopIn 0.35s ease 0.1s both;
-}
-.char-generating-content .spinner {
-    width: 48px;
-    height: 48px;
-    border-width: 4px;
-}
-.char-generating-text {
-    color: var(--accent-gold);
-    font-family: var(--font-narrative);
-    margin-top: 1.5rem;
-    font-size: 1.15rem;
-    letter-spacing: 0.04em;
-    line-height: 1.6;
-    text-shadow: 0 0 20px var(--accent-glow), 0 0 60px var(--accent-glow);
-    animation: textBreathe 3s ease-in-out infinite;
-}
-
-@keyframes overlayFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-@keyframes contentPopIn {
-    from {
-        opacity: 0;
-        transform: scale(0.92);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-@keyframes textBreathe {
-    0%, 100% { opacity: 0.75; text-shadow: 0 0 10px var(--accent-glow); }
-    50%      { opacity: 1;    text-shadow: 0 0 30px var(--accent-glow-strong), 0 0 60px var(--accent-glow); }
-}
-
 /* ============================================================
    GOLD DISPLAY
    ============================================================ */
@@ -1769,5 +1626,340 @@ label.toggle-label {
     }
     html {
         scroll-behavior: auto;
+    }
+}
+
+/* ============================================================
+   CAMPFIRE — Story-Driven Character Creation
+   ============================================================ */
+
+/* ----- Sub-tab bar (secondary tabs) ----- */
+.sub-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+}
+.sub-tab {
+    background: none;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: var(--font-narrative);
+    font-size: 0.9rem;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+.sub-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+.sub-tab.active {
+    color: var(--accent-gold);
+    border-bottom-color: var(--accent-gold);
+}
+.sub-tab-content { display: none; }
+.sub-tab-content.active { display: block; }
+
+/* ----- Character Title Card ----- */
+.character-title-card {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--accent-gold);
+    position: relative;
+}
+.character-title-card::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-gold), transparent);
+}
+.character-title-name {
+    font-family: var(--font-narrative);
+    font-size: 1.8rem;
+    color: var(--accent-gold);
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed var(--accent-border);
+    padding: 0.25rem 0;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+.character-title-name:focus {
+    border-bottom-color: var(--accent-gold);
+    border-bottom-style: solid;
+}
+.character-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.character-title-class {
+    display: inline-block;
+    padding: 0.2rem 0.8rem;
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-border);
+    border-radius: 4px;
+    font-family: var(--font-narrative);
+    font-size: 0.85rem;
+    color: var(--accent-gold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* ----- Story Progress ----- */
+.story-progress {
+    margin-bottom: 1.5rem;
+}
+.story-progress-text {
+    font-family: var(--font-narrative);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+}
+.story-progress-bar {
+    height: 4px;
+    background: var(--bg-elevated);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+.story-progress-fill {
+    height: 100%;
+    background: var(--accent-gold);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+.story-step-dots {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+.story-step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.story-step-dot.active {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 6px var(--accent-glow);
+}
+.story-step-dot.done {
+    background: var(--success);
+    border-color: var(--success);
+}
+
+/* ----- Journal Chapters ----- */
+.journal-chapter {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    display: none;
+    position: relative;
+}
+.journal-chapter.active { display: block; }
+.journal-chapter::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-gold), transparent);
+    border-radius: 8px 8px 0 0;
+}
+.journal-chapter-number {
+    font-family: var(--font-narrative);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.journal-chapter-question {
+    font-family: 'Georgia', serif;
+    font-size: 1.1rem;
+    color: var(--accent-gold);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+    font-style: italic;
+}
+.journal-chapter-textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'Georgia', serif;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.2s ease;
+}
+.journal-chapter-textarea:focus {
+    outline: none;
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ----- Story Navigation ----- */
+.story-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+/* ----- Review Character Sheet ----- */
+.review-section {
+    animation: fadeIn 0.3s ease;
+}
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--accent-gold);
+}
+.review-header h2 {
+    font-family: var(--font-narrative);
+    color: var(--accent-gold);
+    margin: 0;
+}
+.review-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+.review-character-sheet {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+.review-sheet-name {
+    font-family: var(--font-narrative);
+    font-size: 1.5rem;
+    color: var(--accent-gold);
+    margin-bottom: 0.25rem;
+}
+.review-sheet-class {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+.review-sheet-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+.review-stat {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+}
+.review-stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+}
+.review-stat-value {
+    font-family: var(--font-narrative);
+    font-size: 1.5rem;
+    color: var(--accent-gold);
+}
+.review-field {
+    margin-bottom: 1rem;
+}
+.review-field-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+.review-field-value {
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+.review-field-value input,
+.review-field-value textarea,
+.review-field-value select {
+    width: 100%;
+    padding: 0.5rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: inherit;
+}
+.review-field-value input:focus,
+.review-field-value textarea:focus {
+    outline: none;
+    border-color: var(--accent-gold);
+}
+
+/* ----- Review Loading State ----- */
+.review-loading {
+    text-align: center;
+    padding: 3rem;
+}
+.review-loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--bg-elevated);
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+/* ============================================================
+   CAMPFIRE — Responsive Breakpoints
+   ============================================================ */
+@media (max-width: 768px) {
+    .review-sheet-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .review-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .review-sheet-stats {
+        grid-template-columns: 1fr;
+    }
+    .review-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+    .review-buttons .btn {
+        width: 100%;
     }
 }

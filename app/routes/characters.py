@@ -54,6 +54,9 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
 
     answers = data.get("answers")
     abilities = data.get("abilities", {})
+    name = data.get("name")
+    if not isinstance(name, str):
+        name = None
     if not isinstance(answers, dict) or len(answers) < 3:
         return (
             jsonify({"ok": False, "error": "At least 3 answers are required"}),
@@ -103,7 +106,11 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
         )
         provider = create_provider(config)
         creation = AssistedCreation(llm_provider=provider)
-        character = creation.generate_character(answers_int, abilities=abilities)
+        character = creation.generate_character(
+            answers_int,
+            abilities=abilities,
+            name=name,
+        )
     except ValueError as e:
         logger.warning("Invalid character generation request: %s", e)
         return jsonify({"ok": False, "error": "Invalid request data"}), 400

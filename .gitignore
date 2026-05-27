@@ -26,6 +26,7 @@ Thumbs.db
 # Game data
 data/saves/
 data/characters/
+data/providers/
 
 # Runtime
 *.tmp
