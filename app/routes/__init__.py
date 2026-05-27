@@ -15,8 +15,10 @@ def register_routes(app: flask.Flask) -> None:  # type: ignore[name-defined]
     from app.routes.game import bp as game_bp
     from app.routes.health import bp as health_bp
     from app.routes.saves import bp as saves_bp
+    from app.routes.settings import bp as settings_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(saves_bp)
     app.register_blueprint(characters_bp)
     app.register_blueprint(game_bp)
+    app.register_blueprint(settings_bp)

@@ -434,6 +434,7 @@ class CharacterStorage:
         atomic_write(final_path, data, indent=2)
 
         metadata: dict[str, Any] = {
+            "id": character.id,
             "name": name,
             "timestamp": timestamp,
             "class": character.character_class,
@@ -479,7 +480,13 @@ class CharacterStorage:
     # ------------------------------------------------------------------
 
     def list_characters(self) -> list[dict[str, Any]]:
-        """Return metadata for all saved characters from the index."""
+        """Return metadata for all saved characters from the index.
+
+        Each entry includes ``id``, ``name``, ``timestamp``, ``class``,
+        and ``level``.  For backward compatibility with indexes that were
+        written before the ``id`` field was added, the character's JSON
+        file is loaded on demand to fill in the missing ``id``.
+        """
         index_path = self.characters_dir / "index.json"
         if not index_path.exists():
             return []
@@ -489,7 +496,23 @@ class CharacterStorage:
         except (json.JSONDecodeError, OSError):
             return []
         characters: dict[str, Any] = index.get("characters", {})
-        return list(characters.values())
+        result: list[dict[str, Any]] = list(characters.values())
+
+        # Backward compat — fill in missing 'id' fields from the
+        # actual saved JSON files for characters saved before the
+        # id field was added to the index metadata.
+        for entry in result:
+            if entry.get("id"):
+                continue
+            name = entry.get("name", "")
+            if name:
+                try:
+                    char = self.load(name)
+                    entry["id"] = char.id
+                except (FileNotFoundError, ValueError):
+                    entry["id"] = ""
+
+        return result
 
     # ------------------------------------------------------------------
     # Delete
@@ -512,6 +535,70 @@ class CharacterStorage:
             char_path.unlink(missing_ok=True)
         except Exception:
             pass  # File might already be gone
+
+    # ------------------------------------------------------------------
+    # Load / Delete by ID
+    # ------------------------------------------------------------------
+
+    def load_by_id(self, char_id: str) -> Character:
+        """Load a character by its UUID ``id`` field.
+
+        Scans all saved character JSON files until it finds one whose
+        ``id`` matches *char_id*.  This is O(n) in the number of saved
+        characters — acceptable for the small scale of this RPG.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no character with *char_id* exists.
+        ValueError
+            If the matching file contains corrupt data.
+        """
+        if not char_id:
+            raise ValueError("Character id must be non-empty")
+
+        for file_path in self.characters_dir.glob("*.json"):
+            if file_path.name == "index.json":
+                continue
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    data: Any = json.load(f)
+                if isinstance(data, dict) and data.get("id") == char_id:
+                    return Character.from_dict(data)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        raise FileNotFoundError(f"Character with id '{char_id}' not found")
+
+    def delete_by_id(self, char_id: str) -> None:
+        """Delete a character by its UUID ``id`` field.
+
+        Scans saved files to find the matching character, removes
+        the file and cleans up the index.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no character with *char_id* exists.
+        """
+        if not char_id:
+            raise ValueError("Character id must be non-empty")
+
+        for file_path in self.characters_dir.glob("*.json"):
+            if file_path.name == "index.json":
+                continue
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    data: Any = json.load(f)
+                if isinstance(data, dict) and data.get("id") == char_id:
+                    name = data.get("name", "")
+                    file_path.unlink(missing_ok=True)
+                    self._remove_from_index(name)
+                    return
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        raise FileNotFoundError(f"Character with id '{char_id}' not found")
 
     # ------------------------------------------------------------------
     # Character exists

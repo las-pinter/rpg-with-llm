@@ -499,9 +499,9 @@ class TestCharacterModel:
         assert char.level == 1
         assert char.xp == 0
 
-    def test_from_dict_empty_dict_raises_type_error(self) -> None:
+    def test_from_dict_empty_dict_raises_value_error(self) -> None:
         """An empty dict cannot produce a valid Character (missing required name)."""
-        with pytest.raises(TypeError, match="missing.*required.*argument.*name"):
+        with pytest.raises(ValueError):
             Character.from_dict({})
 
     def test_from_dict_missing_abilities_uses_defaults(self) -> None:

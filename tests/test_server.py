@@ -1134,9 +1134,9 @@ class TestStaticRoutes:
         assert "MAX_POINTS" in js
         assert "init()" in js
         assert "_createCharacter" in js
-        assert "_saveCharacter" in js
         assert "_deleteCharacter" in js
         assert "_renderLoadList" in js
+        assert "_loadCharacter" in js
         assert "_esc" in js
 
     def test_character_js_has_class_defaults(self, client):
@@ -1496,62 +1496,82 @@ class TestCharacterGenerateEndpoint:
         assert "Unable to generate" in data.get("error", "")
 
 
-class TestCharacterSaveEndpoint:
-    """Tests for POST /api/character/save."""
+class TestCharacterCreateEndpoint:
+    """Tests for POST /api/character/create."""
 
-    _CHARACTER_DATA = {
-        "name": "TestHero",
-        "character_class": "Fighter",
-        "level": 1,
-        "abilities": {a: 10 for a in ("STR", "DEX", "CON", "INT", "WIS", "CHA")},
-        "skills": ["Athletics"],
-        "hp": 12,
-        "max_hp": 12,
-        "ac": 16,
-        "appearance": "Tall and strong.",
-        "backstory": "A wandering warrior.",
-        "inventory": ["Sword"],
-    }
-
-    def test_save_success(self, client):
-        """POST with valid character data saves and returns timestamp."""
+    def test_create_success(self, client):
+        """POST with valid name and class creates and returns a character."""
         resp = client.post(
-            "/api/character/save",
-            json={"character": self._CHARACTER_DATA},
-        )
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["ok"] is True
-        assert data["name"] == "TestHero"
-        assert "timestamp" in data
-        assert isinstance(data["timestamp"], str)
-        assert len(data["timestamp"]) >= 15
-
-    def test_save_with_custom_name(self, client):
-        """POST with custom name uses it for saving."""
-        resp = client.post(
-            "/api/character/save",
+            "/api/character/create",
             json={
-                "character": self._CHARACTER_DATA,
-                "name": "CustomName",
+                "name": "TestHero",
+                "character_class": "Fighter",
             },
         )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
-        assert data["name"] == "CustomName"
+        assert data["character"]["name"] == "TestHero"
+        assert data["character"]["character_class"] == "Fighter"
+        assert data["character"]["id"] != ""
+        assert isinstance(data["character"]["id"], str)
 
-    def test_save_missing_character(self, client):
-        """POST without character data returns 400."""
-        resp = client.post("/api/character/save", json={})
+    def test_create_with_all_fields(self, client):
+        """POST with appearance and backstory includes them."""
+        resp = client.post(
+            "/api/character/create",
+            json={
+                "name": "Zara",
+                "character_class": "Rogue",
+                "appearance": "Elven with silver hair",
+                "backstory": "Grew up in the Crescent Woods.",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["character"]["name"] == "Zara"
+        assert data["character"]["character_class"] == "Rogue"
+        assert data["character"]["appearance"] == "Elven with silver hair"
+        assert data["character"]["backstory"] == "Grew up in the Crescent Woods."
+
+    def test_create_missing_name(self, client):
+        """POST without name returns 400."""
+        resp = client.post(
+            "/api/character/create",
+            json={"character_class": "Fighter"},
+        )
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
+        assert "name" in data["error"].lower()
 
-    def test_save_non_json_body(self, client):
+    def test_create_empty_name(self, client):
+        """POST with empty name returns 400."""
+        resp = client.post(
+            "/api/character/create",
+            json={"name": "", "character_class": "Fighter"},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "name" in data["error"].lower()
+
+    def test_create_invalid_class(self, client):
+        """POST with invalid character_class returns 400."""
+        resp = client.post(
+            "/api/character/create",
+            json={"name": "Test", "character_class": "Paladin"},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "Invalid character class" in data["error"]
+
+    def test_create_non_json_body(self, client):
         """POST with non-JSON body returns 400."""
         resp = client.post(
-            "/api/character/save",
+            "/api/character/create",
             data="not json",
             content_type="text/plain",
         )
@@ -1559,36 +1579,28 @@ class TestCharacterSaveEndpoint:
         data = resp.get_json()
         assert data["ok"] is False
 
-    def test_save_invalid_character_data(self, client):
-        """POST with invalid character data returns 400."""
+    def test_create_missing_character_class(self, client):
+        """POST without character_class returns 400."""
         resp = client.post(
-            "/api/character/save",
-            json={"character": {"name": "", "character_class": "Fighter"}},
+            "/api/character/create",
+            json={"name": "Test"},
         )
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
 
-    def test_save_non_dict_character_returns_400(self, client):
-        """POST with non-dict character data returns 400."""
-        resp = client.post(
-            "/api/character/save",
-            json={"character": "not_a_dict"},
-        )
-        assert resp.status_code == 400
-        data = resp.get_json()
-        assert data["ok"] is False
-
-    def test_save_storage_error_returns_500(self, client):
-        """When the storage layer raises an unexpected error, the
-        endpoint must return 500."""
+    def test_create_storage_error_returns_500(self, client):
+        """When the storage layer raises an unexpected error, returns 500."""
         with patch(
             "app.routes.characters.CharacterStorage.save",
             side_effect=OSError("Disk full"),
         ):
             resp = client.post(
-                "/api/character/save",
-                json={"character": self._CHARACTER_DATA},
+                "/api/character/create",
+                json={
+                    "name": "TestHero",
+                    "character_class": "Fighter",
+                },
             )
         assert resp.status_code == 500
         data = resp.get_json()
@@ -1606,23 +1618,13 @@ class TestCharacterListEndpoint:
         assert data["ok"] is True
         assert isinstance(data["characters"], list)
 
-    def test_list_after_save(self, client):
-        """GET /api/characters includes saved character."""
-        # Save a character first
-        char_data = {
-            "name": "ListTest",
-            "character_class": "Mage",
-            "level": 1,
-            "abilities": {a: 10 for a in ("STR", "DEX", "CON", "INT", "WIS", "CHA")},
-            "skills": ["Arcana"],
-            "hp": 8,
-            "max_hp": 8,
-            "ac": 12,
-            "appearance": "",
-            "backstory": "",
-            "inventory": ["Spellbook"],
-        }
-        client.post("/api/character/save", json={"character": char_data})
+    def test_list_after_create(self, client):
+        """GET /api/characters includes created character."""
+        # Create a character first
+        client.post(
+            "/api/character/create",
+            json={"name": "ListTest", "character_class": "Mage"},
+        )
 
         # Then list
         resp = client.get("/api/characters")
@@ -1631,6 +1633,99 @@ class TestCharacterListEndpoint:
         assert data["ok"] is True
         names = [c.get("name") for c in data["characters"]]
         assert "ListTest" in names
+        # Each entry must have a non-empty id
+        for entry in data["characters"]:
+            assert "id" in entry
+            assert entry["id"] != ""
+
+    def test_list_preserves_existing_fields(self, client):
+        """Character list entries must include name, class, level, timestamp."""
+        client.post(
+            "/api/character/create",
+            json={"name": "FieldTest", "character_class": "Cleric"},
+        )
+        resp = client.get("/api/characters")
+        assert resp.status_code == 200
+        entries = resp.get_json()["characters"]
+        assert len(entries) >= 1
+        entry = entries[0]
+        assert entry["name"] == "FieldTest"
+        assert entry["class"] == "Cleric"
+        assert entry["level"] == 1
+        assert "timestamp" in entry
+
+
+# ---------------------------------------------------------------------------
+# GET /api/character/id/<id> and DELETE /api/character/id/<id>
+# ---------------------------------------------------------------------------
+
+
+class TestCharacterIdEndpoint:
+    """Tests for GET/DELETE /api/character/id/<id>."""
+
+    def test_load_by_id_success(self, client):
+        """GET /api/character/id/<id> returns the full character."""
+        # Create a character first
+        resp = client.post(
+            "/api/character/create",
+            json={
+                "name": "IDHero",
+                "character_class": "Mage",
+                "appearance": "Tall figure in robes",
+                "backstory": "A wandering mage seeking knowledge.",
+            },
+        )
+        assert resp.status_code == 200
+        char_id = resp.get_json()["character"]["id"]
+        assert char_id != ""
+        assert isinstance(char_id, str)
+
+        # Load by id
+        resp = client.get(f"/api/character/id/{char_id}")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["character"]["id"] == char_id
+        assert data["character"]["name"] == "IDHero"
+        assert data["character"]["character_class"] == "Mage"
+        assert data["character"]["appearance"] == "Tall figure in robes"
+        assert data["character"]["backstory"] == "A wandering mage seeking knowledge."
+
+    def test_load_by_id_not_found(self, client):
+        """GET /api/character/id/<nonexistent> returns 404."""
+        resp = client.get("/api/character/id/nonexistent-uuid")
+        assert resp.status_code == 404
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "not found" in data["error"].lower() or "not found" in data["error"]
+
+    def test_delete_by_id_success(self, client):
+        """DELETE /api/character/id/<id> removes the character."""
+        # Create a character
+        resp = client.post(
+            "/api/character/create",
+            json={"name": "DeleteID", "character_class": "Rogue"},
+        )
+        assert resp.status_code == 200
+        char_id = resp.get_json()["character"]["id"]
+
+        # Delete by id
+        resp = client.delete(f"/api/character/id/{char_id}")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+        # Verify it's gone
+        resp = client.get(f"/api/character/id/{char_id}")
+        assert resp.status_code == 404
+
+    def test_delete_by_id_not_found(self, client):
+        """DELETE /api/character/id/<nonexistent> returns 404."""
+        resp = client.delete("/api/character/id/nonexistent-uuid")
+        assert resp.status_code == 404
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "not found" in data["error"].lower() or "not found" in data["error"]
 
 
 # ---------------------------------------------------------------------------
