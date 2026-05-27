@@ -705,18 +705,18 @@ class TestModelsEndpoint:
 
 
 class TestGameStreamEndpoint:
-    """Tests for GET /api/game/stream."""
+    """Tests for POST /api/game/stream."""
 
     def test_stream_without_input_returns_400(self, client):
-        """GET without input query param returns 400."""
-        resp = client.get("/api/game/stream")
+        """POST without input in body returns 400."""
+        resp = client.post("/api/game/stream", json={})
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
 
     def test_stream_with_input_returns_sse(self, client):
-        """GET with input returns SSE response."""
-        resp = client.get("/api/game/stream?input=Hello")
+        """POST with input returns SSE response."""
+        resp = client.post("/api/game/stream", json={"input": "Hello"})
         assert resp.status_code == 200
         assert resp.mimetype == "text/event-stream"
         data = resp.get_data(as_text=True)
@@ -727,7 +727,7 @@ class TestGameStreamEndpoint:
 
     def test_stream_sse_format(self, client):
         """SSE response should have proper event format with event: and data: lines."""
-        resp = client.get("/api/game/stream?input=Look+around")
+        resp = client.post("/api/game/stream", json={"input": "Look around"})
         raw = resp.get_data(as_text=True)
         lines = [line for line in raw.split("\n") if line.strip()]
         assert len(lines) > 0
@@ -736,13 +736,13 @@ class TestGameStreamEndpoint:
 
     def test_stream_includes_narrative(self, client):
         """SSE response should include narrative event."""
-        resp = client.get("/api/game/stream?input=Hello")
+        resp = client.post("/api/game/stream", json={"input": "Hello"})
         data = resp.get_data(as_text=True)
         assert '"type": "narrative"' in data
 
     def test_stream_includes_done_event(self, client):
         """SSE response should include a done event."""
-        resp = client.get("/api/game/stream?input=Hello")
+        resp = client.post("/api/game/stream", json={"input": "Hello"})
         data = resp.get_data(as_text=True)
         assert '"type": "done"' in data
         assert '"turn_count"' in data
@@ -752,23 +752,23 @@ class TestGameStreamEndpoint:
     # ------------------------------------------------------------------
 
     def test_stream_empty_input_returns_400(self, client):
-        """GET with input= (empty string) returns 400."""
-        resp = client.get("/api/game/stream?input=")
+        """POST with empty string input returns 400."""
+        resp = client.post("/api/game/stream", json={"input": ""})
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
         assert "Missing" in data.get("error", "")
 
     def test_stream_whitespace_input_returns_400(self, client):
-        """GET with whitespace-only input returns 400."""
-        resp = client.get("/api/game/stream?input=+")
+        """POST with whitespace-only input returns 400."""
+        resp = client.post("/api/game/stream", json={"input": "   "})
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
 
     def test_stream_missing_input_key_returns_400(self, client):
-        """GET with a query param that isn't 'input' returns 400."""
-        resp = client.get("/api/game/stream?foo=bar")
+        """POST with a body that has no 'input' key returns 400."""
+        resp = client.post("/api/game/stream", json={"foo": "bar"})
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
@@ -779,7 +779,7 @@ class TestGameStreamEndpoint:
 
     def test_stream_has_event_type_prefixes(self, client):
         """SSE response includes event: lines for named event dispatch."""
-        resp = client.get("/api/game/stream?input=Hello")
+        resp = client.post("/api/game/stream", json={"input": "Hello"})
         raw = resp.get_data(as_text=True)
         assert "event: narrative" in raw
         assert "event: done" in raw
@@ -797,11 +797,15 @@ class TestGameStreamEndpoint:
         }
 
         with patch("app.routes.game.create_provider", return_value=mock_provider):
-            resp = client.get(
-                "/api/game/stream"
-                "?input=Test"
-                "&base_url=http://localhost:11434"
-                "&model=test-model"
+            resp = client.post(
+                "/api/game/stream",
+                json={
+                    "input": "Test",
+                    "provider": {
+                        "base_url": "http://localhost:11434",
+                        "model": "test-model",
+                    },
+                },
             )
 
         assert resp.status_code == 200
@@ -821,7 +825,6 @@ class TestGameStreamEndpoint:
     def test_stream_impossible_action_returns_canned_narrative(self, client):
         """SSE response for impossible action returns narrative WITHOUT
         calling the LLM — no token events should appear."""
-        import urllib.parse
 
         # A Fighter trying to cast a spell is impossible per CLASS_BLACKLIST
         character_data = {
@@ -840,10 +843,13 @@ class TestGameStreamEndpoint:
             "max_hp": 12,
             "ac": 18,
         }
-        char_encoded = urllib.parse.quote(json.dumps(character_data))
 
-        resp = client.get(
-            f"/api/game/stream?input=I+cast+fireball&character={char_encoded}"
+        resp = client.post(
+            "/api/game/stream",
+            json={
+                "input": "I cast fireball",
+                "character": character_data,
+            },
         )
 
         assert resp.status_code == 200
@@ -1279,7 +1285,7 @@ class TestStaticRoutes:
         assert "const SSEClient =" in js or "var SSEClient =" in js
         assert "connect(input" in js or "connect(" in js
         assert "disconnect()" in js
-        assert "EventSource" in js
+        assert "fetch(" in js or "AbortController" in js
         assert "onToken" in js
         assert "onNarrative" in js
         assert "onDone" in js

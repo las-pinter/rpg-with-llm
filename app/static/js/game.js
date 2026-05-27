@@ -2,7 +2,7 @@
  * LLM-Powered RPG — Game View
  *
  * The main gameplay interface: narrative display, status sidebar, and
- * action input.  Communicates with the DM backend via GET /api/game/stream (SSE).
+ * action input.  Communicates with the DM backend via POST /api/game/stream (SSE).
  */
 const GameView = {
     /** Runtime game state. */
@@ -253,49 +253,49 @@ const GameView = {
                 input,
                 App.state.provider,
                 {
-                    onToken: ((token) => {
+                    onToken: (token) => {
                         tokenBuffer += token;
-                    }).bind(this),
+                    },
 
-                    onNpcThinking: ((npcData) => {
+                    onNpcThinking: (npcData) => {
                         this._showNpcThinking(npcData);
-                    }).bind(this),
+                    },
 
-                    onStateUpdate: ((update) => {
+                    onStateUpdate: (update) => {
                         if (update && update.state) {
                             this.state.worldState = update.state;
                             this.state.turnCount = update.turn_count || this.state.turnCount + 1;
                         }
-                    }).bind(this),
+                    },
 
-                    onNarrative: ((narrative) => {
+                    onNarrative: (narrative) => {
                         this._hideNpcThinking();
                         this._addNarrative(narrative);
                         this._scrollToBottom();
-                    }).bind(this),
+                    },
 
-                    onDone: ((turnCount) => {
+                    onDone: (turnCount) => {
                         this._hideNpcThinking();
                         this.state.turnCount = turnCount ?? this.state.turnCount + 1;
                         this._renderSidebar();
                         this._addTurnSeparator();
                         resolve();
-                    }).bind(this),
+                    },
 
-                    onTokenUsage: ((usage) => {
+                    onTokenUsage: (usage) => {
                         if (usage) {
                             this.state.tokenUsage.prompt_tokens += usage.prompt_tokens || 0;
                             this.state.tokenUsage.completion_tokens += usage.completion_tokens || 0;
                             this.state.tokenUsage.total_tokens += usage.total_tokens || 0;
                         }
                         this._renderSidebar();
-                    }).bind(this),
+                    },
 
-                    onError: ((msg) => {
+                    onError: (msg) => {
                         this._hideNpcThinking();
                         SSEClient.disconnect();
                         reject(new Error(msg || "SSE connection failed"));
-                    }).bind(this),
+                    },
                 },
                 // Pass state and character for continuity
                 this.state.worldState,
