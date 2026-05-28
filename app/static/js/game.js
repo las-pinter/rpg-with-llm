@@ -246,17 +246,10 @@ const GameView = {
      */
     _sendTurnSSE(input) {
         return new Promise((resolve, reject) => {
-            // Keep a token buffer for internal parsing but don't display raw tokens
-            let tokenBuffer = "";
-
             SSEClient.connect(
                 input,
                 App.state.provider,
                 {
-                    onToken: (token) => {
-                        tokenBuffer += token;
-                    },
-
                     onNpcThinking: (npcData) => {
                         this._showNpcThinking(npcData);
                     },

@@ -86,18 +86,15 @@ class TestProcessTurnStream:
     # 1. Token streaming
     # ------------------------------------------------------------------
 
-    def test_yields_token_events(self, dm: DungeonMaster) -> None:
-        """With a mock provider that streams, should yield token events."""
+    def test_yields_no_token_events(self, dm: DungeonMaster) -> None:
+        """With a mock provider, token events are NOT emitted (non-streaming)."""
         events = list(dm.process_turn_stream("Hello"))
 
-        # Should have at least one token event
+        # Should NOT have any token events (non-streaming)
         token_events = [e for e in events if e["event"] == "token"]
-        assert len(token_events) > 0
-        # One token per streamed chunk
-        assert token_events[0]["data"]["content"] == "<narrative>"
-        assert any(e["data"]["content"] == " world" for e in token_events)
+        assert len(token_events) == 0
 
-        # Should also include final bookkeeping events
+        # Should still include final bookkeeping events
         event_types = {e["event"] for e in events}
         assert "state_update" in event_types
         assert "narrative" in event_types
@@ -113,13 +110,14 @@ class TestProcessTurnStream:
         mock_stream_provider: MagicMock,
     ) -> None:
         """When DM output includes npc_requests, npc_thinking events yielded."""
-        mock_stream_provider.stream.return_value = iter(
-            [
+        mock_stream_provider.call.return_value = {
+            "content": (
                 "<narrative>The barkeep grunts.</narrative>\n"
                 '<npc_request npc_id="tavern_keep" '
-                'context="asks about drink" />',
-            ]
-        )
+                'context="asks about drink" />'
+            ),
+            "usage": {},
+        }
 
         dm = DungeonMaster(
             llm_provider=mock_stream_provider,
@@ -224,19 +222,19 @@ class TestProcessTurnStream:
     # 8. Stream error
     # ------------------------------------------------------------------
 
-    def test_error_during_stream_yields_error_event(
+    def test_error_during_llm_call_yields_error_event(
         self,
         dm: DungeonMaster,
         mock_stream_provider: MagicMock,
     ) -> None:
-        """If provider.stream() raises, yield error event and stop."""
-        mock_stream_provider.stream.side_effect = RuntimeError("Stream failed")
+        """If LLM call raises, yield error event and stop."""
+        mock_stream_provider.call.side_effect = RuntimeError("LLM call failed")
 
         events = list(dm.process_turn_stream("Hello"))
 
         error_events = [e for e in events if e["event"] == "error"]
         assert len(error_events) == 1
-        assert error_events[0]["data"]["message"] == "LLM stream error"
+        assert "LLM call error" in error_events[0]["data"]["message"]
 
         # Should NOT have a done event after error
         done_events = [e for e in events if e["event"] == "done"]
@@ -318,24 +316,18 @@ class TestProcessTurnStream:
         mock_stream_provider: MagicMock,
     ) -> None:
         """When LLM response has no <narrative> tag, retry should occur."""
-        # Stream a response WITHOUT narrative tags
-        mock_stream_provider.stream.return_value = iter(
-            [
-                "This response has no narrative tags.",
-            ]
-        )
+        # Both the initial call and the retry use provider.call() now.
+        # First call returns no narrative tags; second (retry) returns valid.
+        mock_stream_provider.call.side_effect = [
+            {"content": "This response has no narrative tags.", "usage": {}},
+            {"content": "<narrative>The retry narrative.</narrative>", "usage": {}},
+        ]
 
         dm = DungeonMaster(
             llm_provider=mock_stream_provider,
             world_state=None,
             character=None,
         )
-
-        # The retry path calls provider.call() — mock that too
-        mock_stream_provider.call.return_value = {
-            "content": ("<narrative>The retry narrative.</narrative>"),
-            "usage": {},
-        }
 
         events = list(dm.process_turn_stream("Hello"))
 
