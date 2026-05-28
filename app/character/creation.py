@@ -45,8 +45,13 @@ You are a Game Master and narrative storyteller for a fantasy RPG. Based on \
 the player's narrative answers below, create a character with solid mechanics \
 and a vivid, playable identity.
 
+The 7 story answers (journal chapters) provided below describe the character's \
+life journey. Use them as the primary source for the backstory and appearance \
+fields in your JSON output — every detail in those fields should be rooted in \
+what the player wrote.
+
 --- MECHANICS ---
-Choose the most fitting class from: Fighter, Rogue, Mage, Cleric.
+{CLASS_INSTRUCTION}
 Assign ability scores (STR, DEX, CON, INT, WIS, CHA) between 3 and 18, with \
 a reasonable distribution for the chosen class.
 Pick 2-4 skills appropriate for the class and backstory.
@@ -77,7 +82,8 @@ When writing the backstory, weave these stat-based details naturally:
 - Very low WIS: missed obvious warnings, spiritually blind, stubborn denial
 
 --- BACKSTORY (3-5 paragraphs, 300-500 words) ---
-Weave the player's answers into a cohesive narrative. Include:
+Weave the player's narrative answers into a cohesive backstory. Each journal \
+chapter answer should contribute elements to the story. Include:
 1. Upbringing & Origins — Where were they raised? Family? Social station?
 2. Pivotal Event — The moment that changed everything and set them on the \
 adventuring path. Keep it personal and grounded (no epic heroics at level 1).
@@ -88,8 +94,9 @@ weakness that complicates their decisions.
 5. Secret or Unresolved Thread — Something from their past that could surface \
 later — a debt, a hidden identity, a promise unkept.
 
---- APPEARANCE (2-4 sentences) ---
-Describe their look vividly:
+--- APPEARANCE (2-4 sentences, driven by story answers) ---
+Describe their look vividly, basing it on details from the player's narrative \
+answers:
 - Build, height, notable physical features (scars, tattoos, eye color, etc.)
 - Clothing and armor style
 - Bearing or presence (stoic, fidgety, commanding, haunted)
@@ -106,8 +113,8 @@ Return ONLY valid JSON — no explanation, no markdown formatting, no code fence
     "hp": 10,
     "max_hp": 10,
     "ac": 12,
-    "appearance": "Vivid physical description here.",
-    "backstory": "Rich narrative backstory here, 3-5 paragraphs.",
+    "appearance": "Vivid description grounded in the story answers.",
+    "backstory": "Rich narrative drawn from the journal chapters (3-5 paragraphs).",
     "inventory": ["Item1", "Item2"]
 }}"""
 
@@ -148,6 +155,7 @@ class AssistedCreation:
         answers: dict[int, str],
         abilities: dict[str, int] | None = None,
         name: str | None = None,
+        character_class: str | None = None,
     ) -> Character:
         """Send up to 7 narrative answers to the LLM and parse the response
         into a complete Character object.
@@ -165,6 +173,10 @@ class AssistedCreation:
             Optional player-chosen name.  When provided and non-empty,
             the LLM is instructed to use it exactly.  When None or empty,
             the LLM generates a fitting name.
+        character_class : str | None
+            Optional player-chosen class.  When provided, the LLM is
+            instructed to use this exact class.  When None or empty,
+            the LLM chooses the most fitting class.
 
         Returns
         -------
@@ -213,7 +225,19 @@ class AssistedCreation:
                 "---"
             )
 
+        # Build class instruction
+        if character_class:
+            class_instruction = (
+                f"The player has already chosen their class: {character_class}. "
+                f"You MUST use this exact class. Do NOT change it."
+            )
+        else:
+            class_instruction = (
+                "Choose the most fitting class from: Fighter, Rogue, Mage, Cleric."
+            )
+
         system_prompt = _SYSTEM_PROMPT.format(
+            CLASS_INSTRUCTION=class_instruction,
             NAME_INSTRUCTION=name_instruction,
             STR=abilities.get("STR", 10) if abilities else 10,
             DEX=abilities.get("DEX", 10) if abilities else 10,
@@ -229,7 +253,7 @@ class AssistedCreation:
 
         # First attempt
         raw = self._call_llm(messages)
-        char = self._try_parse(raw)
+        char = self._try_parse(raw, requested_class=character_class)
 
         if char is not None:
             return char
@@ -238,7 +262,7 @@ class AssistedCreation:
         messages.append({"role": "assistant", "content": raw})
         messages.append({"role": "user", "content": _CORRECTION_PROMPT})
         raw2 = self._call_llm(messages)
-        char2 = self._try_parse(raw2)
+        char2 = self._try_parse(raw2, requested_class=character_class)
 
         if char2 is not None:
             return char2
@@ -257,16 +281,29 @@ class AssistedCreation:
         result = self._llm.call(messages)
         return result.get("content", "")
 
-    def _try_parse(self, raw: str) -> Character | None:
+    def _try_parse(
+        self, raw: str, requested_class: str | None = None
+    ) -> Character | None:
         """Try to parse *raw* LLM output into a Character.
 
-        Returns ``None`` if parsing or validation fails.
+        Parameters
+        ----------
+        raw : str
+            Raw LLM response text.
+        requested_class : str | None
+            The class the player actually chose.  When provided, the
+            parsed ``character_class`` must match exactly.
+
+        Returns
+        -------
+        Character | None
+            ``None`` if parsing or validation fails.
         """
         data = self._extract_json(raw)
         if data is None:
             return None
 
-        return self._validate_and_build(data)
+        return self._validate_and_build(data, requested_class=requested_class)
 
     @staticmethod
     def _extract_json(raw: str) -> dict[str, Any] | None:
@@ -314,10 +351,25 @@ class AssistedCreation:
         return None
 
     @staticmethod
-    def _validate_and_build(data: dict[str, Any]) -> Character | None:
+    def _validate_and_build(
+        data: dict[str, Any], requested_class: str | None = None
+    ) -> Character | None:
         """Validate parsed JSON data and build a Character.
 
-        Returns ``None`` if any validation check fails.
+        Parameters
+        ----------
+        data : dict[str, Any]
+            Parsed JSON data from the LLM response.
+        requested_class : str | None
+            The class the player actually chose.  When provided, the
+            returned ``character_class`` must match this exactly or the
+            validation fails, preventing the LLM from ignoring the
+            player's choice.
+
+        Returns
+        -------
+        Character | None
+            ``None`` if any validation check fails.
         """
         # Required fields
         name = data.get("name")
@@ -326,6 +378,10 @@ class AssistedCreation:
 
         char_class = data.get("character_class")
         if char_class not in VALID_CLASSES:
+            return None
+
+        # Ensure the LLM didn't ignore the player's chosen class
+        if requested_class is not None and char_class != requested_class:
             return None
 
         # Abilities
