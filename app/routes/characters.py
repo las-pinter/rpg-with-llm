@@ -100,6 +100,16 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
     api_key = provider_config.get("api_key")
     provider_type = str(provider_config.get("provider_type") or "").strip() or "ollama"
 
+    logger.debug(
+        "generate_character called: provider_type=%s model=%s name=%s "
+        "class=%s answers=%d",
+        provider_type,
+        model,
+        name,
+        character_class,
+        len(answers_int),
+    )
+
     try:
         config = ProviderConfig(
             base_url=base_url,
@@ -108,7 +118,12 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
             api_key=api_key,
         )
         provider = create_provider(config)
+        logger.debug("Provider created: %s", config)
         creation = AssistedCreation(llm_provider=provider)
+        logger.debug(
+            "Calling AssistedCreation.generate_character with %d answers",
+            len(answers_int),
+        )
         character = creation.generate_character(
             answers_int,
             abilities=abilities,
@@ -133,6 +148,9 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
         logger.exception("Character generation failed")
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
+    logger.info(
+        "Character generated: %s (%s)", character.name, character.character_class
+    )
     return jsonify({"ok": True, "character": character.to_dict()})
 
 
