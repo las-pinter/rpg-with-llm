@@ -107,6 +107,20 @@ purpose is to interpret what the player attempts, decide whether the rules need 
 speak, describe what happens, and move the story forward.  You are an author as
 much as a referee.  The world breathes through your words.
 
+# RULE 1: THE <narrative> TAG IS REQUIRED
+
+Every SINGLE response MUST contain a <narrative> tag pair with your story text.
+This is not optional. If you omit the <narrative> tag, the player sees NOTHING
+and the system will retry, wasting time and tokens.
+
+## CORRECT (always do this):
+<narrative>
+Your immersive story text here...
+</narrative>
+
+## INCORRECT (never do this):
+Your story text here without tags...
+
 # CORE PHILOSOPHY
 
 This is a storytelling system first.  Combat, dice, and rules mechanics exist to
@@ -323,6 +337,7 @@ see fit — you are the final author of the narrative.
   why it fails and invite a different approach.
 - If the player attempts something with uncertain stakes, call a tool.  Let
   the dice tell the story.
+- You MUST include a <narrative> tag pair in EVERY response. No exceptions.
 
 # OPENING SCENE VARIETY
 
@@ -512,13 +527,12 @@ class DungeonMaster:
         self,
         player_input: str,
     ) -> Generator[dict[str, Any], None, None]:
-        """Process a turn with streaming LLM response, yielding events.
+        """Process a turn by calling the LLM internally and yielding events.
 
-        Mirrors :meth:`process_turn` but uses ``self.llm_provider.stream()``
-        instead of ``_call_llm()`` and yields event dicts instead of
-        returning a single response dict.  Each yielded dict has an
-        ``event`` field (SSE event type) and a ``data`` field (the
-        JSON-serialisable payload).
+        Uses a non-streaming LLM call (tokens are NOT sent to the frontend)
+        and yields event dicts instead of returning a single response dict.
+        Each yielded dict has an ``event`` field (SSE event type) and a
+        ``data`` field (the JSON-serialisable payload).
 
         Parameters
         ----------
@@ -529,9 +543,10 @@ class DungeonMaster:
         ------
         dict[str, Any]
             Event dicts with ``event`` and ``data`` keys.  Possible event
-            types: ``token``, ``npc_thinking``, ``state_update``,
+            types: ``npc_thinking``, ``state_update``,
             ``narrative``, ``token_usage``, ``done``, ``error``.
         """
+        logger.info("DM input: %s", player_input)
         # ------------------------------------------------------------------
         # 0. Input validation
         # ------------------------------------------------------------------
@@ -601,61 +616,27 @@ class DungeonMaster:
         messages = self._build_context(player_input, plausibility_note)
 
         # ------------------------------------------------------------------
-        # 3. Stream tokens from the LLM
+        # 3. Call the LLM (non-streaming, internal only)
         # ------------------------------------------------------------------
         full_response: str = ""
-        collected_tokens: list[str] = []
 
-        if self.llm_provider is not None:
-            # Reset streaming usage tracker
-            self.llm_provider._last_stream_usage = None
+        try:
+            full_response = self._call_llm(messages)
+        except Exception:
+            logger.exception(
+                "process_turn_stream[%d]: LLM call error",
+                self.turn_count,
+            )
+            yield {
+                "event": "error",
+                "data": {
+                    "type": "error",
+                    "message": "LLM call error",
+                },
+            }
+            return
 
-            try:
-                for token in self.llm_provider.stream(messages):
-                    collected_tokens.append(token)
-                    yield {
-                        "event": "token",
-                        "data": {"type": "token", "content": token},
-                    }
-            except Exception:
-                logger.exception(
-                    "process_turn_stream[%d]: LLM stream error",
-                    self.turn_count,
-                )
-                yield {
-                    "event": "error",
-                    "data": {
-                        "type": "error",
-                        "message": "LLM stream error",
-                    },
-                }
-                return
-
-            full_response = "".join(collected_tokens)
-
-            # Accumulate token usage from streaming response
-            if self.llm_provider._last_stream_usage is not None:
-                try:
-                    su = self.llm_provider._last_stream_usage
-                    self.token_usage["prompt_tokens"] += int(su.get("prompt_tokens", 0))
-                    self.token_usage["completion_tokens"] += int(
-                        su.get("completion_tokens", 0)
-                    )
-                    self.token_usage["total_tokens"] += int(su.get("total_tokens", 0))
-                except (ValueError, TypeError):
-                    logger.warning(
-                        "Invalid stream token usage: %s",
-                        self.llm_provider._last_stream_usage,
-                    )
-        else:
-            # No provider configured — use canned response
-            full_response = "<narrative>\nThe scene unfolds before you.\n</narrative>"
-
-        logger.debug(
-            "process_turn_stream[%d]: stream finished — %d tokens collected",
-            self.turn_count,
-            len(collected_tokens),
-        )
+        logger.debug("DM Call #1 full response: %s", full_response)
 
         # ------------------------------------------------------------------
         # 4. Parse the collected response
@@ -700,6 +681,7 @@ class DungeonMaster:
             )
             try:
                 retry_text = self._call_llm(messages)
+                logger.debug("DM Call #2 (retry) full response: %s", retry_text)
                 retry_parsed = parse_dm_response(retry_text)
                 retry_narrative = retry_parsed.get("narrative", "")
                 if retry_narrative:
@@ -761,6 +743,9 @@ class DungeonMaster:
                     }
                 if second_response:
                     second_text = second_response.get("content", "")
+                    logger.debug(
+                        "DM Call #3 (second call) full response: %s", second_text
+                    )
                     # Accumulate usage from second call
                     usage2 = second_response.get("usage")
                     if usage2 and isinstance(usage2, dict):
@@ -820,6 +805,7 @@ class DungeonMaster:
                 "turn_count": self.turn_count,
             },
         }
+        logger.info("DM output: %s", narrative)
         yield {
             "event": "narrative",
             "data": {"type": "narrative", "content": narrative},
