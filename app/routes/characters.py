@@ -54,6 +54,9 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
 
     answers = data.get("answers")
     abilities = data.get("abilities", {})
+    character_class = data.get("character_class")
+    if not isinstance(character_class, str) or character_class not in VALID_CLASSES:
+        character_class = None
     name = data.get("name")
     if not isinstance(name, str):
         name = None
@@ -110,6 +113,7 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
             answers_int,
             abilities=abilities,
             name=name,
+            character_class=character_class,
         )
     except ValueError as e:
         logger.warning("Invalid character generation request: %s", e)
@@ -190,6 +194,7 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
             "hp",
             "max_hp",
             "ac",
+            "abilities",
             "gold",
             "strength",
             "dexterity",

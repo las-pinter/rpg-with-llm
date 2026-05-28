@@ -52,9 +52,6 @@ const CharacterView = {
         // Set initial values from loaded rules
         this._initDefaults();
 
-        // Populate class dropdowns
-        this._populateClassDropdowns();
-
         this.els = {
             // Tabs
             tabBar: document.querySelector(".tab-bar"),
@@ -81,6 +78,7 @@ const CharacterView = {
 
             // Ability scores
             remainingSpan: document.getElementById("remaining-points"),
+            campRemainingSpan: document.getElementById("camp-remaining-points"),
 
             // Skills display
             skillsDisplay: document.getElementById("skills-display"),
@@ -112,6 +110,9 @@ const CharacterView = {
             savedGamesList: document.getElementById("saved-games-list"),
         };
 
+        // Populate class dropdowns
+        this._populateClassDropdowns();
+
         // Tab switching (Create ↔ Load)
         this.els.tabBar.addEventListener("click", (e) => {
             const tab = e.target.closest(".tab");
@@ -135,6 +136,14 @@ const CharacterView = {
             this._updateUI();
         });
 
+        // Manual class change => same treatment
+        this.els.classManual.addEventListener("change", () => {
+            this.selectedClass = this.els.classManual.value;
+            this._applyClassDefaults();
+            this._updateSkills();
+            this._updateUI();
+        });
+
         // Ability score controls (event delegation)
         document
             .getElementById("abilities-grid")
@@ -149,6 +158,22 @@ const CharacterView = {
                     this._decrease(abil);
                 }
             });
+
+        // Campfire ability score controls (event delegation)
+        const campGrid = document.getElementById("camp-abilities-grid");
+        if (campGrid) {
+            campGrid.addEventListener("click", (e) => {
+                const btn = e.target.closest(".abil-btn");
+                if (!btn) return;
+                const card = btn.closest(".ability-card");
+                const abil = card.dataset.abil;
+                if (btn.classList.contains("inc")) {
+                    this._increase(abil);
+                } else {
+                    this._decrease(abil);
+                }
+            });
+        }
 
         // Story navigation
         this.els.storyPrevBtn.addEventListener("click", () =>
@@ -514,12 +539,13 @@ const CharacterView = {
 
         const name = this.els.charName?.value.trim() || "";
 
-        // Build the abilities object from class defaults
+        // Build the abilities object from current state
+        // (reflects class defaults or any manual adjustments via campfire grid)
         const standardAbilities =
             this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
         const abilities = {};
         for (const abil of standardAbilities) {
-            abilities[abil] = this._getDefaultAbility(abil);
+            abilities[abil] = this.abilities[abil] ?? this._getDefaultAbility(abil);
         }
 
         // Build answers as { "0": "...", "1": "...", ... }
@@ -528,9 +554,12 @@ const CharacterView = {
             answersObj[String(i)] = a || "";
         });
 
+        const cls = this.els.charClass?.value || this.selectedClass;
+
         const body = {
             answers: answersObj,
             abilities: abilities,
+            character_class: cls,
             provider: App.state.provider,
         };
         if (name) {
@@ -874,7 +903,7 @@ const CharacterView = {
             this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
         const abilities = {};
         for (const abil of standardAbilities) {
-            abilities[abil] = this._getDefaultAbility(abil);
+            abilities[abil] = this.abilities[abil] ?? this._getDefaultAbility(abil);
         }
 
         const answersObj = {};
@@ -884,9 +913,12 @@ const CharacterView = {
 
         const name = this.els.charName?.value.trim() || "";
 
+        const cls = this.els.charClass?.value || this.selectedClass;
+
         const body = {
             answers: answersObj,
             abilities: abilities,
+            character_class: cls,
             provider: App.state.provider,
         };
         if (name) {
@@ -1045,6 +1077,7 @@ const CharacterView = {
     _updateUI() {
         // Update individual scores
         for (const [abil, score] of Object.entries(this.abilities)) {
+            // Manual grid
             const scoreEl = document.getElementById(`abil-${abil}`);
             const costEl = document.getElementById(`cost-${abil}`);
             if (scoreEl) scoreEl.textContent = score;
@@ -1052,19 +1085,44 @@ const CharacterView = {
                 costEl.textContent = `(${this._getCost(score)} pts)`;
             }
 
-            // Enable/disable buttons
-            const card = document.querySelector(`[data-abil="${abil}"]`);
+            // Campfire grid
+            const campScoreEl = document.getElementById(`camp-abil-${abil}`);
+            const campCostEl = document.getElementById(`camp-cost-${abil}`);
+            if (campScoreEl) campScoreEl.textContent = score;
+            if (campCostEl) {
+                campCostEl.textContent = `(${this._getCost(score)} pts)`;
+            }
+
+            // Manual grid buttons
+            const card = document.querySelector(
+                `#abilities-grid [data-abil="${abil}"]`,
+            );
             if (card) {
                 const incBtn = card.querySelector(".abil-btn.inc");
                 const decBtn = card.querySelector(".abil-btn.dec");
                 if (incBtn) incBtn.disabled = !this._canIncrease(abil);
                 if (decBtn) decBtn.disabled = !this._canDecrease(abil);
             }
+
+            // Campfire grid buttons
+            const campCard = document.querySelector(
+                `#camp-abilities-grid [data-abil="${abil}"]`,
+            );
+            if (campCard) {
+                const incBtn = campCard.querySelector(".abil-btn.inc");
+                const decBtn = campCard.querySelector(".abil-btn.dec");
+                if (incBtn) incBtn.disabled = !this._canIncrease(abil);
+                if (decBtn) decBtn.disabled = !this._canDecrease(abil);
+            }
         }
 
-        // Update remaining points
+        // Update remaining points (manual)
         if (this.els.remainingSpan) {
             this.els.remainingSpan.textContent = this.remainingPoints;
+        }
+        // Update remaining points (campfire)
+        if (this.els.campRemainingSpan) {
+            this.els.campRemainingSpan.textContent = this.remainingPoints;
         }
     },
 
