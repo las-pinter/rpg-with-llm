@@ -13,6 +13,7 @@ questions.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,8 @@ from app.character.model import (
 )
 from app.llm.base import LLMProvider
 from app.utils import atomic_write
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -194,6 +197,14 @@ class AssistedCreation:
         if len(answers) < 3:
             raise ValueError(f"At least 3 answers are required, got {len(answers)}.")
 
+        logger.debug(
+            "generate_character: answers=%d, class=%s, name=%s, abilities=%s",
+            len(answers),
+            character_class,
+            name,
+            abilities is not None,
+        )
+
         # Build the user message from answers
         user_parts: list[str] = []
         if abilities:
@@ -252,21 +263,56 @@ class AssistedCreation:
         ]
 
         # First attempt
+        logger.debug(
+            "LLM call attempt 1: messages=%d, total_chars=%d",
+            len(messages),
+            sum(len(m.get("content", "")) for m in messages),
+        )
         raw = self._call_llm(messages)
+        logger.debug(
+            "LLM response (attempt 1): %d chars — %s...",
+            len(raw),
+            raw[:200].replace("\n", " "),
+        )
         char = self._try_parse(raw, requested_class=character_class)
 
         if char is not None:
+            logger.info(
+                "Character generated (attempt 1): %s (%s, lvl %d)",
+                char.name,
+                char.character_class,
+                char.level,
+            )
             return char
 
         # Retry with correction prompt
+        logger.warning(
+            "Retry triggered: first attempt failed to produce valid character"
+        )
         messages.append({"role": "assistant", "content": raw})
         messages.append({"role": "user", "content": _CORRECTION_PROMPT})
         raw2 = self._call_llm(messages)
+        logger.debug(
+            "LLM response (attempt 2): %d chars — %s...",
+            len(raw2),
+            raw2[:200].replace("\n", " "),
+        )
         char2 = self._try_parse(raw2, requested_class=character_class)
 
         if char2 is not None:
+            logger.info(
+                "Character generated on retry: %s (%s, lvl %d)",
+                char2.name,
+                char2.character_class,
+                char2.level,
+            )
             return char2
 
+        logger.error(
+            "Character generation failed after 2 attempts. "
+            "Last response (first 500): %s",
+            raw2[:500].replace("\n", " "),
+        )
         raise CharacterGenerationError(
             "Failed to generate a valid character after two attempts. "
             "The LLM response could not be parsed as valid character data."
@@ -301,6 +347,7 @@ class AssistedCreation:
         """
         data = self._extract_json(raw)
         if data is None:
+            logger.debug("_try_parse: JSON extraction returned None")
             return None
 
         return self._validate_and_build(data, requested_class=requested_class)
@@ -374,14 +421,23 @@ class AssistedCreation:
         # Required fields
         name = data.get("name")
         if not isinstance(name, str) or not name.strip():
+            logger.debug("_validate_and_build: name is empty")
             return None
 
         char_class = data.get("character_class")
         if char_class not in VALID_CLASSES:
+            logger.debug(
+                "_validate_and_build: class '%s' not in VALID_CLASSES", char_class
+            )
             return None
 
         # Ensure the LLM didn't ignore the player's chosen class
         if requested_class is not None and char_class != requested_class:
+            logger.debug(
+                "_validate_and_build: class mismatch — got '%s', expected '%s'",
+                char_class,
+                requested_class,
+            )
             return None
 
         # Abilities
@@ -391,6 +447,11 @@ class AssistedCreation:
         for abil in STANDARD_ABILITIES:
             val = abilities.get(abil)
             if not isinstance(val, int) or val < 3 or val > 18:
+                logger.debug(
+                    "_validate_and_build: ability '%s' = %s (must be int 3-18)",
+                    abil,
+                    val,
+                )
                 return None
 
         # Numeric fields
@@ -398,6 +459,12 @@ class AssistedCreation:
         max_hp = data.get("max_hp")
         ac = data.get("ac")
         if not all(isinstance(v, int) for v in (hp, max_hp, ac)):
+            logger.debug(
+                "_validate_and_build: non-int field — hp=%s, max_hp=%s, ac=%s",
+                type(hp).__name__,
+                type(max_hp).__name__,
+                type(ac).__name__,
+            )
             return None
 
         # Skills & inventory (must be lists)
@@ -425,7 +492,10 @@ class AssistedCreation:
                 backstory=backstory if isinstance(backstory, str) else "",
                 inventory=inventory,
             )
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            logger.debug(
+                "_validate_and_build: constructor raised %s: %s", type(e).__name__, e
+            )
             return None
 
 

@@ -706,13 +706,13 @@ const CharacterView = {
                 </div>
                 <div class="review-field">
                     <div class="review-field-label">Appearance</div>
-                    <div class="review-field-value" data-field="appearance">
+                    <div class="review-field-value review-field-text" data-field="appearance">
                         ${_esc(character.appearance || "None")}
                     </div>
                 </div>
                 <div class="review-field">
                     <div class="review-field-label">Backstory</div>
-                    <div class="review-field-value" data-field="backstory">
+                    <div class="review-field-value review-field-text" data-field="backstory">
                         ${_esc(character.backstory || "None")}
                     </div>
                 </div>
@@ -753,6 +753,8 @@ const CharacterView = {
                 textarea.value =
                     value != null ? String(value) : display;
                 textarea.dataset.field = path;
+                textarea.rows = path === "backstory" ? 8 : 4;
+                textarea.style.fontFamily = "var(--font-narrative)";
                 el.textContent = "";
                 el.appendChild(textarea);
             } else if (path.startsWith("abilities.")) {
