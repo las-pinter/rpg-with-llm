@@ -185,7 +185,7 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
             400,
         )
 
-    # Check if extended fields are present (e.g. from localStorage migration)
+    # Check if extended fields are present (abilities, stats, etc.)
     has_extended = any(
         k in data
         for k in (

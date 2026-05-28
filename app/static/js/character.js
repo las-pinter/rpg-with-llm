@@ -220,9 +220,6 @@ const CharacterView = {
         // Load existing characters list on init
         this._renderLoadList();
 
-        // One-time migration from legacy localStorage to server
-        this._migrateLocalCharacters();
-
         // Build story questions and start in campfire mode
         this._buildStoryQuestions();
         this._showStoryQuestion(0);
@@ -247,33 +244,18 @@ const CharacterView = {
     _initDefaults() {
         const rules = this._rules;
 
-        // Default abilities: first class template or flat 8s
+        // Default to flat 8s, then override with class template if possible
+        this.abilities = { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 };
+
         if (rules?.class_templates) {
             const firstClass = rules.valid_classes?.[0];
             if (firstClass && rules.class_templates[firstClass]) {
-                this.abilities = { ...rules.class_templates[firstClass].abilities };
+                this.abilities = { ...this.abilities, ...rules.class_templates[firstClass].abilities };
                 this.selectedClass = firstClass;
             } else {
-                // Fallback — flat 8s
-                this.abilities = {
-                    STR: 8,
-                    DEX: 8,
-                    CON: 8,
-                    INT: 8,
-                    WIS: 8,
-                    CHA: 8,
-                };
                 this.selectedClass = rules.valid_classes?.[0] || "";
             }
         } else {
-            this.abilities = {
-                STR: 8,
-                DEX: 8,
-                CON: 8,
-                INT: 8,
-                WIS: 8,
-                CHA: 8,
-            };
             this.selectedClass = "";
         }
 
@@ -512,6 +494,21 @@ const CharacterView = {
         return 10;
     },
 
+    /** Build the request body for the generate endpoint. */
+    _buildGenerateRequestBody() {
+        const standardAbilities =
+            this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+        const abilities = {};
+        for (const abil of standardAbilities) {
+            abilities[abil] = this.abilities[abil] ?? this._getDefaultAbility(abil);
+        }
+        const answersObj = {};
+        this._storyAnswers.forEach((a, i) => { answersObj[String(i)] = a || ""; });
+        const name = this.els.charName?.value.trim() || "";
+        const cls = this.els.charClass?.value || this.selectedClass;
+        return { abilities, answers: answersObj, name, character_class: cls };
+    },
+
     /** Submit story answers to the backend for AI character generation. */
     async _submitStoryAnswers() {
         this._saveCurrentAnswer();
@@ -537,29 +534,13 @@ const CharacterView = {
             return;
         }
 
-        const name = this.els.charName?.value.trim() || "";
-
-        // Build the abilities object from current state
-        // (reflects class defaults or any manual adjustments via campfire grid)
-        const standardAbilities =
-            this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
-        const abilities = {};
-        for (const abil of standardAbilities) {
-            abilities[abil] = this.abilities[abil] ?? this._getDefaultAbility(abil);
-        }
-
-        // Build answers as { "0": "...", "1": "...", ... }
-        const answersObj = {};
-        this._storyAnswers.forEach((a, i) => {
-            answersObj[String(i)] = a || "";
-        });
-
-        const cls = this.els.charClass?.value || this.selectedClass;
+        const { abilities, answers, name, character_class } =
+            this._buildGenerateRequestBody();
 
         const body = {
-            answers: answersObj,
-            abilities: abilities,
-            character_class: cls,
+            answers,
+            abilities,
+            character_class,
             provider: App.state.provider,
         };
         if (name) {
@@ -747,131 +728,143 @@ const CharacterView = {
 
     /** Toggle between display and edit mode for review fields. */
     _toggleEditMode() {
-        const container = this.els.reviewCharacterSheet;
-        if (!container) return;
-        const character = this._generatedCharacter;
-        if (!character) return;
+        if (!this._generatedCharacter) return;
+        if (!this._isEditing) {
+            this._enterEditMode();
+        } else {
+            this._saveEditMode();
+        }
+    },
 
+    /** Switch review fields to editable inputs. */
+    _enterEditMode() {
+        const container = this.els.reviewCharacterSheet;
+        const character = this._generatedCharacter;
         const fields = container.querySelectorAll("[data-field]");
 
-        if (!this._isEditing) {
-            // Switch to edit mode — replace text with inputs
-            fields.forEach((el) => {
-                const path = el.dataset.field;
-                const value = this._getFieldByPath(character, path);
-                const display = el.textContent.trim();
+        // Replace text with inputs
+        fields.forEach((el) => {
+            const path = el.dataset.field;
+            const value = this._getFieldByPath(character, path);
+            const display = el.textContent.trim();
 
-                if (path === "backstory" || path === "appearance") {
-                    const textarea = document.createElement("textarea");
-                    textarea.value =
-                        value != null ? String(value) : display;
-                    textarea.dataset.field = path;
-                    el.textContent = "";
-                    el.appendChild(textarea);
-                } else if (path.startsWith("abilities.")) {
-                    const input = document.createElement("input");
-                    input.type = "number";
-                    input.min = 3;
-                    input.max = 18;
-                    input.value =
-                        value != null ? String(value) : display;
-                    input.dataset.field = path;
-                    el.textContent = "";
-                    el.appendChild(input);
-                } else if (
-                    path === "skills" ||
-                    path === "inventory"
-                ) {
-                    const input = document.createElement("input");
-                    input.type = "text";
-                    input.value = Array.isArray(value)
-                        ? value.join(", ")
-                        : display;
-                    input.dataset.field = path;
-                    el.textContent = "";
-                    el.appendChild(input);
-                } else if (
-                    path === "hp" ||
-                    path === "max_hp" ||
-                    path === "ac" ||
-                    path === "gold"
-                ) {
-                    const parts = display.split(" / ");
-                    const rawVal = parts[0];
-                    const input = document.createElement("input");
-                    input.type = "number";
-                    input.min = 0;
-                    input.value =
-                        value != null ? String(value) : rawVal;
-                    input.dataset.field = path;
-                    el.textContent = "";
-                    el.appendChild(input);
-                } else {
-                    // Default: text input
-                    const input = document.createElement("input");
-                    input.type = "text";
-                    input.value =
-                        value != null ? String(value) : display;
-                    input.dataset.field = path;
-                    el.textContent = "";
-                    el.appendChild(input);
-                }
-            });
-
-            this._isEditing = true;
-            if (this.els.reviewEditBtn) {
-                this.els.reviewEditBtn.textContent = "💾 Save";
+            if (path === "backstory" || path === "appearance") {
+                const textarea = document.createElement("textarea");
+                textarea.value =
+                    value != null ? String(value) : display;
+                textarea.dataset.field = path;
+                el.textContent = "";
+                el.appendChild(textarea);
+            } else if (path.startsWith("abilities.")) {
+                const input = document.createElement("input");
+                input.type = "number";
+                input.min = 3;
+                input.max = 18;
+                input.value =
+                    value != null ? String(value) : display;
+                input.dataset.field = path;
+                el.textContent = "";
+                el.appendChild(input);
+            } else if (
+                path === "skills" ||
+                path === "inventory"
+            ) {
+                const input = document.createElement("input");
+                input.type = "text";
+                input.value = Array.isArray(value)
+                    ? value.join(", ")
+                    : display;
+                input.dataset.field = path;
+                el.textContent = "";
+                el.appendChild(input);
+            } else if (
+                path === "hp" ||
+                path === "max_hp" ||
+                path === "ac" ||
+                path === "gold"
+            ) {
+                const parts = display.split(" / ");
+                const rawVal = parts[0];
+                const input = document.createElement("input");
+                input.type = "number";
+                input.min = 0;
+                input.value =
+                    value != null ? String(value) : rawVal;
+                input.dataset.field = path;
+                el.textContent = "";
+                el.appendChild(input);
+            } else {
+                // Default: text input
+                const input = document.createElement("input");
+                input.type = "text";
+                input.value =
+                    value != null ? String(value) : display;
+                input.dataset.field = path;
+                el.textContent = "";
+                el.appendChild(input);
             }
-        } else {
-            // Save mode — read inputs and update character
-            fields.forEach((el) => {
-                const input = el.querySelector(
-                    "input, textarea",
-                );
-                if (!input) return;
-                const path = input.dataset.field || el.dataset.field;
-                let rawValue = input.value;
+        });
 
-                if (path.startsWith("abilities.")) {
-                    const abilName = path.split(".")[1];
-                    const num = parseInt(rawValue, 10);
-                    if (!isNaN(num) && num >= 3 && num <= 18) {
-                        if (!character.abilities) {
-                            character.abilities = {};
-                        }
-                        character.abilities[abilName] = num;
+        this._isEditing = true;
+        if (this.els.reviewEditBtn) {
+            this.els.reviewEditBtn.textContent = "💾 Save";
+        }
+    },
+
+    /** Read edit inputs back into the character and re-render. */
+    _saveEditMode() {
+        const container = this.els.reviewCharacterSheet;
+        const character = this._generatedCharacter;
+        const fields = container.querySelectorAll("[data-field]");
+
+        // Read inputs and update character
+        fields.forEach((el) => {
+            const input = el.querySelector(
+                "input, textarea",
+            );
+            if (!input) return;
+            const path = input.dataset.field || el.dataset.field;
+            let rawValue = input.value;
+
+            if (path.startsWith("abilities.")) {
+                const abilName = path.split(".")[1];
+                const num = parseInt(rawValue, 10);
+                if (!isNaN(num) && num >= 3 && num <= 18) {
+                    if (!character.abilities) {
+                        character.abilities = {};
                     }
-                } else if (
-                    path === "skills" ||
-                    path === "inventory"
-                ) {
-                    const items = rawValue
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean);
-                    character[path] = items;
-                } else if (
-                    path === "hp" ||
-                    path === "max_hp" ||
-                    path === "ac" ||
-                    path === "gold"
-                ) {
-                    const num = parseInt(rawValue, 10);
-                    if (!isNaN(num)) {
-                        character[path] = num;
-                    }
-                } else {
-                    character[path] = rawValue;
+                    character.abilities[abilName] = num;
                 }
-            });
-
-            // Re-render the sheet with updated values
-            this._renderCharacterSheet(character);
-
-            this._isEditing = false;
-            if (this.els.reviewEditBtn) {
-                this.els.reviewEditBtn.textContent = "✏️ Edit";
+            } else if (
+                path === "skills" ||
+                path === "inventory"
+            ) {
+                const items = rawValue
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                character[path] = items;
+            } else if (
+                path === "hp" ||
+                path === "max_hp" ||
+                path === "ac" ||
+                path === "gold"
+            ) {
+                const num = parseInt(rawValue, 10);
+                if (!isNaN(num)) {
+                    character[path] = num;
+                }
+            } else {
+                character[path] = rawValue;
             }
+        });
+
+        // Re-render the sheet with updated values
+        this._renderCharacterSheet(character);
+
+        this._isEditing = false;
+        if (this.els.reviewEditBtn) {
+            this.els.reviewEditBtn.textContent = "✏️ Edit";
         }
     },
 
@@ -899,26 +892,12 @@ const CharacterView = {
         }
 
         // Re-build the same request body
-        const standardAbilities =
-            this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
-        const abilities = {};
-        for (const abil of standardAbilities) {
-            abilities[abil] = this.abilities[abil] ?? this._getDefaultAbility(abil);
-        }
-
-        const answersObj = {};
-        this._storyAnswers.forEach((a, i) => {
-            answersObj[String(i)] = a || "";
-        });
-
-        const name = this.els.charName?.value.trim() || "";
-
-        const cls = this.els.charClass?.value || this.selectedClass;
-
+        const { abilities, answers, name, character_class } =
+            this._buildGenerateRequestBody();
         const body = {
-            answers: answersObj,
-            abilities: abilities,
-            character_class: cls,
+            answers,
+            abilities,
+            character_class,
             provider: App.state.provider,
         };
         if (name) {
@@ -982,15 +961,6 @@ const CharacterView = {
     _getCost(score) {
         const costs = this._rules?.point_buy?.costs || {};
         return parseInt(costs[score]) || 0;
-    },
-
-    /** Calculate total points spent across all abilities. */
-    _totalSpent() {
-        let total = 0;
-        for (const abil of Object.values(this.abilities)) {
-            total += this._getCost(abil);
-        }
-        return total;
     },
 
     /** Check if an ability can be increased. */
@@ -1073,6 +1043,23 @@ const CharacterView = {
     // UI Update
     // ------------------------------------------------------------------
 
+    /** Update ability increment/decrement button states for a grid. */
+    _updateAbilityButtons(gridSelector) {
+        const standardAbilities =
+            this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+        for (const abil of standardAbilities) {
+            const card = document.querySelector(
+                `${gridSelector} [data-abil="${abil}"]`,
+            );
+            if (card) {
+                const incBtn = card.querySelector(".abil-btn.inc");
+                const decBtn = card.querySelector(".abil-btn.dec");
+                if (incBtn) incBtn.disabled = !this._canIncrease(abil);
+                if (decBtn) decBtn.disabled = !this._canDecrease(abil);
+            }
+        }
+    },
+
     /** Refresh all ability score display elements. */
     _updateUI() {
         // Update individual scores
@@ -1092,29 +1079,11 @@ const CharacterView = {
             if (campCostEl) {
                 campCostEl.textContent = `(${this._getCost(score)} pts)`;
             }
-
-            // Manual grid buttons
-            const card = document.querySelector(
-                `#abilities-grid [data-abil="${abil}"]`,
-            );
-            if (card) {
-                const incBtn = card.querySelector(".abil-btn.inc");
-                const decBtn = card.querySelector(".abil-btn.dec");
-                if (incBtn) incBtn.disabled = !this._canIncrease(abil);
-                if (decBtn) decBtn.disabled = !this._canDecrease(abil);
-            }
-
-            // Campfire grid buttons
-            const campCard = document.querySelector(
-                `#camp-abilities-grid [data-abil="${abil}"]`,
-            );
-            if (campCard) {
-                const incBtn = campCard.querySelector(".abil-btn.inc");
-                const decBtn = campCard.querySelector(".abil-btn.dec");
-                if (incBtn) incBtn.disabled = !this._canIncrease(abil);
-                if (decBtn) decBtn.disabled = !this._canDecrease(abil);
-            }
         }
+
+        // Update button states for both grids
+        this._updateAbilityButtons("#abilities-grid");
+        this._updateAbilityButtons("#camp-abilities-grid");
 
         // Update remaining points (manual)
         if (this.els.remainingSpan) {
@@ -1368,133 +1337,7 @@ const CharacterView = {
         }
     },
 
-    // ------------------------------------------------------------------
-    // Migration from Legacy localStorage
-    // ------------------------------------------------------------------
 
-    /**
-     * One-time migration: POST any characters still in localStorage
-     * to the server, then remove the localStorage key.
-     */
-    async _migrateLocalCharacters() {
-        let raw;
-        try {
-            raw = localStorage.getItem("rpg_characters");
-        } catch (_e) {
-            return; // localStorage unavailable
-        }
-        if (!raw) return;
-
-        let chars;
-        try {
-            chars = JSON.parse(raw);
-        } catch (_e) {
-            return; // corrupt JSON, skip
-        }
-        if (!Array.isArray(chars) || chars.length === 0) return;
-
-        let migrated = 0;
-        for (const char of chars) {
-            try {
-                // Build payload with ALL available fields from localStorage
-                const payload = {
-                    name: char.name,
-                    character_class: char.character_class,
-                };
-
-                // Narrative / identity fields
-                for (const field of [
-                    "appearance",
-                    "backstory",
-                    "personality",
-                    "ideals",
-                    "bonds",
-                    "flaws",
-                    "plot_hooks",
-                ]) {
-                    if (char[field]) payload[field] = char[field];
-                }
-
-                // Numeric fields
-                for (const field of [
-                    "level",
-                    "xp",
-                    "hp",
-                    "max_hp",
-                    "ac",
-                    "gold",
-                ]) {
-                    if (char[field] != null) payload[field] = char[field];
-                }
-
-                // Ability scores — send full dict if available, else individual fields
-                if (
-                    char.abilities &&
-                    typeof char.abilities === "object"
-                ) {
-                    payload.abilities = char.abilities;
-                } else {
-                    for (const key of [
-                        "strength",
-                        "dexterity",
-                        "constitution",
-                        "intelligence",
-                        "wisdom",
-                        "charisma",
-                    ]) {
-                        if (char[key] != null) payload[key] = char[key];
-                    }
-                }
-
-                // Array fields
-                if (Array.isArray(char.skills)) payload.skills = char.skills;
-                if (Array.isArray(char.inventory))
-                    payload.inventory = char.inventory;
-
-                const resp = await fetch("/api/character/create", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                if (resp.ok) migrated++;
-            } catch (_e) {
-                // Skip individual failures — character data remains in
-                // localStorage so nothing is lost.
-            }
-        }
-
-        if (migrated > 0) {
-            try {
-                localStorage.removeItem("rpg_characters");
-            } catch (_e) {
-                // Ignore — data already on server
-            }
-        }
-
-        if (migrated > 0) {
-            this._showMigrationBanner(migrated);
-        }
-    },
-
-    /** Show a dismissible banner confirming migration. */
-    _showMigrationBanner(count) {
-        const existing = document.querySelector(".migration-banner");
-        if (existing) existing.remove();
-
-        const banner = document.createElement("div");
-        banner.className = "migration-banner";
-        banner.innerHTML = `
-            <span class="migration-banner-text">
-                Your local character${count !== 1 ? "s have" : " has"} been saved to the server!
-            </span>
-            <button class="migration-banner-close" aria-label="Dismiss">&times;</button>
-        `;
-        banner
-            .querySelector(".migration-banner-close")
-            .addEventListener("click", () => banner.remove());
-
-        this.els.tabLoad.prepend(banner);
-    },
 
     /** Show an inline error banner inside the Load tab (auto-dismiss). */
     _showLoadError(message) {
