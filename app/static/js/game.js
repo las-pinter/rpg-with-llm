@@ -13,6 +13,7 @@ const GameView = {
         hasStarted: false,
         autoScroll: true,
         tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        latestTokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
         showTokens: false,
     },
 
@@ -55,6 +56,9 @@ const GameView = {
             tokenPrompt: document.getElementById("token-prompt"),
             tokenCompletion: document.getElementById("token-completion"),
             tokenTotal: document.getElementById("token-total"),
+            tokenLatestPrompt: document.getElementById("token-latest-prompt"),
+            tokenLatestCompletion: document.getElementById("token-latest-completion"),
+            tokenLatestTotal: document.getElementById("token-latest-total"),
 
             // Input
             playerInput: document.getElementById("player-input"),
@@ -275,11 +279,16 @@ const GameView = {
                         resolve();
                     },
 
-                    onTokenUsage: (usage) => {
-                        if (usage) {
-                            this.state.tokenUsage.prompt_tokens += usage.prompt_tokens || 0;
-                            this.state.tokenUsage.completion_tokens += usage.completion_tokens || 0;
-                            this.state.tokenUsage.total_tokens += usage.total_tokens || 0;
+                    onTokenUsage: (data) => {
+                        if (data) {
+                            // REPLACE accumulated (don't add — backend already accumulates!)
+                            if (data.usage) {
+                                this.state.tokenUsage = data.usage;
+                            }
+                            // Store per-turn latest
+                            if (data.latest) {
+                                this.state.latestTokenUsage = data.latest;
+                            }
                         }
                         this._renderSidebar();
                     },
@@ -496,11 +505,17 @@ const GameView = {
                 .join("");
         }
 
-        // Token usage
+        // Token usage — accumulated
         const tu = this.state.tokenUsage || {};
         this.els.tokenPrompt.textContent = tu.prompt_tokens ?? 0;
         this.els.tokenCompletion.textContent = tu.completion_tokens ?? 0;
         this.els.tokenTotal.textContent = tu.total_tokens ?? 0;
+
+        // Token usage — latest per-turn
+        const latest = this.state.latestTokenUsage || {};
+        this.els.tokenLatestPrompt.textContent = latest.prompt_tokens ?? 0;
+        this.els.tokenLatestCompletion.textContent = latest.completion_tokens ?? 0;
+        this.els.tokenLatestTotal.textContent = latest.total_tokens ?? 0;
     },
 
     // ------------------------------------------------------------------
@@ -654,6 +669,7 @@ const GameView = {
         this.state.turnCount = 0;
         this.state.hasStarted = false;
         this.state.tokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        this.state.latestTokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
         // Clear the narrative
         this.els.narrativeContent.innerHTML =
