@@ -6,8 +6,8 @@
  * ReadableStream with manual chunk buffering and event parsing.
  */
 const SSEClient = {
-    reader: null,        // ReadableStreamDefaultReader
-    controller: null,    // AbortController for cancellation
+    reader: null as ReadableStreamDefaultReader<Uint8Array> | null,
+    controller: null as AbortController | null,
     decoder: new TextDecoder(),
     buffer: "",          // Accumulates partial SSE data across chunks
 
@@ -29,12 +29,19 @@ const SSEClient = {
      * @param {object|null} npcProvider - NPC subagent provider config.
      * @param {object|null} summarizerProvider - Summarizer provider config.
      */
-    connect(input, provider, callbacks, state, character, npcProvider,
-        summarizerProvider) {
+    connect(
+        input: string,
+        provider: ProviderConfig | null | undefined,
+        callbacks: SSECallbacks,
+        state: WorldState | null | undefined,
+        character: CharacterData | null | undefined,
+        npcProvider: ProviderConfig | null | undefined,
+        summarizerProvider: ProviderConfig | null | undefined,
+    ) {
         this.disconnect();  // Always clean up before connecting
         this.controller = new AbortController();
 
-        const body = { input };
+        const body: Record<string, unknown> = { input };
         if (provider)       body.provider         = provider;
         if (state)          body.state            = state;
         if (character)      body.character        = character;
@@ -49,7 +56,7 @@ const SSEClient = {
         })
         .then(async (response) => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const reader = response.body.getReader();
+            const reader = response.body!.getReader();
             this.reader = reader;
 
             while (true) {
@@ -72,7 +79,7 @@ const SSEClient = {
     },
 
     /** Parse complete SSE blocks from the accumulated buffer. */
-    _processBuffer(callbacks) {
+    _processBuffer(callbacks: SSECallbacks) {
         let lineBreak = this.buffer.indexOf("\n\n");
         while (lineBreak !== -1) {
             const block = this.buffer.slice(0, lineBreak);
@@ -103,7 +110,7 @@ const SSEClient = {
     },
 
     /** Dispatch a parsed SSE event to the appropriate callback. */
-    _dispatchEvent(type, data, callbacks) {
+    _dispatchEvent(type: string, data: any, callbacks: SSECallbacks) {
         switch (type) {
             case "token":
                 if (callbacks.onToken) callbacks.onToken(data.content);
