@@ -125,7 +125,7 @@ const SSEClient = {
                 break;
             case "token_usage":
                 if (callbacks.onTokenUsage) callbacks.onTokenUsage(
-                    data.usage
+                    data
                 );
                 break;
             case "error":

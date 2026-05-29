@@ -487,6 +487,7 @@ class DungeonMaster:
             "completion_tokens": 0,
             "total_tokens": 0,
         }
+        self._prev_token_usage: dict[str, int] = dict(self.token_usage)
         self.history: SessionHistory = SessionHistory(max_turns=5)
         self.npcs: dict[str, dict[str, str]] = {}
 
@@ -810,11 +811,22 @@ class DungeonMaster:
             "event": "narrative",
             "data": {"type": "narrative", "content": narrative},
         }
+        # Token usage with per-turn latest
+        prev = self._prev_token_usage
+        curr = self.token_usage
+        latest = {
+            "prompt_tokens": curr["prompt_tokens"] - prev["prompt_tokens"],
+            "completion_tokens": curr["completion_tokens"] - prev["completion_tokens"],
+            "total_tokens": curr["total_tokens"] - prev["total_tokens"],
+        }
+        self._prev_token_usage = dict(curr)
+
         yield {
             "event": "token_usage",
             "data": {
                 "type": "token_usage",
                 "usage": dict(self.token_usage),
+                "latest": latest,
             },
         }
         yield {
