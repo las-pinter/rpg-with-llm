@@ -4,7 +4,7 @@
  * Simple hash-based single-page application router.
  * Manages three views: #connection, #character, #game.
  */
-const App = {
+const App: AppInstance = {
     currentView: null,
 
     /** Shared state passed between views. */
