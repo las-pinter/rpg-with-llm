@@ -15,6 +15,7 @@ interface ProviderConfig {
     model: string;
     api_key?: string;
     provider?: string;
+    provider_type?: string;
     max_tokens?: number;
     temperature?: number;
     timeout?: number;
@@ -202,18 +203,18 @@ interface GameElements {
 }
 
 interface ConnectionElements {
-    providerSelect: HTMLSelectElement | null;
-    baseUrl: HTMLInputElement | null;
-    apiKey: HTMLInputElement | null;
-    apiKeyGroup: HTMLElement | null;
-    modelSelect: HTMLSelectElement | null;
-    modelInput: HTMLInputElement | null;
-    fetchModels: HTMLElement | null;
-    testBtn: HTMLElement | null;
-    status: HTMLElement | null;
+    providerSelect: HTMLSelectElement;
+    baseUrl: HTMLInputElement;
+    apiKey: HTMLInputElement;
+    apiKeyGroup: HTMLElement;
+    modelSelect: HTMLSelectElement;
+    modelInput: HTMLInputElement;
+    fetchModels: HTMLButtonElement;
+    testBtn: HTMLButtonElement;
+    status: HTMLElement;
     statusDot: Element | null;
-    statusText: Element | null;
-    startBtn: HTMLElement | null;
+    statusText: Element;
+    startBtn: HTMLButtonElement;
     advancedToggle: HTMLElement | null;
     advancedSection: HTMLElement | null;
     npcProviderSelect: HTMLSelectElement | null;
