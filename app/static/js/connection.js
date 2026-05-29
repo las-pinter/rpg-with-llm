@@ -80,13 +80,13 @@ const ConnectionView = {
             this._setStatus("idle", "Model set to: " + this.els.modelInput.value);
         });
         // Advanced toggle — show/hide per-agent config section
-        if (this.els.advancedToggle) {
-            this.els.advancedToggle.addEventListener("click", () => {
-                const expanded = this.els.advancedSection.style.display !== "none";
-                this.els.advancedSection.style.display = expanded
-                    ? "none"
-                    : "block";
-                this.els.advancedToggle.textContent = expanded
+        if (this.els.advancedToggle && this.els.advancedSection) {
+            const advToggle = this.els.advancedToggle;
+            const advSection = this.els.advancedSection;
+            advToggle.addEventListener("click", () => {
+                const expanded = advSection.style.display !== "none";
+                advSection.style.display = expanded ? "none" : "block";
+                advToggle.textContent = expanded
                     ? "\u25B8 Advanced"
                     : "\u25BE Advanced";
             });
@@ -100,10 +100,12 @@ const ConnectionView = {
             this.els.summarizerProviderSelect.addEventListener("change", () => this._onAgentProviderChange("summarizer"));
         }
         // NPC enable toggle
-        if (this.els.npcEnabled) {
-            this.els.npcEnabled.addEventListener("change", () => {
-                const enabled = this.els.npcEnabled.checked;
-                this.els.npcConfigGroup.style.display = enabled
+        if (this.els.npcEnabled && this.els.npcConfigGroup) {
+            const npcEnabledEl = this.els.npcEnabled;
+            const npcConfigGroup = this.els.npcConfigGroup;
+            npcEnabledEl.addEventListener("change", () => {
+                const enabled = npcEnabledEl.checked;
+                npcConfigGroup.style.display = enabled
                     ? "block"
                     : "none";
                 if (enabled) {
@@ -112,10 +114,12 @@ const ConnectionView = {
             });
         }
         // Summarizer enable toggle
-        if (this.els.summarizerEnabled) {
-            this.els.summarizerEnabled.addEventListener("change", () => {
-                const enabled = this.els.summarizerEnabled.checked;
-                this.els.summarizerConfigGroup.style.display = enabled
+        if (this.els.summarizerEnabled && this.els.summarizerConfigGroup) {
+            const sumEnabledEl = this.els.summarizerEnabled;
+            const sumConfigGroup = this.els.summarizerConfigGroup;
+            sumEnabledEl.addEventListener("change", () => {
+                const enabled = sumEnabledEl.checked;
+                sumConfigGroup.style.display = enabled
                     ? "block"
                     : "none";
                 if (enabled) {
@@ -159,9 +163,9 @@ const ConnectionView = {
     },
     /** Handle per-agent provider dropdown change — update API key visibility. */
     _onAgentProviderChange(prefix) {
-        const selectKey = prefix + "ProviderSelect";
-        const apiKeyKey = prefix + "ApiKey";
-        const apiKeyGroupKey = prefix + "ApiKeyGroup";
+        const selectKey = (prefix + "ProviderSelect");
+        const apiKeyKey = (prefix + "ApiKey");
+        const apiKeyGroupKey = (prefix + "ApiKeyGroup");
         const sel = this.els[selectKey];
         const apiKeyGroup = this.els[apiKeyGroupKey];
         const apiKeyInput = this.els[apiKeyKey];
@@ -172,10 +176,12 @@ const ConnectionView = {
         if (!provider)
             return;
         if (provider.needsKey) {
-            apiKeyGroup.style.display = "block";
+            if (apiKeyGroup)
+                apiKeyGroup.style.display = "block";
         }
         else {
-            apiKeyGroup.style.display = "none";
+            if (apiKeyGroup)
+                apiKeyGroup.style.display = "none";
             if (apiKeyInput)
                 apiKeyInput.value = "";
         }
@@ -186,11 +192,11 @@ const ConnectionView = {
         const mainUrl = this.els.baseUrl.value;
         const mainModel = this._getModel();
         const mainApiKey = this.els.apiKey.value;
-        const typeSelect = this.els[prefix + "ProviderSelect"];
-        const urlInput = this.els[prefix + "BaseUrl"];
-        const modelInput = this.els[prefix + "ModelInput"];
-        const apiKeyInput = this.els[prefix + "ApiKey"];
-        const apiKeyGroup = this.els[prefix + "ApiKeyGroup"];
+        const typeSelect = this.els[(prefix + "ProviderSelect")];
+        const urlInput = this.els[(prefix + "BaseUrl")];
+        const modelInput = this.els[(prefix + "ModelInput")];
+        const apiKeyInput = this.els[(prefix + "ApiKey")];
+        const apiKeyGroup = this.els[(prefix + "ApiKeyGroup")];
         if (typeSelect)
             typeSelect.value = mainType;
         if (urlInput)
@@ -211,14 +217,17 @@ const ConnectionView = {
         const dmMaxTokens = this.els.dmMaxTokens ? this.els.dmMaxTokens.value : undefined;
         const dmTemp = this.els.dmTemperature ? this.els.dmTemperature.value : undefined;
         const dmTimeout = this.els.dmTimeout ? this.els.dmTimeout.value : undefined;
-        if (dmMaxTokens && this.els[prefix + "MaxTokens"]) {
-            this.els[prefix + "MaxTokens"].value = dmMaxTokens;
+        const maxTokensKey = (prefix + "MaxTokens");
+        const tempKey = (prefix + "Temperature");
+        const timeoutKey = (prefix + "Timeout");
+        if (dmMaxTokens && this.els[maxTokensKey]) {
+            this.els[maxTokensKey].value = dmMaxTokens;
         }
-        if (dmTemp && this.els[prefix + "Temperature"]) {
-            this.els[prefix + "Temperature"].value = dmTemp;
+        if (dmTemp && this.els[tempKey]) {
+            this.els[tempKey].value = dmTemp;
         }
-        if (dmTimeout && this.els[prefix + "Timeout"]) {
-            this.els[prefix + "Timeout"].value = dmTimeout;
+        if (dmTimeout && this.els[timeoutKey]) {
+            this.els[timeoutKey].value = dmTimeout;
         }
     },
     // ------------------------------------------------------------------
@@ -273,12 +282,13 @@ const ConnectionView = {
             this._setStatus("success", `Found ${models.length} model(s)`);
         }
         catch (err) {
+            const error = err;
             this.els.modelSelect.innerHTML = "";
-            if (err.name === "TimeoutError") {
+            if (error.name === "TimeoutError") {
                 this._setStatus("error", "Request timed out — is the server running?");
             }
             else {
-                this._setStatus("error", "Could not fetch models: " + err.message);
+                this._setStatus("error", "Could not fetch models: " + error.message);
             }
         }
         finally {
@@ -377,11 +387,12 @@ const ConnectionView = {
             }
         }
         catch (err) {
-            if (err.name === "TimeoutError") {
+            const error = err;
+            if (error.name === "TimeoutError") {
                 this._setStatus("error", "Request timed out — check your URL and try again");
             }
             else {
-                this._setStatus("error", "Connection error: " + err.message);
+                this._setStatus("error", "Connection error: " + error.message);
             }
             this.els.startBtn.disabled = true;
         }
@@ -437,14 +448,19 @@ const ConnectionView = {
     },
     /** Build a provider config for a per-agent (npc / summarizer), or null. */
     _buildAgentProvider(prefix) {
-        const enabledCheckbox = this.els[prefix + "Enabled"];
+        const enabledKey = (prefix + "Enabled");
+        const enabledCheckbox = this.els[enabledKey];
         // If not enabled, return null (use main provider)
         if (!enabledCheckbox || !enabledCheckbox.checked) {
             return null;
         }
-        const providerType = this.els[prefix + "ProviderSelect"].value;
-        const baseUrl = this.els[prefix + "BaseUrl"].value.trim();
-        const model = this.els[prefix + "ModelInput"].value.trim();
+        const providerTypeKey = (prefix + "ProviderSelect");
+        const baseUrlKey = (prefix + "BaseUrl");
+        const modelInputKey = (prefix + "ModelInput");
+        const apiKeyKey = (prefix + "ApiKey");
+        const providerType = this.els[providerTypeKey].value;
+        const baseUrl = this.els[baseUrlKey].value.trim();
+        const model = this.els[modelInputKey].value.trim();
         if (!baseUrl || !model)
             return null;
         const config = {
@@ -452,14 +468,17 @@ const ConnectionView = {
             model: model,
             provider_type: providerType,
         };
-        const apiKey = this.els[prefix + "ApiKey"].value.trim();
+        const apiKey = this.els[apiKeyKey].value.trim();
         if (apiKey) {
             config.api_key = apiKey;
         }
         // Add per-agent generation settings
-        const maxTokensEl = this.els[prefix + "MaxTokens"];
-        const tempEl = this.els[prefix + "Temperature"];
-        const timeoutEl = this.els[prefix + "Timeout"];
+        const maxTokensKey = (prefix + "MaxTokens");
+        const tempKey = (prefix + "Temperature");
+        const timeoutKey = (prefix + "Timeout");
+        const maxTokensEl = this.els[maxTokensKey];
+        const tempEl = this.els[tempKey];
+        const timeoutEl = this.els[timeoutKey];
         if (maxTokensEl)
             config.max_tokens = parseInt(maxTokensEl.value, 10) || undefined;
         if (tempEl)
