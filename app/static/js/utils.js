@@ -28,9 +28,9 @@ async function _postJSON(url, body) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
-    const data = await resp.json();
+    const data = (await resp.json());
     if (!data.ok)
-        throw new Error(data.error || "Request failed");
+        throw new Error(String(data.error || "Request failed"));
     return data;
 }
 /** Show a modal and optional overlay by removing the "hidden" class. */
