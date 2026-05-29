@@ -745,6 +745,8 @@ const CharacterView = {
         // Replace text with inputs
         fields.forEach((el) => {
             const path = el.dataset.field;
+            // Only backstory and appearance are editable in review mode
+            if (path !== "backstory" && path !== "appearance") return;
             const value = this._getFieldByPath(character, path);
             const display = el.textContent.trim();
 
@@ -826,6 +828,8 @@ const CharacterView = {
             );
             if (!input) return;
             const path = input.dataset.field || el.dataset.field;
+            // Only backstory and appearance are editable in review mode
+            if (path !== "backstory" && path !== "appearance") return;
             let rawValue = input.value;
 
             if (path.startsWith("abilities.")) {
