@@ -15,66 +15,66 @@ const ConnectionView = {
         custom: { needsKey: false, label: "Custom" },
         unsloth: { needsKey: false, label: "Unsloth" },
         llamacpp: { needsKey: false, label: "llama.cpp" },
-    },
+    } as Record<string, { needsKey: boolean; label: string }>,
 
     /** DOM element references (populated in init). */
-    els: {},
+    els: {} as ConnectionElements,
 
     /** Initialise the view — bind event listeners. */
-    init() {
+    init(): void {
         this.els = {
-            providerSelect: document.getElementById("provider-select"),
-            baseUrl: document.getElementById("base-url"),
-            apiKey: document.getElementById("api-key"),
-            apiKeyGroup: document.getElementById("api-key-group"),
-            modelSelect: document.getElementById("model-select"),
-            modelInput: document.getElementById("model-input"),
-            fetchModels: document.getElementById("fetch-models"),
-            testBtn: document.getElementById("test-connection"),
-            status: document.getElementById("connection-status"),
-            statusDot: document.querySelector("#connection-status .status-dot"),
-            statusText: document.querySelector("#connection-status .status-text"),
-            startBtn: document.getElementById("start-adventure"),
+            providerSelect: document.getElementById("provider-select") as HTMLSelectElement,
+            baseUrl: document.getElementById("base-url") as HTMLInputElement,
+            apiKey: document.getElementById("api-key") as HTMLInputElement,
+            apiKeyGroup: document.getElementById("api-key-group") as HTMLElement,
+            modelSelect: document.getElementById("model-select") as HTMLSelectElement,
+            modelInput: document.getElementById("model-input") as HTMLInputElement,
+            fetchModels: document.getElementById("fetch-models") as HTMLButtonElement,
+            testBtn: document.getElementById("test-connection") as HTMLButtonElement,
+            status: document.getElementById("connection-status") as HTMLElement,
+            statusDot: document.querySelector("#connection-status .status-dot") as Element | null,
+            statusText: document.querySelector("#connection-status .status-text") as Element,
+            startBtn: document.getElementById("start-adventure") as HTMLButtonElement,
             // Advanced per-agent toggle and section
-            advancedToggle: document.getElementById("advanced-toggle"),
-            advancedSection: document.getElementById("advanced-section"),
+            advancedToggle: document.getElementById("advanced-toggle") as HTMLElement | null,
+            advancedSection: document.getElementById("advanced-section") as HTMLElement | null,
             // NPC provider fields
-            npcProviderSelect: document.getElementById("npc-provider-select"),
-            npcBaseUrl: document.getElementById("npc-base-url"),
-            npcApiKey: document.getElementById("npc-api-key"),
-            npcApiKeyGroup: document.getElementById("npc-api-key-group"),
-            npcModelInput: document.getElementById("npc-model-input"),
+            npcProviderSelect: document.getElementById("npc-provider-select") as HTMLSelectElement | null,
+            npcBaseUrl: document.getElementById("npc-base-url") as HTMLInputElement | null,
+            npcApiKey: document.getElementById("npc-api-key") as HTMLInputElement | null,
+            npcApiKeyGroup: document.getElementById("npc-api-key-group") as HTMLElement | null,
+            npcModelInput: document.getElementById("npc-model-input") as HTMLInputElement | null,
             // Summarizer provider fields
             summarizerProviderSelect: document.getElementById(
                 "summarizer-provider-select",
-            ),
-            summarizerBaseUrl: document.getElementById("summarizer-base-url"),
-            summarizerApiKey: document.getElementById("summarizer-api-key"),
+            ) as HTMLSelectElement | null,
+            summarizerBaseUrl: document.getElementById("summarizer-base-url") as HTMLInputElement | null,
+            summarizerApiKey: document.getElementById("summarizer-api-key") as HTMLInputElement | null,
             summarizerApiKeyGroup: document.getElementById(
                 "summarizer-api-key-group",
-            ),
+            ) as HTMLElement | null,
             summarizerModelInput: document.getElementById(
                 "summarizer-model-input",
-            ),
+            ) as HTMLInputElement | null,
             // NPC/Summarizer enable checkboxes and config groups
-            npcEnabled: document.getElementById("npc-enabled"),
-            npcConfigGroup: document.getElementById("npc-config-group"),
-            summarizerEnabled: document.getElementById("summarizer-enabled"),
+            npcEnabled: document.getElementById("npc-enabled") as HTMLInputElement | null,
+            npcConfigGroup: document.getElementById("npc-config-group") as HTMLElement | null,
+            summarizerEnabled: document.getElementById("summarizer-enabled") as HTMLInputElement | null,
             summarizerConfigGroup: document.getElementById(
                 "summarizer-config-group",
-            ),
+            ) as HTMLElement | null,
             // Generation settings (DM)
-            dmMaxTokens: document.getElementById("dm-max-tokens"),
-            dmTemperature: document.getElementById("dm-temperature"),
-            dmTimeout: document.getElementById("dm-timeout"),
+            dmMaxTokens: document.getElementById("dm-max-tokens") as HTMLInputElement | null,
+            dmTemperature: document.getElementById("dm-temperature") as HTMLInputElement | null,
+            dmTimeout: document.getElementById("dm-timeout") as HTMLInputElement | null,
             // NPC generation settings
-            npcMaxTokens: document.getElementById("npc-max-tokens"),
-            npcTemperature: document.getElementById("npc-temperature"),
-            npcTimeout: document.getElementById("npc-timeout"),
+            npcMaxTokens: document.getElementById("npc-max-tokens") as HTMLInputElement | null,
+            npcTemperature: document.getElementById("npc-temperature") as HTMLInputElement | null,
+            npcTimeout: document.getElementById("npc-timeout") as HTMLInputElement | null,
             // Summarizer generation settings
-            summarizerMaxTokens: document.getElementById("summarizer-max-tokens"),
-            summarizerTemperature: document.getElementById("summarizer-temperature"),
-            summarizerTimeout: document.getElementById("summarizer-timeout"),
+            summarizerMaxTokens: document.getElementById("summarizer-max-tokens") as HTMLInputElement | null,
+            summarizerTemperature: document.getElementById("summarizer-temperature") as HTMLInputElement | null,
+            summarizerTimeout: document.getElementById("summarizer-timeout") as HTMLInputElement | null,
         };
 
         // Provider change → update API key visibility
@@ -107,14 +107,13 @@ const ConnectionView = {
         });
 
         // Advanced toggle — show/hide per-agent config section
-        if (this.els.advancedToggle) {
-            this.els.advancedToggle.addEventListener("click", () => {
-                const expanded =
-                    this.els.advancedSection.style.display !== "none";
-                this.els.advancedSection.style.display = expanded
-                    ? "none"
-                    : "block";
-                this.els.advancedToggle.textContent = expanded
+        if (this.els.advancedToggle && this.els.advancedSection) {
+            const advToggle = this.els.advancedToggle;
+            const advSection = this.els.advancedSection;
+            advToggle.addEventListener("click", () => {
+                const expanded = advSection.style.display !== "none";
+                advSection.style.display = expanded ? "none" : "block";
+                advToggle.textContent = expanded
                     ? "\u25B8 Advanced"
                     : "\u25BE Advanced";
             });
@@ -137,10 +136,12 @@ const ConnectionView = {
         }
 
         // NPC enable toggle
-        if (this.els.npcEnabled) {
-            this.els.npcEnabled.addEventListener("change", () => {
-                const enabled = this.els.npcEnabled.checked;
-                this.els.npcConfigGroup.style.display = enabled
+        if (this.els.npcEnabled && this.els.npcConfigGroup) {
+            const npcEnabledEl = this.els.npcEnabled;
+            const npcConfigGroup = this.els.npcConfigGroup;
+            npcEnabledEl.addEventListener("change", () => {
+                const enabled = npcEnabledEl.checked;
+                npcConfigGroup.style.display = enabled
                     ? "block"
                     : "none";
                 if (enabled) {
@@ -150,10 +151,12 @@ const ConnectionView = {
         }
 
         // Summarizer enable toggle
-        if (this.els.summarizerEnabled) {
-            this.els.summarizerEnabled.addEventListener("change", () => {
-                const enabled = this.els.summarizerEnabled.checked;
-                this.els.summarizerConfigGroup.style.display = enabled
+        if (this.els.summarizerEnabled && this.els.summarizerConfigGroup) {
+            const sumEnabledEl = this.els.summarizerEnabled;
+            const sumConfigGroup = this.els.summarizerConfigGroup;
+            sumEnabledEl.addEventListener("change", () => {
+                const enabled = sumEnabledEl.checked;
+                sumConfigGroup.style.display = enabled
                     ? "block"
                     : "none";
                 if (enabled) {
@@ -180,7 +183,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Handle provider dropdown change — update API key field visibility. */
-    _onProviderChange() {
+    _onProviderChange(): void {
         const key = this.els.providerSelect.value;
         const provider = this.providers[key];
         if (!provider) return;
@@ -202,14 +205,14 @@ const ConnectionView = {
     },
 
     /** Handle per-agent provider dropdown change — update API key visibility. */
-    _onAgentProviderChange(prefix) {
-        const selectKey = prefix + "ProviderSelect";
-        const apiKeyKey = prefix + "ApiKey";
-        const apiKeyGroupKey = prefix + "ApiKeyGroup";
+    _onAgentProviderChange(prefix: string): void {
+        const selectKey = (prefix + "ProviderSelect") as keyof ConnectionElements;
+        const apiKeyKey = (prefix + "ApiKey") as keyof ConnectionElements;
+        const apiKeyGroupKey = (prefix + "ApiKeyGroup") as keyof ConnectionElements;
 
-        const sel = this.els[selectKey];
-        const apiKeyGroup = this.els[apiKeyGroupKey];
-        const apiKeyInput = this.els[apiKeyKey];
+        const sel = this.els[selectKey] as HTMLSelectElement | null;
+        const apiKeyGroup = this.els[apiKeyGroupKey] as HTMLElement | null;
+        const apiKeyInput = this.els[apiKeyKey] as HTMLInputElement | null;
 
         if (!sel) return;
 
@@ -218,25 +221,25 @@ const ConnectionView = {
         if (!provider) return;
 
         if (provider.needsKey) {
-            apiKeyGroup.style.display = "block";
+            if (apiKeyGroup) apiKeyGroup.style.display = "block";
         } else {
-            apiKeyGroup.style.display = "none";
+            if (apiKeyGroup) apiKeyGroup.style.display = "none";
             if (apiKeyInput) apiKeyInput.value = "";
         }
     },
 
     /** Populate per-agent provider fields from the main provider's current values. */
-    _populateAgentDefaults(prefix) {
+    _populateAgentDefaults(prefix: string): void {
         const mainType = this.els.providerSelect.value;
         const mainUrl = this.els.baseUrl.value;
         const mainModel = this._getModel();
         const mainApiKey = this.els.apiKey.value;
 
-        const typeSelect = this.els[prefix + "ProviderSelect"];
-        const urlInput = this.els[prefix + "BaseUrl"];
-        const modelInput = this.els[prefix + "ModelInput"];
-        const apiKeyInput = this.els[prefix + "ApiKey"];
-        const apiKeyGroup = this.els[prefix + "ApiKeyGroup"];
+        const typeSelect = this.els[(prefix + "ProviderSelect") as keyof ConnectionElements] as HTMLSelectElement | null;
+        const urlInput = this.els[(prefix + "BaseUrl") as keyof ConnectionElements] as HTMLInputElement | null;
+        const modelInput = this.els[(prefix + "ModelInput") as keyof ConnectionElements] as HTMLInputElement | null;
+        const apiKeyInput = this.els[(prefix + "ApiKey") as keyof ConnectionElements] as HTMLInputElement | null;
+        const apiKeyGroup = this.els[(prefix + "ApiKeyGroup") as keyof ConnectionElements] as HTMLElement | null;
 
         if (typeSelect) typeSelect.value = mainType;
         if (urlInput) urlInput.value = mainUrl;
@@ -256,14 +259,17 @@ const ConnectionView = {
         const dmMaxTokens = this.els.dmMaxTokens ? this.els.dmMaxTokens.value : undefined;
         const dmTemp = this.els.dmTemperature ? this.els.dmTemperature.value : undefined;
         const dmTimeout = this.els.dmTimeout ? this.els.dmTimeout.value : undefined;
-        if (dmMaxTokens && this.els[prefix + "MaxTokens"]) {
-            this.els[prefix + "MaxTokens"].value = dmMaxTokens;
+        const maxTokensKey = (prefix + "MaxTokens") as keyof ConnectionElements;
+        const tempKey = (prefix + "Temperature") as keyof ConnectionElements;
+        const timeoutKey = (prefix + "Timeout") as keyof ConnectionElements;
+        if (dmMaxTokens && this.els[maxTokensKey]) {
+            (this.els[maxTokensKey] as HTMLInputElement).value = dmMaxTokens;
         }
-        if (dmTemp && this.els[prefix + "Temperature"]) {
-            this.els[prefix + "Temperature"].value = dmTemp;
+        if (dmTemp && this.els[tempKey]) {
+            (this.els[tempKey] as HTMLInputElement).value = dmTemp;
         }
-        if (dmTimeout && this.els[prefix + "Timeout"]) {
-            this.els[prefix + "Timeout"].value = dmTimeout;
+        if (dmTimeout && this.els[timeoutKey]) {
+            (this.els[timeoutKey] as HTMLInputElement).value = dmTimeout;
         }
     },
 
@@ -272,7 +278,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Fetch available models via the server-side proxy. */
-    async _fetchModels() {
+    async _fetchModels(): Promise<void> {
         const baseUrl = this.els.baseUrl.value.trim();
         const model = this._getModel();
         const apiKey = this.els.apiKey.value.trim() || undefined;
@@ -314,7 +320,7 @@ const ConnectionView = {
 
             // Populate the select
             this.els.modelSelect.innerHTML = "";
-            models.forEach((m) => {
+            models.forEach((m: { id: string; name?: string }) => {
                 const opt = document.createElement("option");
                 opt.value = m.id;
                 opt.textContent = m.name || m.id;
@@ -328,14 +334,15 @@ const ConnectionView = {
             }
 
             this._setStatus("success", `Found ${models.length} model(s)`);
-        } catch (err) {
+        } catch (err: unknown) {
+            const error = err as Error;
             this.els.modelSelect.innerHTML = "";
-            if (err.name === "TimeoutError") {
+            if (error.name === "TimeoutError") {
                 this._setStatus("error", "Request timed out — is the server running?");
             } else {
                 this._setStatus(
                     "error",
-                    "Could not fetch models: " + err.message,
+                    "Could not fetch models: " + error.message,
                 );
             }
         } finally {
@@ -354,7 +361,7 @@ const ConnectionView = {
      *  Does NOT throw — callers should check the return value.
      *  This is a best-effort operation; failures are only logged.
      */
-    async _postSettings(payload) {
+    async _postSettings(payload: Record<string, unknown>): Promise<Record<string, unknown> | null> {
         try {
             const resp = await fetch("/api/settings", {
                 method: "POST",
@@ -369,8 +376,8 @@ const ConnectionView = {
                 data.error || data.errors,
             );
             return null;
-        } catch (e) {
-            console.warn("Failed to save settings to backend:", e.message);
+        } catch (e: unknown) {
+            console.warn("Failed to save settings to backend:", (e as Error).message);
             return null;
         }
     },
@@ -380,7 +387,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Test the connection by calling POST /api/health. */
-    async _testConnection() {
+    async _testConnection(): Promise<void> {
         const baseUrl = this.els.baseUrl.value.trim();
         const model = this._getModel();
 
@@ -452,14 +459,15 @@ const ConnectionView = {
                 );
                 this.els.startBtn.disabled = true;
             }
-        } catch (err) {
-            if (err.name === "TimeoutError") {
+        } catch (err: unknown) {
+            const error = err as Error;
+            if (error.name === "TimeoutError") {
                 this._setStatus(
                     "error",
                     "Request timed out — check your URL and try again",
                 );
             } else {
-                this._setStatus("error", "Connection error: " + err.message);
+                this._setStatus("error", "Connection error: " + error.message);
             }
             this.els.startBtn.disabled = true;
         } finally {
@@ -473,7 +481,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Save provider configs and navigate to character creation. */
-    async _startAdventure() {
+    async _startAdventure(): Promise<void> {
         if (this.els.startBtn.disabled) return;
 
         // Save DM provider config
@@ -488,9 +496,9 @@ const ConnectionView = {
         };
 
         // Add generation settings to provider config
-        App.state.provider.max_tokens = parseInt(this.els.dmMaxTokens.value, 10) || undefined;
-        App.state.provider.temperature = parseFloat(this.els.dmTemperature.value) || undefined;
-        App.state.provider.timeout = parseInt(this.els.dmTimeout.value, 10) || undefined;
+        App.state.provider!.max_tokens = parseInt(this.els.dmMaxTokens!.value, 10) || undefined;
+        App.state.provider!.temperature = parseFloat(this.els.dmTemperature!.value) || undefined;
+        App.state.provider!.timeout = parseInt(this.els.dmTimeout!.value, 10) || undefined;
 
         // Save per-agent provider configs (null = use DM provider)
         App.state.npcProvider = this._buildAgentProvider("npc");
@@ -503,23 +511,23 @@ const ConnectionView = {
             api_key: apiKey,
             provider_type: this.els.providerSelect.value,
             dm_max_tokens:
-                parseInt(this.els.dmMaxTokens.value, 10) || undefined,
+                parseInt(this.els.dmMaxTokens!.value, 10) || undefined,
             dm_temperature:
-                parseFloat(this.els.dmTemperature.value) || undefined,
+                parseFloat(this.els.dmTemperature!.value) || undefined,
             dm_timeout:
-                parseInt(this.els.dmTimeout.value, 10) || undefined,
+                parseInt(this.els.dmTimeout!.value, 10) || undefined,
             npc_max_tokens:
-                parseInt(this.els.npcMaxTokens.value, 10) || undefined,
+                parseInt(this.els.npcMaxTokens!.value, 10) || undefined,
             npc_temperature:
-                parseFloat(this.els.npcTemperature.value) || undefined,
+                parseFloat(this.els.npcTemperature!.value) || undefined,
             npc_timeout:
-                parseInt(this.els.npcTimeout.value, 10) || undefined,
+                parseInt(this.els.npcTimeout!.value, 10) || undefined,
             summarizer_max_tokens:
-                parseInt(this.els.summarizerMaxTokens.value, 10) || undefined,
+                parseInt(this.els.summarizerMaxTokens!.value, 10) || undefined,
             summarizer_temperature:
-                parseFloat(this.els.summarizerTemperature.value) || undefined,
+                parseFloat(this.els.summarizerTemperature!.value) || undefined,
             summarizer_timeout:
-                parseInt(this.els.summarizerTimeout.value, 10) || undefined,
+                parseInt(this.els.summarizerTimeout!.value, 10) || undefined,
         };
         // POST settings to the backend (best-effort — don't block navigation)
         await this._postSettings(settingsPayload);
@@ -529,34 +537,43 @@ const ConnectionView = {
     },
 
     /** Build a provider config for a per-agent (npc / summarizer), or null. */
-    _buildAgentProvider(prefix) {
-        const enabledCheckbox = this.els[prefix + "Enabled"];
+    _buildAgentProvider(prefix: string): ProviderConfig | null {
+        const enabledKey = (prefix + "Enabled") as keyof ConnectionElements;
+        const enabledCheckbox = this.els[enabledKey] as HTMLInputElement | null;
         // If not enabled, return null (use main provider)
         if (!enabledCheckbox || !enabledCheckbox.checked) {
             return null;
         }
 
-        const providerType = this.els[prefix + "ProviderSelect"].value;
-        const baseUrl = this.els[prefix + "BaseUrl"].value.trim();
-        const model = this.els[prefix + "ModelInput"].value.trim();
+        const providerTypeKey = (prefix + "ProviderSelect") as keyof ConnectionElements;
+        const baseUrlKey = (prefix + "BaseUrl") as keyof ConnectionElements;
+        const modelInputKey = (prefix + "ModelInput") as keyof ConnectionElements;
+        const apiKeyKey = (prefix + "ApiKey") as keyof ConnectionElements;
+
+        const providerType = (this.els[providerTypeKey] as HTMLSelectElement).value;
+        const baseUrl = (this.els[baseUrlKey] as HTMLInputElement).value.trim();
+        const model = (this.els[modelInputKey] as HTMLInputElement).value.trim();
 
         if (!baseUrl || !model) return null;
 
-        const config = {
+        const config: ProviderConfig = {
             base_url: baseUrl,
             model: model,
             provider_type: providerType,
         };
 
-        const apiKey = this.els[prefix + "ApiKey"].value.trim();
+        const apiKey = (this.els[apiKeyKey] as HTMLInputElement).value.trim();
         if (apiKey) {
             config.api_key = apiKey;
         }
 
         // Add per-agent generation settings
-        const maxTokensEl = this.els[prefix + "MaxTokens"];
-        const tempEl = this.els[prefix + "Temperature"];
-        const timeoutEl = this.els[prefix + "Timeout"];
+        const maxTokensKey = (prefix + "MaxTokens") as keyof ConnectionElements;
+        const tempKey = (prefix + "Temperature") as keyof ConnectionElements;
+        const timeoutKey = (prefix + "Timeout") as keyof ConnectionElements;
+        const maxTokensEl = this.els[maxTokensKey] as HTMLInputElement | null;
+        const tempEl = this.els[tempKey] as HTMLInputElement | null;
+        const timeoutEl = this.els[timeoutKey] as HTMLInputElement | null;
         if (maxTokensEl) config.max_tokens = parseInt(maxTokensEl.value, 10) || undefined;
         if (tempEl) config.temperature = parseFloat(tempEl.value) || undefined;
         if (timeoutEl) config.timeout = parseInt(timeoutEl.value, 10) || undefined;
@@ -569,7 +586,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Update the connection status indicator. */
-    _setStatus(type, message) {
+    _setStatus(type: string, message: string): void {
         this.els.status.className = "status-indicator " + type;
         this.els.statusText.textContent = message;
     },
@@ -579,7 +596,7 @@ const ConnectionView = {
     // ------------------------------------------------------------------
 
     /** Get the currently selected or typed model name. */
-    _getModel() {
+    _getModel(): string {
         const selected = this.els.modelSelect.value;
         if (selected) return selected;
         const typed = this.els.modelInput.value.trim();
@@ -587,57 +604,57 @@ const ConnectionView = {
     },
 
     /** Populate form fields from backend settings response. */
-    _populateFromSettings(settings) {
+    _populateFromSettings(settings: Record<string, unknown>): void {
         if (!settings) return;
 
         // Provider type
         if (settings.provider_type) {
-            this.els.providerSelect.value = settings.provider_type;
+            this.els.providerSelect.value = settings.provider_type as string;
         }
         // Base URL
         if (settings.base_url) {
-            this.els.baseUrl.value = settings.base_url;
+            this.els.baseUrl.value = settings.base_url as string;
         }
         // API key (backend may return null — skip it)
         if (settings.api_key) {
-            this.els.apiKey.value = settings.api_key;
+            this.els.apiKey.value = settings.api_key as string;
         }
         // Model
         if (settings.model) {
-            this.els.modelInput.value = settings.model;
+            this.els.modelInput.value = settings.model as string;
         }
 
         // DM generation settings
         if (settings.dm_max_tokens != null && this.els.dmMaxTokens) {
-            this.els.dmMaxTokens.value = settings.dm_max_tokens;
+            this.els.dmMaxTokens.value = settings.dm_max_tokens as string;
         }
         if (settings.dm_temperature != null && this.els.dmTemperature) {
-            this.els.dmTemperature.value = settings.dm_temperature;
+            this.els.dmTemperature.value = settings.dm_temperature as string;
         }
         if (settings.dm_timeout != null && this.els.dmTimeout) {
-            this.els.dmTimeout.value = settings.dm_timeout;
+            this.els.dmTimeout.value = settings.dm_timeout as string;
         }
 
         // NPC generation settings
         if (settings.npc_max_tokens != null && this.els.npcMaxTokens) {
-            this.els.npcMaxTokens.value = settings.npc_max_tokens;
+            this.els.npcMaxTokens.value = settings.npc_max_tokens as string;
         }
         if (settings.npc_temperature != null && this.els.npcTemperature) {
-            this.els.npcTemperature.value = settings.npc_temperature;
+            this.els.npcTemperature.value = settings.npc_temperature as string;
         }
         if (settings.npc_timeout != null && this.els.npcTimeout) {
-            this.els.npcTimeout.value = settings.npc_timeout;
+            this.els.npcTimeout.value = settings.npc_timeout as string;
         }
 
         // Summarizer generation settings
         if (settings.summarizer_max_tokens != null && this.els.summarizerMaxTokens) {
-            this.els.summarizerMaxTokens.value = settings.summarizer_max_tokens;
+            this.els.summarizerMaxTokens.value = settings.summarizer_max_tokens as string;
         }
         if (settings.summarizer_temperature != null && this.els.summarizerTemperature) {
-            this.els.summarizerTemperature.value = settings.summarizer_temperature;
+            this.els.summarizerTemperature.value = settings.summarizer_temperature as string;
         }
         if (settings.summarizer_timeout != null && this.els.summarizerTimeout) {
-            this.els.summarizerTimeout.value = settings.summarizer_timeout;
+            this.els.summarizerTimeout.value = settings.summarizer_timeout as string;
         }
 
         // Sync UI after populating provider-related fields
@@ -645,17 +662,17 @@ const ConnectionView = {
 
         // Sync per-agent provider dropdowns to match the main provider type
         if (settings.provider_type && this.els.npcProviderSelect) {
-            this.els.npcProviderSelect.value = settings.provider_type;
+            this.els.npcProviderSelect.value = settings.provider_type as string;
             this._onAgentProviderChange("npc");
         }
         if (settings.provider_type && this.els.summarizerProviderSelect) {
-            this.els.summarizerProviderSelect.value = settings.provider_type;
+            this.els.summarizerProviderSelect.value = settings.provider_type as string;
             this._onAgentProviderChange("summarizer");
         }
     },
 
     /** Fetch settings from the backend API, then restore saved state. */
-    async _fetchSettings() {
+    async _fetchSettings(): Promise<void> {
         try {
             const resp = await fetch("/api/settings", {
                 signal: AbortSignal.timeout(5000),
@@ -664,7 +681,7 @@ const ConnectionView = {
             if (data.ok && data.settings) {
                 this._populateFromSettings(data.settings);
             }
-        } catch (e) {
+        } catch (e: unknown) {
             // API unavailable — fall back to HTML defaults (value attributes
             // in the markup) and localStorage. This is graceful degradation.
         }
@@ -685,7 +702,7 @@ const ConnectionView = {
      *  settings from the backend before ``_restoreState()`` overlays
      *  any cached values.
      */
-    _saveState() {
+    _saveState(): void {
         try {
             const data = {
                 provider: App.state.provider,
@@ -710,12 +727,12 @@ const ConnectionView = {
                 summarizerTimeout: this.els.summarizerTimeout ? this.els.summarizerTimeout.value : 300,
             };
             localStorage.setItem("rpg_connection", JSON.stringify(data));
-        } catch (e) {
+        } catch (e: unknown) {
             // localStorage may be full or disabled — silently ignore
         }
     },
 
-    _restoreState() {
+    _restoreState(): void {
         try {
             const raw = localStorage.getItem("rpg_connection");
             if (!raw) return;
@@ -767,7 +784,7 @@ const ConnectionView = {
             // Restore NPC enabled state
             if (data.npcEnabled && this.els.npcEnabled) {
                 this.els.npcEnabled.checked = true;
-                this.els.npcConfigGroup.style.display = "block";
+                this.els.npcConfigGroup!.style.display = "block";
             }
             // Restore NPC provider config values if present
             if (
@@ -800,7 +817,7 @@ const ConnectionView = {
             // Restore Summarizer enabled state
             if (data.summarizerEnabled && this.els.summarizerEnabled) {
                 this.els.summarizerEnabled.checked = true;
-                this.els.summarizerConfigGroup.style.display = "block";
+                this.els.summarizerConfigGroup!.style.display = "block";
             }
             // Restore Summarizer provider config values if present
             if (
@@ -866,7 +883,7 @@ const ConnectionView = {
             if (data.summarizerTimeout && this.els.summarizerTimeout) {
                 this.els.summarizerTimeout.value = data.summarizerTimeout;
             }
-        } catch (e) {
+        } catch (e: unknown) {
             // Corrupted data — ignore
         }
     },
