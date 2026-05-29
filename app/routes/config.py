@@ -53,7 +53,7 @@ def get_character_rules() -> flask.Response:
             "ok": True,
             "rules": {
                 "valid_classes": sorted(VALID_CLASSES),
-                "standard_abilities": sorted(STANDARD_ABILITIES),
+                "standard_abilities": STANDARD_ABILITIES,
                 "class_templates": class_templates,
                 "point_buy": {
                     "costs": point_buy_costs,

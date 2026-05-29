@@ -77,7 +77,7 @@ class TestCharacterModel:
     def test_abilities_contains_all_six_keys(self) -> None:
         """abilities dict must have exactly STR, DEX, CON, INT, WIS, CHA."""
         char = _make_minimal_character()
-        assert set(char.abilities.keys()) == STANDARD_ABILITIES
+        assert set(char.abilities.keys()) == set(STANDARD_ABILITIES)
 
     def test_level_defaults_to_one(self) -> None:
         """level must default to 1."""

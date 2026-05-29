@@ -1167,6 +1167,27 @@ label.toggle-label {
     font-weight: 600;
 }
 
+/* Token display layout — accumulated + latest per-turn */
+.token-accumulated,
+.token-latest {
+    margin-bottom: 0.25rem;
+}
+
+.token-subtitle {
+    display: block;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.token-subtitle-latest {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+
 /* Sidebar collapsed state (all screen sizes) */
 #status-sidebar.collapsed {
     display: none;

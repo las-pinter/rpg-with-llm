@@ -21,9 +21,7 @@ from typing import Any
 
 VALID_CLASSES: frozenset[str] = frozenset({"Fighter", "Rogue", "Mage", "Cleric"})
 
-STANDARD_ABILITIES: frozenset[str] = frozenset(
-    {"STR", "DEX", "CON", "INT", "WIS", "CHA"}
-)
+STANDARD_ABILITIES: list[str] = ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
 
 # Point-buy system rules
 POINT_BUY_COST: dict[int, int] = {
@@ -276,7 +274,7 @@ def _validate_abilities(abilities: dict[str, int]) -> None:
     if not isinstance(abilities, dict):
         raise ValueError("Abilities must be a dictionary.")
 
-    missing = STANDARD_ABILITIES - set(abilities.keys())
+    missing = set(STANDARD_ABILITIES) - set(abilities.keys())
     if missing:
         raise ValueError(
             f"Missing ability score(s): {', '.join(sorted(missing))}. "
