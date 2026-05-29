@@ -1665,23 +1665,7 @@ label.toggle-label {
     border-bottom-color: var(--accent-gold);
     border-bottom-style: solid;
 }
-.character-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-.character-title-class {
-    display: inline-block;
-    padding: 0.2rem 0.8rem;
-    background: var(--accent-glow);
-    border: 1px solid var(--accent-border);
-    border-radius: 4px;
-    font-family: var(--font-narrative);
-    font-size: 0.85rem;
-    color: var(--accent-gold);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
+
 
 /* ----- Story Progress ----- */
 .story-progress {
