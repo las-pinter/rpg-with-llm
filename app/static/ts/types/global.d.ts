@@ -189,7 +189,7 @@ interface GameElements {
     tokenLatestCompletion: HTMLElement | null;
     tokenLatestTotal: HTMLElement | null;
     playerInput: HTMLInputElement | null;
-    submitBtn: HTMLElement | null;
+    submitBtn: HTMLButtonElement | null;
     quickActions: HTMLElement | null;
     newGameBtn: HTMLElement | null;
     saveGameBtn: HTMLElement | null;

@@ -4,7 +4,40 @@
  * The main gameplay interface: narrative display, status sidebar, and
  * action input.  Communicates with the DM backend via POST /api/game/stream (SSE).
  */
-const GameView = {
+const GameView: {
+    state: GameState;
+    els: GameElements;
+    _storyKeyHandler: ((e: KeyboardEvent) => void) | null;
+    init(): void;
+    _onShow(): Promise<void>;
+    _enableInput(): void;
+    _disableInput(): void;
+    _submit(): void;
+    _sendTurn(input: string): Promise<void>;
+    _sendTurnSSE(input: string): Promise<void>;
+    _addPlayerAction(action: string): void;
+    _addNarrative(text: string, opts?: { isError?: boolean }): void;
+    _showToolResults(results: any[]): void;
+    _addTurnSeparator(): void;
+    _showThinking(visible: boolean): void;
+    _showNpcThinking(npcData: { npc_id?: string; hint?: string }): void;
+    _hideNpcThinking(): void;
+    _renderSidebar(): void;
+    _applyStateChanges(changes: any[]): void;
+    _setNested(obj: any, path: string, value: any): void;
+    _getNested(obj: any, path: string): any;
+    _loadState(): Promise<void>;
+    _newGame(): void;
+    _showSaveModal(): void;
+    _hideSaveModal(): void;
+    _confirmSave(): Promise<void>;
+    _showLoadModal(): Promise<void>;
+    _loadGame(saveName: string): Promise<void>;
+    _showStoryModal(): Promise<void>;
+    _hideStoryModal(): void;
+    _scrollToBottom(): void;
+    _stripXmlTags(str: string): string;
+} = {
     /** Runtime game state. */
     state: {
         worldState: null,
@@ -18,7 +51,9 @@ const GameView = {
     },
 
     /** DOM element references. */
-    els: {},
+    els: {} as GameElements,
+
+    _storyKeyHandler: null,
 
     // ------------------------------------------------------------------
     // Initialisation
@@ -75,11 +110,11 @@ const GameView = {
             saveConfirmBtn: document.getElementById("save-confirm"),
             saveCancelBtn: document.getElementById("save-cancel"),
             saveStatus: document.getElementById("save-status"),
-        };
+        } as GameElements;
 
         // Submit action
-        this.els.submitBtn.addEventListener("click", () => this._submit());
-        this.els.playerInput.addEventListener("keydown", (e) => {
+        this.els.submitBtn!.addEventListener("click", () => this._submit());
+        this.els.playerInput!.addEventListener("keydown", (e: KeyboardEvent) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 this._submit();
@@ -87,10 +122,10 @@ const GameView = {
         });
 
         // New Game button
-        this.els.newGameBtn.addEventListener("click", () => this._newGame());
+        this.els.newGameBtn!.addEventListener("click", () => this._newGame());
 
         // Save Game button
-        this.els.saveGameBtn.addEventListener("click", () => this._showSaveModal());
+        this.els.saveGameBtn!.addEventListener("click", () => this._showSaveModal());
 
         // Load Game button
         if (this.els.loadGameBtn) {
@@ -98,10 +133,10 @@ const GameView = {
         }
 
         // Save modal controls
-        this.els.saveConfirmBtn.addEventListener("click", () => this._confirmSave());
-        this.els.saveCancelBtn.addEventListener("click", () => this._hideSaveModal());
-        this.els.saveModalOverlay.addEventListener("click", () => this._hideSaveModal());
-        this.els.saveNameInput.addEventListener("keydown", (e) => {
+        this.els.saveConfirmBtn!.addEventListener("click", () => this._confirmSave());
+        this.els.saveCancelBtn!.addEventListener("click", () => this._hideSaveModal());
+        this.els.saveModalOverlay!.addEventListener("click", () => this._hideSaveModal());
+        this.els.saveNameInput!.addEventListener("keydown", (e: KeyboardEvent) => {
             if (e.key === "Enter") {
                 e.preventDefault();
                 this._confirmSave();
@@ -109,17 +144,19 @@ const GameView = {
         });
 
         // Sidebar collapse
-        this.els.collapseBtn.addEventListener("click", () => {
+        this.els.collapseBtn!.addEventListener("click", () => {
             const sidebar = document.getElementById("status-sidebar");
-            sidebar.classList.toggle("collapsed");
-            this.els.collapseBtn.textContent = sidebar.classList.contains("collapsed") ? "\u25C0" : "\u25B6";
+            if (sidebar) {
+                sidebar.classList.toggle("collapsed");
+                this.els.collapseBtn!.textContent = sidebar.classList.contains("collapsed") ? "\u25C0" : "\u25B6";
+            }
         });
 
         // Token usage toggle
-        this.els.tokenToggle.addEventListener("click", () => {
+        this.els.tokenToggle!.addEventListener("click", () => {
             this.state.showTokens = !this.state.showTokens;
-            this.els.tokenDisplay.classList.toggle("hidden", !this.state.showTokens);
-            this.els.tokenToggle.textContent = this.state.showTokens ? "Hide Tokens" : "Show Tokens";
+            this.els.tokenDisplay!.classList.toggle("hidden", !this.state.showTokens);
+            this.els.tokenToggle!.textContent = this.state.showTokens ? "Hide Tokens" : "Show Tokens";
         });
 
         // Story modal button
@@ -131,14 +168,14 @@ const GameView = {
         // Click outside to close story modal
         const storyModal = document.getElementById("story-modal");
         if (storyModal) {
-            storyModal.addEventListener("click", (e) => {
+            storyModal.addEventListener("click", (e: Event) => {
                 if (e.target === storyModal) this._hideStoryModal();
             });
         }
 
         // Auto-scroll detection — pause on manual scroll-up
-        this.els.narrativePane.addEventListener("scroll", () => {
-            const el = this.els.narrativePane;
+        this.els.narrativePane!.addEventListener("scroll", () => {
+            const el = this.els.narrativePane!;
             const atBottom =
                 el.scrollHeight - el.scrollTop - el.clientHeight < 80;
             this.state.autoScroll = atBottom;
@@ -157,7 +194,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Called when the game view becomes active. */
-    async _onShow() {
+    async _onShow(): Promise<void> {
         // Handle saved game load triggered from character view
         if (App.state.loadSaveName) {
             const saveName = App.state.loadSaveName;
@@ -190,23 +227,23 @@ const GameView = {
 
     /** Enable the player input field and submit button. */
     _enableInput() {
-        this.els.playerInput.disabled = false;
-        this.els.submitBtn.disabled = false;
-        this.els.playerInput.focus();
+        this.els.playerInput!.disabled = false;
+        this.els.submitBtn!.disabled = false;
+        this.els.playerInput!.focus();
     },
 
     /** Disable the input field and button (during DM thinking). */
     _disableInput() {
-        this.els.playerInput.disabled = true;
-        this.els.submitBtn.disabled = true;
+        this.els.playerInput!.disabled = true;
+        this.els.submitBtn!.disabled = true;
     },
 
     /** Submit the current player action. */
     _submit() {
-        const input = this.els.playerInput.value.trim();
+        const input = this.els.playerInput!.value.trim();
         if (!input || this.state.isThinking) return;
 
-        this.els.playerInput.value = "";
+        this.els.playerInput!.value = "";
         this._sendTurn(input);
     },
 
@@ -215,7 +252,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Send a player action to the DM and process the response. */
-    async _sendTurn(input) {
+    async _sendTurn(input: string): Promise<void> {
         if (this.state.isThinking) return;
 
         this.state.isThinking = true;
@@ -229,10 +266,11 @@ const GameView = {
         try {
             await this._sendTurnSSE(input);
         } catch (err) {
-            let msg = err.message;
-            if (err.name === "TimeoutError") {
+            const error = err as Error;
+            let msg = error.message;
+            if (error.name === "TimeoutError") {
                 msg = "The DM is taking too long — check your connection and try again.";
-            } else if (err.message === "Failed to fetch") {
+            } else if (error.message === "Failed to fetch") {
                 msg = "Cannot reach the game server. Is it running?";
             }
             this._addNarrative(`[${msg}]`, { isError: true });
@@ -248,8 +286,8 @@ const GameView = {
      * Process a turn via SSE streaming (primary path).
      * Resolves on successful completion, rejects on error.
      */
-    _sendTurnSSE(input) {
-        return new Promise((resolve, reject) => {
+    _sendTurnSSE(input: string): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
             SSEClient.connect(
                 input,
                 App.state.provider,
@@ -315,16 +353,16 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Add the player's action bubble to the narrative. */
-    _addPlayerAction(action) {
+    _addPlayerAction(action: string) {
         const div = document.createElement("div");
         div.className = "turn-player";
         div.textContent = action;
-        this.els.narrativeContent.appendChild(div);
+        this.els.narrativeContent!.appendChild(div);
         this._scrollToBottom();
     },
 
     /** Append DM narrative text to the narrative pane. */
-    _addNarrative(text, opts) {
+    _addNarrative(text: string, opts?: { isError?: boolean }) {
         opts = opts || {};
         // Strip angle brackets to prevent tag-like content from surviving sanitization
         text = text.replace(/[<>]/g, '');
@@ -346,12 +384,12 @@ const GameView = {
             div.classList.add("turn-error");
         }
 
-        this.els.narrativeContent.appendChild(div);
+        this.els.narrativeContent!.appendChild(div);
         this._scrollToBottom();
     },
 
     /** Show tool results as subtle narrative annotations. */
-    _showToolResults(results) {
+    _showToolResults(results: any[]) {
         for (const tr of results) {
             const div = document.createElement("div");
             div.className = "turn-tool-result";
@@ -360,7 +398,7 @@ const GameView = {
                 ? JSON.stringify(tr.result.result || tr.result)
                 : "no result";
             div.textContent = `⚙ ${tr.name}: ${ok ? "✓" : "✗"} — ${resultStr}`;
-            this.els.narrativeContent.appendChild(div);
+            this.els.narrativeContent!.appendChild(div);
         }
         this._scrollToBottom();
     },
@@ -371,7 +409,7 @@ const GameView = {
         div.className = "turn-separator";
         div.innerHTML =
             '<span class="sep-icon">✦</span>';
-        this.els.narrativeContent.appendChild(div);
+        this.els.narrativeContent!.appendChild(div);
         this._scrollToBottom();
     },
 
@@ -380,8 +418,8 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Show or hide the "DM is thinking" indicator. */
-    _showThinking(visible) {
-        this.els.thinkingIndicator.classList.toggle("hidden", !visible);
+    _showThinking(visible: boolean) {
+        this.els.thinkingIndicator!.classList.toggle("hidden", !visible);
         if (visible) {
             this._scrollToBottom();
         }
@@ -392,7 +430,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Show the NPC thinking indicator with a hint about what they're mulling over. */
-    _showNpcThinking(npcData) {
+    _showNpcThinking(npcData: { npc_id?: string; hint?: string }) {
         if (this.els.npcThinkingText) {
             const hint = npcData.hint || "";
             const npcName = npcData.npc_id || "Someone";
@@ -401,13 +439,13 @@ const GameView = {
                     ? `${npcName} considers... ${hint}`
                     : `The ${npcName} considers...`;
         }
-        this.els.npcThinkingIndicator.classList.remove("hidden");
+        this.els.npcThinkingIndicator!.classList.remove("hidden");
         this._scrollToBottom();
     },
 
     /** Hide the NPC thinking indicator. */
     _hideNpcThinking() {
-        this.els.npcThinkingIndicator.classList.add("hidden");
+        this.els.npcThinkingIndicator!.classList.add("hidden");
     },
 
     // ------------------------------------------------------------------
@@ -418,42 +456,42 @@ const GameView = {
     _renderSidebar() {
         const chara = App.state.character;
         if (!chara) {
-            this.els.sidebarName.textContent = "—";
-            this.els.sidebarClassLevel.textContent = "—";
+            this.els.sidebarName!.textContent = "—";
+            this.els.sidebarClassLevel!.textContent = "—";
             return;
         }
 
-        this.els.sidebarName.textContent = chara.name || "—";
+        this.els.sidebarName!.textContent = chara.name || "—";
 
         const cls = chara.character_class || "?";
         const lvl = chara.level || 1;
-        this.els.sidebarClassLevel.textContent = `${cls} · Level ${lvl}`;
+        this.els.sidebarClassLevel!.textContent = `${cls} · Level ${lvl}`;
 
         // Character info — appearance & backstory
-        this.els.charAppearance.textContent = chara.appearance || "—";
-        this.els.charBackstory.textContent = chara.backstory || "—";
+        this.els.charAppearance!.textContent = chara.appearance || "—";
+        this.els.charBackstory!.textContent = chara.backstory || "—";
 
         // HP bar
         const hp = chara.hp || 0;
         const maxHp = chara.max_hp || 1;
         const pct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
-        this.els.hpFill.style.width = pct + "%";
-        this.els.hpText.textContent = `${hp} / ${maxHp}`;
+        this.els.hpFill!.style.width = pct + "%";
+        this.els.hpText!.textContent = `${hp} / ${maxHp}`;
 
         // Color the HP bar
-        this.els.hpFill.classList.remove("low", "medium");
+        this.els.hpFill!.classList.remove("low", "medium");
         if (pct <= 25) {
-            this.els.hpFill.classList.add("low");
+            this.els.hpFill!.classList.add("low");
         } else if (pct <= 60) {
-            this.els.hpFill.classList.add("medium");
+            this.els.hpFill!.classList.add("medium");
         }
 
         // Ability scores
         const abils = chara.abilities || {};
         const abilKeys = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
-        this.els.statsList.innerHTML = abilKeys
+        this.els.statsList!.innerHTML = abilKeys
             .map(
-                (k) =>
+                (k: string) =>
                     `<li><span class="stat-label">${k}</span>` +
                     `<span class="stat-value">${abils[k] ?? "—"}</span></li>`,
             )
@@ -461,16 +499,16 @@ const GameView = {
 
         // Gold — read from worldState
         const gold = (this.state.worldState && this.state.worldState.gold) || 0;
-        this.els.goldAmount.textContent = gold;
+        this.els.goldAmount!.textContent = String(gold);
 
         // Inventory — read from worldState, not character
         const inv = (this.state.worldState && this.state.worldState.inventory) || [];
         if (inv.length === 0) {
-            this.els.inventoryList.innerHTML =
+            this.els.inventoryList!.innerHTML =
                 '<li class="empty-state">Empty</li>';
         } else {
-            this.els.inventoryList.innerHTML = inv
-                .map((item) => `<li>${_esc(item)}</li>`)
+            this.els.inventoryList!.innerHTML = inv
+                .map((item: string) => `<li>${_esc(item)}</li>`)
                 .join("");
         }
 
@@ -478,19 +516,19 @@ const GameView = {
         const loc = this.state.worldState
             ? this.state.worldState.current_location || "—"
             : "—";
-        this.els.locationText.textContent =
-            loc.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ||
+        this.els.locationText!.textContent =
+            loc.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) ||
             "—";
 
         // Known NPCs
         const npcs = (this.state.worldState && this.state.worldState.active_npcs) || {};
         const npcIds = Object.keys(npcs);
         if (npcIds.length === 0) {
-            this.els.npcList.innerHTML =
+            this.els.npcList!.innerHTML =
                 '<li class="empty-state">None yet</li>';
         } else {
-            this.els.npcList.innerHTML = npcIds
-                .map((id) => {
+            this.els.npcList!.innerHTML = npcIds
+                .map((id: string) => {
                     const npc = npcs[id] || {};
                     const name = npc.name || id;
                     const lastSeen = npc.last_seen_turn;
@@ -507,15 +545,15 @@ const GameView = {
 
         // Token usage — accumulated
         const tu = this.state.tokenUsage || {};
-        this.els.tokenPrompt.textContent = tu.prompt_tokens ?? 0;
-        this.els.tokenCompletion.textContent = tu.completion_tokens ?? 0;
-        this.els.tokenTotal.textContent = tu.total_tokens ?? 0;
+        this.els.tokenPrompt!.textContent = String(tu.prompt_tokens ?? 0);
+        this.els.tokenCompletion!.textContent = String(tu.completion_tokens ?? 0);
+        this.els.tokenTotal!.textContent = String(tu.total_tokens ?? 0);
 
         // Token usage — latest per-turn
         const latest = this.state.latestTokenUsage || {};
-        this.els.tokenLatestPrompt.textContent = latest.prompt_tokens ?? 0;
-        this.els.tokenLatestCompletion.textContent = latest.completion_tokens ?? 0;
-        this.els.tokenLatestTotal.textContent = latest.total_tokens ?? 0;
+        this.els.tokenLatestPrompt!.textContent = String(latest.prompt_tokens ?? 0);
+        this.els.tokenLatestCompletion!.textContent = String(latest.completion_tokens ?? 0);
+        this.els.tokenLatestTotal!.textContent = String(latest.total_tokens ?? 0);
     },
 
     // ------------------------------------------------------------------
@@ -523,7 +561,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Apply state changes to the local world state copy. */
-    _applyStateChanges(changes) {
+    _applyStateChanges(changes: any[]) {
         if (!changes || changes.length === 0) return;
 
         // Initialize world state if needed
@@ -564,7 +602,7 @@ const GameView = {
                     this._setNested(
                         this.state.worldState,
                         path,
-                        current.filter((item) => item !== value),
+                        current.filter((item: unknown) => item !== value),
                     );
                 } else if (typeof current === 'object' && current !== null) {
                     delete current[value];
@@ -576,10 +614,10 @@ const GameView = {
     },
 
     /** Set a value at a dot-separated path in an object. */
-    _setNested(obj, path, value) {
+    _setNested(obj: any, path: string, value: any) {
         if (typeof path !== "string" || path.length === 0) return;
         const keys = path.split(".");
-        if (keys.length === 0 || keys.some((k) => !k)) return;
+        if (keys.length === 0 || keys.some((k: string) => !k)) return;
         const blocked = new Set(["__proto__", "constructor", "prototype"]);
         let current = obj;
 
@@ -611,7 +649,7 @@ const GameView = {
     },
 
     /** Get a value at a dot-separated path in an object. */
-    _getNested(obj, path) {
+    _getNested(obj: any, path: string): any {
         const keys = path.split(".");
         const blocked = new Set(["__proto__", "constructor", "prototype"]);
         let current = obj;
@@ -629,7 +667,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Load initial world state from the server (POST /api/reset). */
-    async _loadState() {
+    async _loadState(): Promise<void> {
         // If we already have a world state, keep it (continuing a game)
         if (this.state.worldState) return;
 
@@ -639,7 +677,7 @@ const GameView = {
             if (data.ok && data.state) {
                 this.state.worldState = data.state;
             }
-        } catch (e) {
+        } catch (_) {
             // Offline — use a minimal default
             this.state.worldState = {
                 current_location: "unknown",
@@ -650,12 +688,12 @@ const GameView = {
 
         // Seed worldState with character's starting equipment and gold
         if (App.state.character) {
-            this.state.worldState.character_name = App.state.character.name || "";
+            this.state.worldState!.character_name = App.state.character.name || "";
             if (App.state.character.inventory) {
-                this.state.worldState.inventory = [...App.state.character.inventory];
+                this.state.worldState!.inventory = [...App.state.character.inventory];
             }
             if (App.state.character.gold != null) {
-                this.state.worldState.gold = App.state.character.gold;
+                this.state.worldState!.gold = App.state.character.gold;
             }
         }
     },
@@ -672,7 +710,7 @@ const GameView = {
         this.state.latestTokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
         // Clear the narrative
-        this.els.narrativeContent.innerHTML =
+        this.els.narrativeContent!.innerHTML =
             '<p class="narrative-welcome">Your adventure awaits...</p>';
 
         App.navigate("character");
@@ -687,8 +725,8 @@ const GameView = {
         if (this.state.isThinking) return;
 
         // Reset all save states: show form, hide loading/success
-        const formGroup = document.querySelector("#save-modal .form-group");
-        const saveFooter = document.querySelector("#save-modal .modal-footer");
+        const formGroup = document.querySelector("#save-modal .form-group") as HTMLElement | null;
+        const saveFooter = document.querySelector("#save-modal .modal-footer") as HTMLElement | null;
         const saveLoading = document.getElementById("save-loading");
         const saveSuccess = document.getElementById("save-success");
         if (formGroup) formGroup.style.display = "";
@@ -699,33 +737,33 @@ const GameView = {
         // Auto-generate a suggested name
         const charName = App.state.character ? App.state.character.name : "Adventure";
         const date = new Date().toLocaleString();
-        this.els.saveNameInput.value = `${charName} - ${date}`;
-        this.els.saveStatus.textContent = "";
-        this.els.saveStatus.className = "save-status";
-        this.els.saveModal.classList.remove("hidden");
-        this.els.saveModalOverlay.classList.remove("hidden");
-        this.els.saveNameInput.focus();
-        this.els.saveNameInput.select();
+        this.els.saveNameInput!.value = `${charName} - ${date}`;
+        this.els.saveStatus!.textContent = "";
+        this.els.saveStatus!.className = "save-status";
+        this.els.saveModal!.classList.remove("hidden");
+        this.els.saveModalOverlay!.classList.remove("hidden");
+        this.els.saveNameInput!.focus();
+        this.els.saveNameInput!.select();
     },
 
     /** Hide the save modal. */
     _hideSaveModal() {
-        this.els.saveModal.classList.add("hidden");
-        this.els.saveModalOverlay.classList.add("hidden");
+        this.els.saveModal!.classList.add("hidden");
+        this.els.saveModalOverlay!.classList.add("hidden");
     },
 
     /** Confirm and execute the save. */
-    async _confirmSave() {
-        const name = this.els.saveNameInput.value.trim();
+    async _confirmSave(): Promise<void> {
+        const name = this.els.saveNameInput!.value.trim();
         if (!name) {
-            this.els.saveStatus.textContent = "Please enter a save name.";
-            this.els.saveStatus.className = "save-status save-status-error";
+            this.els.saveStatus!.textContent = "Please enter a save name.";
+            this.els.saveStatus!.className = "save-status save-status-error";
             return;
         }
 
         // Get elements for state transitions
-        const formGroup = document.querySelector("#save-modal .form-group");
-        const saveFooter = document.querySelector("#save-modal .modal-footer");
+        const formGroup = document.querySelector("#save-modal .form-group") as HTMLElement | null;
+        const saveFooter = document.querySelector("#save-modal .modal-footer") as HTMLElement | null;
         const saveLoading = document.getElementById("save-loading");
         const saveSuccess = document.getElementById("save-success");
 
@@ -733,8 +771,8 @@ const GameView = {
         if (formGroup) formGroup.style.display = "none";
         if (saveFooter) saveFooter.style.display = "none";
         if (saveLoading) saveLoading.style.display = "block";
-        this.els.saveStatus.textContent = "";
-        this.els.saveStatus.className = "save-status";
+        this.els.saveStatus!.textContent = "";
+        this.els.saveStatus!.className = "save-status";
 
         try {
             // Embed character data inside the state dict for single-file save
@@ -774,15 +812,16 @@ const GameView = {
                 // Show error, restore form
                 if (formGroup) formGroup.style.display = "";
                 if (saveFooter) saveFooter.style.display = "";
-                this.els.saveStatus.textContent = `✗ Failed: ${data.error || "Unknown error"}`;
-                this.els.saveStatus.className = "save-status save-status-error";
+                this.els.saveStatus!.textContent = `✗ Failed: ${data.error || "Unknown error"}`;
+                this.els.saveStatus!.className = "save-status save-status-error";
             }
         } catch (e) {
+            const error = e as Error;
             if (saveLoading) saveLoading.style.display = "none";
             if (formGroup) formGroup.style.display = "";
             if (saveFooter) saveFooter.style.display = "";
-            this.els.saveStatus.textContent = `✗ Error: ${e.message}`;
-            this.els.saveStatus.className = "save-status save-status-error";
+            this.els.saveStatus!.textContent = `✗ Error: ${error.message}`;
+            this.els.saveStatus!.className = "save-status save-status-error";
         }
     },
 
@@ -791,7 +830,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Show the load game modal. */
-    async _showLoadModal() {
+    async _showLoadModal(): Promise<void> {
         const loadModal = document.getElementById("load-modal");
         const loadOverlay = document.getElementById("load-modal-overlay");
         const loadList = document.getElementById("load-list");
@@ -800,7 +839,7 @@ const GameView = {
 
         loadList.innerHTML = '<p class="empty-state">Loading saves...</p>';
         loadModal.classList.remove("hidden");
-        loadOverlay.classList.remove("hidden");
+        loadOverlay!.classList.remove("hidden");
 
         try {
             const resp = await fetch("/api/saves");
@@ -814,7 +853,7 @@ const GameView = {
 
             loadList.innerHTML = saves
                 .map(
-                    (s) => `
+                    (s: any) => `
                 <div class="save-card" data-name="${_esc(s.name || s.character_name || "Unknown")}">
                     <div class="save-info">
                         <h3>${_esc(s.character_name || "Unknown")}</h3>
@@ -834,18 +873,20 @@ const GameView = {
             // Bind load buttons
             loadList.querySelectorAll(".btn-load-save").forEach((btn) => {
                 btn.addEventListener("click", () => {
-                    const card = btn.closest(".save-card");
-                    const saveName = card.dataset.name;
-                    this._loadGame(saveName);
+                    const card = (btn as HTMLElement).closest(".save-card") as HTMLElement | null;
+                    const saveName = card?.dataset.name;
+                    if (saveName) {
+                        this._loadGame(saveName);
+                    }
                 });
             });
 
             // Bind delete buttons
             loadList.querySelectorAll(".btn-delete-save").forEach((btn) => {
                 btn.addEventListener("click", async () => {
-                    const card = btn.closest(".save-card");
-                    const saveName = card.dataset.name;
-                    if (!confirm(`Delete save "${saveName}"?`)) return;
+                    const card = (btn as HTMLElement).closest(".save-card") as HTMLElement | null;
+                    const saveName = card?.dataset.name;
+                    if (!saveName || !confirm(`Delete save "${saveName}"?`)) return;
                     try {
                         const resp = await fetch(
                             `/api/delete/${encodeURIComponent(saveName)}`,
@@ -862,21 +903,22 @@ const GameView = {
                 });
             });
         } catch (e) {
-            loadList.innerHTML = `<p class="empty-state">Error loading saves: ${e.message}</p>`;
+            const error = e as Error;
+            loadList.innerHTML = `<p class="empty-state">Error loading saves: ${error.message}</p>`;
         }
 
         // Close handlers
         const closeModal = () => {
             loadModal.classList.add("hidden");
-            loadOverlay.classList.add("hidden");
+            loadOverlay!.classList.add("hidden");
         };
-        loadOverlay.onclick = closeModal;
-        const closeBtn = loadModal.querySelector(".modal-close");
+        loadOverlay!.onclick = closeModal;
+        const closeBtn = loadModal.querySelector(".modal-close") as HTMLElement | null;
         if (closeBtn) closeBtn.onclick = closeModal;
     },
 
     /** Load a saved game: fetch state + character, restore them, and enter game. */
-    async _loadGame(saveName) {
+    async _loadGame(saveName: string): Promise<void> {
         const loadModal = document.getElementById("load-modal");
         const loadOverlay = document.getElementById("load-modal-overlay");
 
@@ -902,12 +944,12 @@ const GameView = {
                 }
 
                 // Clear and rebuild narrative
-                this.els.narrativeContent.innerHTML =
+                this.els.narrativeContent!.innerHTML =
                     '<p class="narrative-welcome">Loading saved game...</p>';
 
                 // Hide modal
-                loadModal.classList.add("hidden");
-                loadOverlay.classList.add("hidden");
+                loadModal!.classList.add("hidden");
+                loadOverlay!.classList.add("hidden");
 
                 // Add a brief load message
                 this._addNarrative(`[Game loaded: "${saveName}"]`, {});
@@ -918,7 +960,8 @@ const GameView = {
                 alert(`Failed to load save: ${data.error || "Unknown error"}`);
             }
         } catch (e) {
-            alert(`Failed to load save: ${e.message}`);
+            const error = e as Error;
+            alert(`Failed to load save: ${error.message}`);
         }
     },
 
@@ -927,7 +970,7 @@ const GameView = {
     // ------------------------------------------------------------------
 
     /** Show the story modal with the adventure log from live state. */
-    async _showStoryModal() {
+    async _showStoryModal(): Promise<void> {
         const modal = document.getElementById("story-modal");
         const content = document.getElementById("story-content");
         if (!modal || !content) return;
@@ -936,7 +979,7 @@ const GameView = {
         content.innerHTML = '';
 
         // Escape key closes the modal
-        this._storyKeyHandler = (e) => {
+        this._storyKeyHandler = (e: KeyboardEvent) => {
             if (e.key === "Escape") this._hideStoryModal();
         };
         document.addEventListener("keydown", this._storyKeyHandler);
@@ -949,7 +992,7 @@ const GameView = {
         }
 
         // Render each story entry
-        content.innerHTML = storyLog.map(entry => {
+        content.innerHTML = storyLog.map((entry: string) => {
             const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
             if (match) {
                 return `<div class="story-entry">
@@ -981,16 +1024,16 @@ const GameView = {
     _scrollToBottom() {
         if (!this.state.autoScroll) return;
         requestAnimationFrame(() => {
-            this.els.narrativePane.scrollTop =
-                this.els.narrativePane.scrollHeight;
+            this.els.narrativePane!.scrollTop =
+                this.els.narrativePane!.scrollHeight;
         });
     },
 
     /** Strip XML/HTML-like tags, markdown bold artifacts, and backtick state-change attributes. */
-    _stripXmlTags(str) {
+    _stripXmlTags(str: string): string {
         if (typeof str !== "string") return "";
         let clean = str;
-        let previous;
+        let previous: string;
         do {
             previous = clean;
             clean = clean.replace(/<[^>]*>?/g, '');
