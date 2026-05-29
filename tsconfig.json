@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "app/static/js",
+    "rootDir": "app/static/ts",
+    "sourceMap": true,
+    "declaration": false,
+    "noEmit": false,
+    "allowJs": false
+  },
+  "include": ["app/static/ts/**/*.ts"],
+  "exclude": ["node_modules"]
+}
