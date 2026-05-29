@@ -7,8 +7,8 @@
  * ReadableStream with manual chunk buffering and event parsing.
  */
 const SSEClient = {
-    reader: null, // ReadableStreamDefaultReader
-    controller: null, // AbortController for cancellation
+    reader: null,
+    controller: null,
     decoder: new TextDecoder(),
     buffer: "", // Accumulates partial SSE data across chunks
     /**
