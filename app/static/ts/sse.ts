@@ -1,4 +1,3 @@
-"use strict";
 /**
  * SSE client using fetch (POST) instead of EventSource (GET).
  *
@@ -7,10 +6,11 @@
  * ReadableStream with manual chunk buffering and event parsing.
  */
 const SSEClient = {
-    reader: null, // ReadableStreamDefaultReader
-    controller: null, // AbortController for cancellation
+    reader: null,        // ReadableStreamDefaultReader
+    controller: null,    // AbortController for cancellation
     decoder: new TextDecoder(),
-    buffer: "", // Accumulates partial SSE data across chunks
+    buffer: "",          // Accumulates partial SSE data across chunks
+
     /**
      * Connect to the streaming endpoint via POST + JSON body.
      *
@@ -29,55 +29,55 @@ const SSEClient = {
      * @param {object|null} npcProvider - NPC subagent provider config.
      * @param {object|null} summarizerProvider - Summarizer provider config.
      */
-    connect(input, provider, callbacks, state, character, npcProvider, summarizerProvider) {
-        this.disconnect(); // Always clean up before connecting
+    connect(input, provider, callbacks, state, character, npcProvider,
+        summarizerProvider) {
+        this.disconnect();  // Always clean up before connecting
         this.controller = new AbortController();
+
         const body = { input };
-        if (provider)
-            body.provider = provider;
-        if (state)
-            body.state = state;
-        if (character)
-            body.character = character;
-        if (npcProvider)
-            body.npc_provider = npcProvider;
-        if (summarizerProvider)
-            body.summarizer_provider = summarizerProvider;
+        if (provider)       body.provider         = provider;
+        if (state)          body.state            = state;
+        if (character)      body.character        = character;
+        if (npcProvider)    body.npc_provider     = npcProvider;
+        if (summarizerProvider) body.summarizer_provider = summarizerProvider;
+
         fetch("/api/game/stream", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
             signal: this.controller.signal,
         })
-            .then(async (response) => {
-            if (!response.ok)
-                throw new Error(`HTTP ${response.status}`);
+        .then(async (response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const reader = response.body.getReader();
             this.reader = reader;
+
             while (true) {
                 const { done, value } = await reader.read();
-                if (done)
-                    break;
+                if (done) break;
+
                 this.buffer += this.decoder.decode(value, { stream: true });
                 this._processBuffer(callbacks);
             }
         })
-            .catch((err) => {
-            if (err.name === "AbortError")
-                return; // Clean disconnect
-            if (callbacks.onError)
-                callbacks.onError(err.message || "Connection lost");
+        .catch((err) => {
+            if (err.name === "AbortError") return;  // Clean disconnect
+            if (callbacks.onError) callbacks.onError(
+                err.message || "Connection lost"
+            );
         })
-            .finally(() => {
+        .finally(() => {
             this.disconnect();
         });
     },
+
     /** Parse complete SSE blocks from the accumulated buffer. */
     _processBuffer(callbacks) {
         let lineBreak = this.buffer.indexOf("\n\n");
         while (lineBreak !== -1) {
             const block = this.buffer.slice(0, lineBreak);
             this.buffer = this.buffer.slice(lineBreak + 2);
+
             // Parse event: and data: lines from the block
             let eventType = "";
             let eventData = "";
@@ -85,61 +85,62 @@ const SSEClient = {
             for (const line of lines) {
                 if (line.startsWith("event: ")) {
                     eventType = line.slice(7).trim();
-                }
-                else if (line.startsWith("data: ")) {
+                } else if (line.startsWith("data: ")) {
                     // SSE spec: multiple data: lines joined with \n
                     eventData += (eventData ? "\n" : "") + line.slice(6);
                 }
             }
-            if (!eventType || !eventData)
-                continue;
+
+            if (!eventType || !eventData) continue;
+
             try {
                 const parsed = JSON.parse(eventData);
                 this._dispatchEvent(eventType, parsed, callbacks);
-            }
-            catch (_) { /* skip malformed events */ }
+            } catch (_) { /* skip malformed events */ }
+
             lineBreak = this.buffer.indexOf("\n\n");
         }
     },
+
     /** Dispatch a parsed SSE event to the appropriate callback. */
     _dispatchEvent(type, data, callbacks) {
         switch (type) {
             case "token":
-                if (callbacks.onToken)
-                    callbacks.onToken(data.content);
+                if (callbacks.onToken) callbacks.onToken(data.content);
                 break;
             case "narrative":
-                if (callbacks.onNarrative)
-                    callbacks.onNarrative(data.content);
+                if (callbacks.onNarrative) callbacks.onNarrative(
+                    data.content
+                );
                 break;
             case "npc_thinking":
-                if (callbacks.onNpcThinking)
-                    callbacks.onNpcThinking(data);
+                if (callbacks.onNpcThinking) callbacks.onNpcThinking(data);
                 break;
             case "state_update":
-                if (callbacks.onStateUpdate)
-                    callbacks.onStateUpdate(data);
+                if (callbacks.onStateUpdate) callbacks.onStateUpdate(data);
                 break;
             case "done":
-                if (callbacks.onDone)
-                    callbacks.onDone(data.turn_count);
-                this.disconnect(); // Close after done
+                if (callbacks.onDone) callbacks.onDone(data.turn_count);
+                this.disconnect();  // Close after done
                 break;
             case "token_usage":
-                if (callbacks.onTokenUsage)
-                    callbacks.onTokenUsage(data);
+                if (callbacks.onTokenUsage) callbacks.onTokenUsage(
+                    data
+                );
                 break;
             case "error":
-                if (callbacks.onError)
-                    callbacks.onError(data.message || "Server error");
+                if (callbacks.onError) callbacks.onError(
+                    data.message || "Server error"
+                );
                 this.disconnect();
                 break;
         }
     },
+
     /** Close the current connection and clean up all resources. */
     disconnect() {
         if (this.reader) {
-            this.reader.cancel().catch(() => { });
+            this.reader.cancel().catch(() => {});
             this.reader = null;
         }
         if (this.controller) {
@@ -149,4 +150,3 @@ const SSEClient = {
         this.buffer = "";
     },
 };
-//# sourceMappingURL=sse.js.map
