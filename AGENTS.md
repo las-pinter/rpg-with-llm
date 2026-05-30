@@ -2,12 +2,17 @@
 
 ## Setup commands
 - Install deps: `pip install -r requirements.txt`
+- Install frontend deps: `npm install`
+- Build frontend (TypeScript): `npm run build`
+- Watch frontend: `npm run watch`
 - Run all tests: `python3 -m pytest tests/ -v`
 - Run tests with coverage: `python3 -m pytest tests/ --cov=app --cov-report=term`
 - Run lint check: `ruff check app/ tests/`
 - Run format check: `ruff format --check app/ tests/`
-- Run type check: `mypy app/ --ignore-missing-imports`
-- Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
+- Run Python type check: `mypy app/ --ignore-missing-imports`
+- Run TypeScript type check: `npx tsc --noEmit`
+- Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && npx tsc --noEmit && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
+- Run game: `python3 run.py` (starts Flask dev server on port 5000)
 - Run single module: `python3 -m pytest tests/test_dice.py -v`
 - Run game: `python3 run.py` (starts Flask dev server on port 5000)
 
