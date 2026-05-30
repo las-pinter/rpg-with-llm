@@ -85,6 +85,8 @@ for faster responses.
    - **Model:** `default`
    - **Type:** `llamacpp`
 
+📖 **Detailed guide** – Full setup with Gemma-4-E4B, sampling configs, multi-agent setup, and troubleshooting → [`LLAMACPP_SETUP.md`](LLAMACPP_SETUP.md)
+
 ### Unsloth (Local, GPU)
 
 1. Install `unsloth` and run: `unsloth studio`
