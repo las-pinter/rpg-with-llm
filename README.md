@@ -15,7 +15,7 @@ No setup fuss. Just you, a browser, and an adventure.
 ## 🚀 Quick Start
 
 The fastest way to get playing is with the one-click startup scripts.
-You just need **Python 3.10+** and an **LLM provider** (see below).
+You just need **Python 3.10+**, **Node.js (v18 or later)**, and an **LLM provider** (see below).
 
 **Linux/macOS:**
 ```bash
@@ -45,10 +45,14 @@ python3 -m venv .venv
 source .venv/bin/activate       # Linux/macOS
 # .venv\Scripts\activate        # Windows
 
-# 3. Install dependencies
+# 3. Install Python dependencies
 pip install -r requirements.txt
 
-# 4. Start the server
+# 4. Install frontend dependencies and compile TypeScript
+npm install
+npm run build
+
+# 5. Start the server
 python run.py
 ```
 

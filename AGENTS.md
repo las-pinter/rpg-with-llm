@@ -58,7 +58,13 @@ app/
     ├── index.html       # SPA shell
     ├── css/
     │   └── style.css    # Dark fantasy theme
-    └── js/
+    ├── ts/              # TypeScript source files
+    │   ├── app.ts       # SPA router
+    │   ├── connection.ts# Connection view
+    │   ├── character.ts # Character creation/load
+    │   ├── game.ts      # Game view
+    │   └── sse.ts       # SSE streaming client
+    └── js/              # Compiled output (from TypeScript)
         ├── app.js       # SPA router
         ├── connection.js# Connection view
         ├── character.js # Character creation/load
@@ -69,6 +75,6 @@ tests/          — Test suite mirroring app structure
 ```
 
 ## Important constraints
-- No build step: frontend is raw HTML/CSS/JS served from Flask
+- Frontend uses TypeScript: run `npm run build` after changes to `app/static/ts/`
 - This is a proof of concept, not meant to replace human-led RPGs
 - License: MIT

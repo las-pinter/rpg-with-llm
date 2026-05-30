@@ -131,7 +131,42 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4: Start the Flask server in the background
+# Step 4: Check Node.js and npm
+# ---------------------------------------------------------------------------
+info "🔍 Checking for Node.js and npm..."
+if ! command -v node &>/dev/null; then
+	error "❌ Node.js is required but not installed."
+	error "   Install Node.js from https://nodejs.org/ (v18 or later)"
+	exit 1
+fi
+
+if ! command -v npm &>/dev/null; then
+	error "❌ npm is required but not installed."
+	error "   Install npm alongside Node.js from https://nodejs.org/ (v18 or later)"
+	exit 1
+fi
+
+success "✓ Found Node.js $(node --version) with npm $(npm --version)"
+
+# ---------------------------------------------------------------------------
+# Step 5: Install frontend dependencies and build TypeScript
+# ---------------------------------------------------------------------------
+info "📦 Installing frontend dependencies (npm install)..."
+npm --prefix "$PROJECT_ROOT" install || {
+	error "npm install failed. Check your network and package.json."
+	exit 1
+}
+success "✓ Frontend dependencies installed."
+
+info "🔨 Compiling TypeScript frontend (npm run build)..."
+npm --prefix "$PROJECT_ROOT" run build || {
+	error "npm run build failed. Check your TypeScript source files for errors."
+	exit 1
+}
+success "✓ TypeScript compilation complete."
+
+# ---------------------------------------------------------------------------
+# Step 6: Start the Flask server in the background
 # ---------------------------------------------------------------------------
 info "🚀 Starting RPG server on ${URL}..."
 $PYTHON "$RUN_SCRIPT" &
@@ -149,7 +184,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # ---------------------------------------------------------------------------
-# Step 5: Wait for the server to be ready
+# Step 7: Wait for the server to be ready
 # ---------------------------------------------------------------------------
 info "⏳ Waiting for server to become ready..."
 
@@ -176,7 +211,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6: Open browser
+# Step 8: Open browser
 # ---------------------------------------------------------------------------
 info "🌐 Opening browser to ${URL}..."
 if command -v xdg-open &>/dev/null; then
@@ -191,7 +226,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 7: Follow server logs
+# Step 9: Follow server logs
 # ---------------------------------------------------------------------------
 echo ""
 success "╔══════════════════════════════════════════════════════════╗"
