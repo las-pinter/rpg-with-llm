@@ -108,7 +108,64 @@ if exist "requirements.txt" (
 echo.
 
 :: --------------------------------------------------
-:: 6. Start Flask server and open browser
+:: 6. Check Node.js and npm
+:: --------------------------------------------------
+echo [..] Checking for Node.js and npm...
+
+where node >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Node.js is required but not installed.
+    echo         Install Node.js from https://nodejs.org/ (v18 or later)
+    echo.
+    pause
+    exit /b 1
+)
+
+where npm >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo [ERROR] npm is required but not installed.
+    echo         Install npm alongside Node.js from https://nodejs.org/ (v18 or later)
+    echo.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%i in ('node --version') do set NODE_VER=%%i
+for /f "tokens=*" %%i in ('npm --version') do set NPM_VER=%%i
+echo [OK] Found Node.js !NODE_VER! with npm !NPM_VER!
+echo.
+
+:: --------------------------------------------------
+:: 7. Install frontend dependencies and build TypeScript
+:: --------------------------------------------------
+echo [..] Installing frontend dependencies (npm install^)...
+call npm install
+if errorlevel 1 (
+    echo.
+    echo [ERROR] npm install failed. Check your network connection and package.json.
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] Frontend dependencies installed.
+echo.
+
+echo [..] Compiling TypeScript frontend (npm run build^)...
+call npm run build
+if errorlevel 1 (
+    echo.
+    echo [ERROR] TypeScript build failed. Check for errors in app/static/ts/.
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] TypeScript compilation complete.
+echo.
+
+:: --------------------------------------------------
+:: 8. Start Flask server and open browser
 :: --------------------------------------------------
 echo [..] Starting Flask server on port 5000...
 echo.
