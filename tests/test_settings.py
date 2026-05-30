@@ -58,9 +58,14 @@ class TestGetSettings:
         assert settings["summarizer_temperature"] == 0.3
         assert settings["summarizer_timeout"] == 300
 
-    def test_returns_default_provider_settings(self, client):
+    def test_returns_default_provider_settings(self, client, monkeypatch):
         """GET returns default provider settings."""
-        resp = client.get("/api/settings")
+        manager = ConfigManager(__file__)  # dummy — we'll mock get_config
+        with patch.object(manager, "get_config", return_value=None) as mock_get:
+            monkeypatch.setattr("app.routes.settings._config_manager", manager)
+            resp = client.get("/api/settings")
+            mock_get.assert_called_once_with("default")
+
         settings = resp.get_json()["settings"]
         assert settings["base_url"] == "http://localhost:11434"
         assert settings["model"] == "llama3.2"
