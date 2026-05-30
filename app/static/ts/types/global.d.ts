@@ -91,9 +91,21 @@ interface SSECallbacks {
 
 interface CharacterRules {
     valid_classes: string[];
-    class_templates: Record<string, { abilities: Record<string, number> }>;
-    standard_abilities: Record<string, number>;
-    point_buy: { max_points: number };
+    class_templates: Record<string, {
+        abilities: Record<string, number>;
+        hp?: number;
+        ac?: number;
+        skills?: string[];
+        inventory?: string[];
+        gold?: number;
+    }>;
+    standard_abilities: string[];
+    point_buy: {
+        costs: Record<string, number>;
+        max_points: number;
+        min_score: number;
+        max_score: number;
+    };
     assisted_creation_questions: string[];
 }
 

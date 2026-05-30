@@ -9,34 +9,90 @@
  * Game rules data (point-buy costs, class templates, etc.) is
  * fetched from the backend at startup via /api/config/character-rules.
  */
-const CharacterView = {
+const CharacterView: {
+    // ------------------------------------------------------------------
+    // Runtime State
+    // ------------------------------------------------------------------
+    _rules: CharacterRules | null;
+    abilities: Record<string, number>;
+    selectedClass: string;
+    remainingPoints: number;
+    els: CharacterElements;
+    _mode: string;
+    _storyAnswers: string[];
+    _currentQuestion: number;
+    _generatedCharacter: CharacterData | null;
+    _isEditing: boolean;
+
+    // Methods
+    init(): Promise<void>;
+    _populateClassDropdowns(): void;
+    _initDefaults(): void;
+    _fetchRules(): Promise<void>;
+    _switchTab(tabName: string): void;
+    _switchCreationMode(mode: string): void;
+    _buildStoryQuestions(): void;
+    _buildStepDots(count: number): void;
+    _showStoryQuestion(index: number): void;
+    _saveCurrentAnswer(): void;
+    _nextStoryQuestion(): void;
+    _prevStoryQuestion(): void;
+    _getDefaultAbility(abilName: string): number;
+    _buildGenerateRequestBody(): Record<string, unknown>;
+    _submitStoryAnswers(): Promise<void>;
+    _showReviewScreen(character: CharacterData): void;
+    _renderCharacterSheet(character: CharacterData): void;
+    _toggleEditMode(): void;
+    _enterEditMode(): void;
+    _saveEditMode(): void;
+    _getFieldByPath(obj: Record<string, unknown>, path: string): unknown;
+    _regenerateCharacter(): Promise<void>;
+    _startAdventure(): void;
+    _getCost(score: number): number;
+    _canIncrease(abil: string): boolean;
+    _canDecrease(abil: string): boolean;
+    _increase(abil: string): void;
+    _decrease(abil: string): void;
+    _applyClassDefaults(): void;
+    _totalPointsForScores(scores: Record<string, number>): number;
+    _updateSkills(): void;
+    _updateAbilityButtons(gridSelector: string): void;
+    _updateUI(): void;
+    _createCharacter(): Promise<void>;
+    _showValidation(msg: string, type: string): void;
+    _deleteCharacter(id: string): Promise<void>;
+    _renderLoadList(): Promise<void>;
+    _renderSavedGames(): Promise<void>;
+    _loadCharacter(id: string): Promise<void>;
+    _showLoadError(message: string): void;
+} = {
     // ------------------------------------------------------------------
     // Runtime State
     // ------------------------------------------------------------------
 
     /** Holds game rules fetched from the API (null until loaded). */
-    _rules: null,
+    _rules: null as CharacterRules | null,
 
     /** Current ability scores (mutable during point-buy). */
-    abilities: {},
+    abilities: {} as Record<string, number>,
 
     selectedClass: "",
     remainingPoints: 0,
 
     /** DOM element references. */
-    els: {},
+    els: {} as CharacterElements,
 
     /** 'campfire' | 'manual' | 'review' */
     _mode: "campfire",
 
     /** Array of 7 answer strings from the story questions. */
-    _storyAnswers: [],
+    _storyAnswers: [] as string[],
 
     /** Index of the currently visible story question. */
     _currentQuestion: 0,
 
     /** Character data returned from the generate / create API. */
-    _generatedCharacter: null,
+    _generatedCharacter: null as CharacterData | null,
 
     /** Whether the review sheet is in edit mode. */
     _isEditing: false,
@@ -54,91 +110,91 @@ const CharacterView = {
 
         this.els = {
             // Tabs
-            tabBar: document.querySelector(".tab-bar"),
-            tabCreate: document.getElementById("tab-create"),
-            tabLoad: document.getElementById("tab-load"),
+            tabBar: document.querySelector(".tab-bar") as HTMLElement | null,
+            tabCreate: document.getElementById("tab-create") as HTMLElement | null,
+            tabLoad: document.getElementById("tab-load") as HTMLElement | null,
 
             // Sub-tabs
-            campfireTab: document.getElementById("campfire-tab"),
-            manualTab: document.getElementById("manual-tab"),
-            campfireContent: document.getElementById("campfire-content"),
-            manualContent: document.getElementById("manual-content"),
+            campfireTab: document.getElementById("campfire-tab") as HTMLElement | null,
+            manualTab: document.getElementById("manual-tab") as HTMLElement | null,
+            campfireContent: document.getElementById("campfire-content") as HTMLElement | null,
+            manualContent: document.getElementById("manual-content") as HTMLElement | null,
 
             // Create form — campfire
-            charName: document.getElementById("char-name"),
-            charClass: document.getElementById("char-class"),
+            charName: document.getElementById("char-name") as HTMLElement | null,
+            charClass: document.getElementById("char-class") as HTMLSelectElement | null,
 
             // Create form — manual
-            nameManual: document.getElementById("char-name-manual"),
-            classManual: document.getElementById("char-class-manual"),
-            appearance: document.getElementById("char-appearance"),
-            backstory: document.getElementById("char-backstory"),
-            manualCreateBtn: document.getElementById("manual-create-btn"),
-            validationMsg: document.getElementById("char-validation"),
+            nameManual: document.getElementById("char-name-manual") as HTMLInputElement | null,
+            classManual: document.getElementById("char-class-manual") as HTMLSelectElement | null,
+            appearance: document.getElementById("char-appearance") as HTMLTextAreaElement | null,
+            backstory: document.getElementById("char-backstory") as HTMLTextAreaElement | null,
+            manualCreateBtn: document.getElementById("manual-create-btn") as HTMLElement | null,
+            validationMsg: document.getElementById("char-validation") as HTMLElement | null,
 
             // Ability scores
-            remainingSpan: document.getElementById("remaining-points"),
-            campRemainingSpan: document.getElementById("camp-remaining-points"),
+            remainingSpan: document.getElementById("remaining-points") as HTMLElement | null,
+            campRemainingSpan: document.getElementById("camp-remaining-points") as HTMLElement | null,
 
             // Skills display
-            skillsDisplay: document.getElementById("skills-display"),
+            skillsDisplay: document.getElementById("skills-display") as HTMLElement | null,
 
             // Story / Campfire section
-            storyQuestions: document.getElementById("story-questions"),
-            storyProgressFill: document.getElementById("story-progress-fill"),
-            storyChapterNum: document.getElementById("story-chapter-num"),
-            storyChapterTotal: document.getElementById("story-chapter-total"),
-            storyStepDots: document.getElementById("story-step-dots"),
-            storyPrevBtn: document.getElementById("story-prev-btn"),
-            storyNextBtn: document.getElementById("story-next-btn"),
-            storyGenerateBtn: document.getElementById("story-generate-btn"),
+            storyQuestions: document.getElementById("story-questions") as HTMLElement | null,
+            storyProgressFill: document.getElementById("story-progress-fill") as HTMLElement | null,
+            storyChapterNum: document.getElementById("story-chapter-num") as HTMLElement | null,
+            storyChapterTotal: document.getElementById("story-chapter-total") as HTMLElement | null,
+            storyStepDots: document.getElementById("story-step-dots") as HTMLElement | null,
+            storyPrevBtn: document.getElementById("story-prev-btn") as HTMLElement | null,
+            storyNextBtn: document.getElementById("story-next-btn") as HTMLElement | null,
+            storyGenerateBtn: document.getElementById("story-generate-btn") as HTMLElement | null,
 
             // Review section
-            reviewSection: document.getElementById("review-section"),
+            reviewSection: document.getElementById("review-section") as HTMLElement | null,
             reviewCharacterSheet: document.getElementById(
                 "review-character-sheet",
-            ),
-            reviewLoading: document.getElementById("review-loading"),
-            reviewEditBtn: document.getElementById("review-edit-btn"),
+            ) as HTMLElement | null,
+            reviewLoading: document.getElementById("review-loading") as HTMLElement | null,
+            reviewEditBtn: document.getElementById("review-edit-btn") as HTMLElement | null,
             reviewRegenerateBtn: document.getElementById(
                 "review-regenerate-btn",
-            ),
-            reviewStartBtn: document.getElementById("review-start-btn"),
+            ) as HTMLElement | null,
+            reviewStartBtn: document.getElementById("review-start-btn") as HTMLElement | null,
 
             // Load tab
-            characterList: document.getElementById("character-list"),
-            savedGamesList: document.getElementById("saved-games-list"),
-        };
+            characterList: document.getElementById("character-list") as HTMLElement | null,
+            savedGamesList: document.getElementById("saved-games-list") as HTMLElement | null,
+        } as CharacterElements;
 
         // Populate class dropdowns
         this._populateClassDropdowns();
 
         // Tab switching (Create ↔ Load)
-        this.els.tabBar.addEventListener("click", (e) => {
-            const tab = e.target.closest(".tab");
+        this.els.tabBar!.addEventListener("click", (e: Event) => {
+            const tab = (e.target as HTMLElement)?.closest(".tab");
             if (!tab) return;
-            this._switchTab(tab.dataset.tab);
+            this._switchTab((tab as HTMLElement).dataset.tab!);
         });
 
         // Sub-tab switching (Campfire ↔ Manual)
-        this.els.campfireTab.addEventListener("click", () =>
+        this.els.campfireTab!.addEventListener("click", () =>
             this._switchCreationMode("campfire"),
         );
-        this.els.manualTab.addEventListener("click", () =>
+        this.els.manualTab!.addEventListener("click", () =>
             this._switchCreationMode("manual"),
         );
 
         // Class change => update ability defaults + skills
-        this.els.charClass.addEventListener("change", () => {
-            this.selectedClass = this.els.charClass.value;
+        this.els.charClass!.addEventListener("change", () => {
+            this.selectedClass = this.els.charClass!.value;
             this._applyClassDefaults();
             this._updateSkills();
             this._updateUI();
         });
 
         // Manual class change => same treatment
-        this.els.classManual.addEventListener("change", () => {
-            this.selectedClass = this.els.classManual.value;
+        this.els.classManual!.addEventListener("change", () => {
+            this.selectedClass = this.els.classManual!.value;
             this._applyClassDefaults();
             this._updateSkills();
             this._updateUI();
@@ -146,12 +202,14 @@ const CharacterView = {
 
         // Ability score controls (event delegation)
         document
-            .getElementById("abilities-grid")
-            .addEventListener("click", (e) => {
-                const btn = e.target.closest(".abil-btn");
+            .getElementById("abilities-grid")!
+            .addEventListener("click", (e: Event) => {
+                const btn = (e.target as HTMLElement).closest(".abil-btn");
                 if (!btn) return;
                 const card = btn.closest(".ability-card");
-                const abil = card.dataset.abil;
+                if (!card) return;
+                const abil = (card as HTMLElement).dataset.abil;
+                if (!abil) return;
                 if (btn.classList.contains("inc")) {
                     this._increase(abil);
                 } else {
@@ -162,11 +220,13 @@ const CharacterView = {
         // Campfire ability score controls (event delegation)
         const campGrid = document.getElementById("camp-abilities-grid");
         if (campGrid) {
-            campGrid.addEventListener("click", (e) => {
-                const btn = e.target.closest(".abil-btn");
+            campGrid.addEventListener("click", (e: Event) => {
+                const btn = (e.target as HTMLElement).closest(".abil-btn");
                 if (!btn) return;
                 const card = btn.closest(".ability-card");
-                const abil = card.dataset.abil;
+                if (!card) return;
+                const abil = (card as HTMLElement).dataset.abil;
+                if (!abil) return;
                 if (btn.classList.contains("inc")) {
                     this._increase(abil);
                 } else {
@@ -176,39 +236,39 @@ const CharacterView = {
         }
 
         // Story navigation
-        this.els.storyPrevBtn.addEventListener("click", () =>
+        this.els.storyPrevBtn!.addEventListener("click", () =>
             this._prevStoryQuestion(),
         );
-        this.els.storyNextBtn.addEventListener("click", () =>
+        this.els.storyNextBtn!.addEventListener("click", () =>
             this._nextStoryQuestion(),
         );
-        this.els.storyGenerateBtn.addEventListener("click", () =>
+        this.els.storyGenerateBtn!.addEventListener("click", () =>
             this._submitStoryAnswers(),
         );
 
         // Step dots — click to jump
-        this.els.storyStepDots.addEventListener("click", (e) => {
-            const dot = e.target.closest(".story-step-dot");
+        this.els.storyStepDots!.addEventListener("click", (e: Event) => {
+            const dot = (e.target as HTMLElement).closest(".story-step-dot");
             if (dot) {
-                const idx = parseInt(dot.dataset.index, 10);
+                const idx = parseInt((dot as HTMLElement).dataset.index!, 10);
                 this._saveCurrentAnswer();
                 this._showStoryQuestion(idx);
             }
         });
 
         // Review buttons
-        this.els.reviewEditBtn.addEventListener("click", () =>
+        this.els.reviewEditBtn!.addEventListener("click", () =>
             this._toggleEditMode(),
         );
-        this.els.reviewRegenerateBtn.addEventListener("click", () =>
+        this.els.reviewRegenerateBtn!.addEventListener("click", () =>
             this._regenerateCharacter(),
         );
-        this.els.reviewStartBtn.addEventListener("click", () =>
+        this.els.reviewStartBtn!.addEventListener("click", () =>
             this._startAdventure(),
         );
 
         // Manual create character
-        this.els.manualCreateBtn.addEventListener("click", () =>
+        this.els.manualCreateBtn!.addEventListener("click", () =>
             this._createCharacter(),
         );
 
@@ -279,14 +339,14 @@ const CharacterView = {
     // Tab Switching
     // ------------------------------------------------------------------
 
-    _switchTab(tabName) {
+    _switchTab(tabName: string) {
         // Update tab buttons
         document.querySelectorAll(".tab").forEach((t) => {
-            t.classList.toggle("active", t.dataset.tab === tabName);
+            (t as HTMLElement).classList.toggle("active", (t as HTMLElement).dataset.tab === tabName);
         });
         // Update tab content
-        this.els.tabCreate.classList.toggle("active", tabName === "create");
-        this.els.tabLoad.classList.toggle("active", tabName === "load");
+        this.els.tabCreate!.classList.toggle("active", tabName === "create");
+        this.els.tabLoad!.classList.toggle("active", tabName === "load");
 
         if (tabName === "load") {
             this._renderLoadList();
@@ -360,10 +420,10 @@ const CharacterView = {
         if (!container) return;
         container.innerHTML = "";
 
-        questions.forEach((q, i) => {
+        questions.forEach((q: string, i: number) => {
             const div = document.createElement("div");
             div.className = "journal-chapter";
-            div.dataset.index = i;
+            div.dataset.index = String(i);
             div.innerHTML =
                 `
                 <div class="journal-chapter-number">Chapter ${i + 1}</div>
@@ -377,7 +437,7 @@ const CharacterView = {
 
         // Update chapter total
         if (this.els.storyChapterTotal) {
-            this.els.storyChapterTotal.textContent = questions.length;
+            this.els.storyChapterTotal.textContent = String(questions.length);
         }
 
         // Build step dots
@@ -385,20 +445,20 @@ const CharacterView = {
     },
 
     /** Create clickable step dots for the story progress bar. */
-    _buildStepDots(count) {
+    _buildStepDots(count: number) {
         const dotsContainer = this.els.storyStepDots;
         if (!dotsContainer) return;
         dotsContainer.innerHTML = "";
         for (let i = 0; i < count; i++) {
             const dot = document.createElement("span");
             dot.className = "story-step-dot";
-            dot.dataset.index = i;
+            dot.dataset.index = String(i);
             dotsContainer.appendChild(dot);
         }
     },
 
     /** Show the story question at the given index. */
-    _showStoryQuestion(index) {
+    _showStoryQuestion(index: number) {
         const chapters = this.els.storyQuestions?.querySelectorAll(
             ".journal-chapter",
         );
@@ -421,7 +481,7 @@ const CharacterView = {
 
         // Update chapter number text
         if (this.els.storyChapterNum) {
-            this.els.storyChapterNum.textContent = index + 1;
+            this.els.storyChapterNum.textContent = String(index + 1);
         }
 
         // Update step dots
@@ -437,7 +497,7 @@ const CharacterView = {
 
         // Nav buttons
         if (this.els.storyPrevBtn) {
-            this.els.storyPrevBtn.disabled = index === 0;
+            (this.els.storyPrevBtn as HTMLButtonElement).disabled = index === 0;
         }
 
         const isLast = index === total - 1;
@@ -458,7 +518,7 @@ const CharacterView = {
 
         const textarea = chapters[this._currentQuestion].querySelector(
             ".journal-chapter-textarea",
-        );
+        ) as HTMLTextAreaElement | null;
         if (textarea) {
             this._storyAnswers[this._currentQuestion] = textarea.value;
         }
@@ -498,13 +558,13 @@ const CharacterView = {
     _buildGenerateRequestBody() {
         const standardAbilities =
             this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
-        const abilities = {};
+        const abilities: Record<string, number> = {};
         for (const abil of standardAbilities) {
             abilities[abil] = this.abilities[abil] ?? this._getDefaultAbility(abil);
         }
-        const answersObj = {};
+        const answersObj: Record<string, string> = {};
         this._storyAnswers.forEach((a, i) => { answersObj[String(i)] = a || ""; });
-        const name = this.els.charName?.value.trim() || "";
+        const name = (this.els.charName as HTMLInputElement | null)?.value.trim() || "";
         const cls = this.els.charClass?.value || this.selectedClass;
         return { abilities, answers: answersObj, name, character_class: cls };
     },
@@ -515,7 +575,7 @@ const CharacterView = {
 
         // Check that at least 3 answers are filled
         const filled = this._storyAnswers.filter(
-            (a) => a && a.trim().length > 0,
+            (a: string) => a && a.trim().length > 0,
         );
         if (filled.length < 3) {
             alert(
@@ -537,7 +597,7 @@ const CharacterView = {
         const { abilities, answers, name, character_class } =
             this._buildGenerateRequestBody();
 
-        const body = {
+        const body: Record<string, unknown> = {
             answers,
             abilities,
             character_class,
@@ -548,7 +608,7 @@ const CharacterView = {
         }
 
         // Show loading state
-        const genBtn = this.els.storyGenerateBtn;
+        const genBtn = this.els.storyGenerateBtn as HTMLButtonElement | null;
         if (genBtn) {
             genBtn.disabled = true;
             genBtn.textContent = "Weaving...";
@@ -570,8 +630,9 @@ const CharacterView = {
             }
 
             this._showReviewScreen(data.character);
-        } catch (err) {
-            alert("Failed to generate character: " + err.message);
+        } catch (err: unknown) {
+            const error = err as Error;
+            alert("Failed to generate character: " + error.message);
         } finally {
             if (genBtn) {
                 genBtn.disabled = false;
@@ -585,7 +646,7 @@ const CharacterView = {
     // ------------------------------------------------------------------
 
     /** Display the review screen with the generated/created character. */
-    _showReviewScreen(character) {
+    _showReviewScreen(character: CharacterData) {
         this._generatedCharacter = character;
         this._mode = "review";
         this._isEditing = false;
@@ -621,7 +682,7 @@ const CharacterView = {
         // Hide generate loading if it was visible
         const genBtn = this.els.storyGenerateBtn;
         if (genBtn) {
-            genBtn.disabled = false;
+            (genBtn as HTMLButtonElement).disabled = false;
             genBtn.textContent = "✨ Weave My Story";
         }
 
@@ -640,7 +701,7 @@ const CharacterView = {
     },
 
     /** Render the full character sheet in the review section. */
-    _renderCharacterSheet(character) {
+    _renderCharacterSheet(character: CharacterData) {
         const container = this.els.reviewCharacterSheet;
         if (!container) return;
 
@@ -666,7 +727,7 @@ const CharacterView = {
             <div class="review-sheet-stats">
                 ${abilities
                     .map(
-                        (abil) => `
+                        (abil: string) => `
                     <div class="review-stat">
                         <div class="review-stat-label">${_esc(abil)}</div>
                         <div class="review-stat-value"
@@ -701,7 +762,7 @@ const CharacterView = {
                 <div class="review-field">
                     <div class="review-field-label">Skills</div>
                     <div class="review-field-value" data-field="skills">
-                        ${(character.skills || []).join(", ") || "None"}
+                        ${((character.skills as string[]) || []).join(", ") || "None"}
                     </div>
                 </div>
                 <div class="review-field">
@@ -719,7 +780,7 @@ const CharacterView = {
                 <div class="review-field">
                     <div class="review-field-label">Inventory</div>
                     <div class="review-field-value" data-field="inventory">
-                        ${(character.inventory || []).join(", ") || "None"}
+                        ${((character.inventory as string[]) || []).join(", ") || "None"}
                     </div>
                 </div>
             </div>
@@ -739,16 +800,17 @@ const CharacterView = {
     /** Switch review fields to editable inputs. */
     _enterEditMode() {
         const container = this.els.reviewCharacterSheet;
+        if (!container || !this._generatedCharacter) return;
         const character = this._generatedCharacter;
         const fields = container.querySelectorAll("[data-field]");
 
         // Replace text with inputs
-        fields.forEach((el) => {
-            const path = el.dataset.field;
+        fields.forEach((el: Element) => {
+            const path = (el as HTMLElement).dataset.field as string;
             // Only backstory and appearance are editable in review mode
             if (path !== "backstory" && path !== "appearance") return;
-            const value = this._getFieldByPath(character, path);
-            const display = el.textContent.trim();
+            const value = this._getFieldByPath(character as unknown as Record<string, unknown>, path);
+            const display = (el as HTMLElement).textContent!.trim();
 
             if (path === "backstory" || path === "appearance") {
                 const textarea = document.createElement("textarea");
@@ -759,11 +821,11 @@ const CharacterView = {
                 textarea.style.fontFamily = "var(--font-narrative)";
                 el.textContent = "";
                 el.appendChild(textarea);
-            } else if (path.startsWith("abilities.")) {
+            } else if ((path as string).startsWith("abilities.")) {
                 const input = document.createElement("input");
                 input.type = "number";
-                input.min = 3;
-                input.max = 18;
+                input.min = "3";
+                input.max = "18";
                 input.value =
                     value != null ? String(value) : display;
                 input.dataset.field = path;
@@ -776,7 +838,7 @@ const CharacterView = {
                 const input = document.createElement("input");
                 input.type = "text";
                 input.value = Array.isArray(value)
-                    ? value.join(", ")
+                    ? (value as string[]).join(", ")
                     : display;
                 input.dataset.field = path;
                 el.textContent = "";
@@ -791,7 +853,7 @@ const CharacterView = {
                 const rawVal = parts[0];
                 const input = document.createElement("input");
                 input.type = "number";
-                input.min = 0;
+                input.min = "0";
                 input.value =
                     value != null ? String(value) : rawVal;
                 input.dataset.field = path;
@@ -811,57 +873,58 @@ const CharacterView = {
 
         this._isEditing = true;
         if (this.els.reviewEditBtn) {
-            this.els.reviewEditBtn.textContent = "💾 Save";
+            (this.els.reviewEditBtn as HTMLElement).textContent = "💾 Save";
         }
     },
 
     /** Read edit inputs back into the character and re-render. */
     _saveEditMode() {
         const container = this.els.reviewCharacterSheet;
+        if (!container || !this._generatedCharacter) return;
         const character = this._generatedCharacter;
         const fields = container.querySelectorAll("[data-field]");
 
         // Read inputs and update character
-        fields.forEach((el) => {
-            const input = el.querySelector(
+        fields.forEach((el: Element) => {
+            const input = (el as HTMLElement).querySelector(
                 "input, textarea",
             );
             if (!input) return;
-            const path = input.dataset.field || el.dataset.field;
+            const path: string = (input as HTMLElement).dataset.field || (el as HTMLElement).dataset.field || "";
             // Only backstory and appearance are editable in review mode
             if (path !== "backstory" && path !== "appearance") return;
-            let rawValue = input.value;
+            const rawValue = (input as HTMLInputElement | HTMLTextAreaElement).value;
 
             if (path.startsWith("abilities.")) {
                 const abilName = path.split(".")[1];
                 const num = parseInt(rawValue, 10);
                 if (!isNaN(num) && num >= 3 && num <= 18) {
                     if (!character.abilities) {
-                        character.abilities = {};
+                        (character.abilities as unknown as Record<string, number>) = {};
                     }
-                    character.abilities[abilName] = num;
+                    (character.abilities as Record<string, number>)[abilName] = num;
                 }
             } else if (
-                path === "skills" ||
-                path === "inventory"
+                (path as string) === "skills" ||
+                (path as string) === "inventory"
             ) {
                 const items = rawValue
                     .split(",")
-                    .map((s) => s.trim())
+                    .map((s: string) => s.trim())
                     .filter(Boolean);
-                character[path] = items;
+                (character as unknown as Record<string, unknown>)[path] = items;
             } else if (
-                path === "hp" ||
-                path === "max_hp" ||
-                path === "ac" ||
-                path === "gold"
+                (path as string) === "hp" ||
+                (path as string) === "max_hp" ||
+                (path as string) === "ac" ||
+                (path as string) === "gold"
             ) {
                 const num = parseInt(rawValue, 10);
                 if (!isNaN(num)) {
-                    character[path] = num;
+                    (character as unknown as Record<string, unknown>)[path] = num;
                 }
             } else {
-                character[path] = rawValue;
+                (character as unknown as Record<string, unknown>)[path] = rawValue;
             }
         });
 
@@ -870,19 +933,19 @@ const CharacterView = {
 
         this._isEditing = false;
         if (this.els.reviewEditBtn) {
-            this.els.reviewEditBtn.textContent = "✏️ Edit";
+            (this.els.reviewEditBtn as HTMLElement).textContent = "✏️ Edit";
         }
     },
 
     /** Get a nested field value by dot-separated path (e.g. "abilities.STR"). */
-    _getFieldByPath(obj, path) {
+    _getFieldByPath(obj: Record<string, unknown>, path: string): unknown {
         const parts = path.split(".");
-        let current = obj;
+        let current: unknown = obj;
         for (const part of parts) {
             if (current == null || typeof current !== "object") {
                 return undefined;
             }
-            current = current[part];
+            current = (current as Record<string, unknown>)[part];
         }
         return current;
     },
@@ -900,7 +963,7 @@ const CharacterView = {
         // Re-build the same request body
         const { abilities, answers, name, character_class } =
             this._buildGenerateRequestBody();
-        const body = {
+        const body: Record<string, unknown> = {
             answers,
             abilities,
             character_class,
@@ -926,7 +989,7 @@ const CharacterView = {
             }
 
             this._generatedCharacter = data.character;
-            this._renderCharacterSheet(data.character);
+            this._renderCharacterSheet(data.character as CharacterData);
 
             // Hide loading, show sheet
             if (this.els.reviewLoading) {
@@ -941,8 +1004,9 @@ const CharacterView = {
             if (this.els.reviewEditBtn) {
                 this.els.reviewEditBtn.textContent = "✏️ Edit";
             }
-        } catch (err) {
-            alert("Failed to regenerate character: " + err.message);
+        } catch (err: unknown) {
+            const error = err as Error;
+            alert("Failed to regenerate character: " + error.message);
             if (this.els.reviewLoading) {
                 this.els.reviewLoading.style.display = "none";
             }
@@ -964,13 +1028,13 @@ const CharacterView = {
     // ------------------------------------------------------------------
 
     /** Get the point-buy cost for a given ability score. */
-    _getCost(score) {
+    _getCost(score: number): number {
         const costs = this._rules?.point_buy?.costs || {};
-        return parseInt(costs[score]) || 0;
+        return costs[String(score)] || 0;
     },
 
     /** Check if an ability can be increased. */
-    _canIncrease(abil) {
+    _canIncrease(abil: string): boolean {
         const score = this.abilities[abil];
         const maxScore = this._rules?.point_buy?.max_score ?? 15;
         if (score >= maxScore) return false;
@@ -982,13 +1046,13 @@ const CharacterView = {
     },
 
     /** Check if an ability can be decreased. */
-    _canDecrease(abil) {
+    _canDecrease(abil: string): boolean {
         const minScore = this._rules?.point_buy?.min_score ?? 8;
         return this.abilities[abil] > minScore;
     },
 
     /** Increase an ability score by 1 (point-buy permitting). */
-    _increase(abil) {
+    _increase(abil: string): void {
         if (!this._canIncrease(abil)) return;
         const oldScore = this.abilities[abil];
         const oldCost = this._getCost(oldScore);
@@ -1002,7 +1066,7 @@ const CharacterView = {
     },
 
     /** Decrease an ability score by 1. */
-    _decrease(abil) {
+    _decrease(abil: string): void {
         if (!this._canDecrease(abil)) return;
         const oldScore = this.abilities[abil];
         const oldCost = this._getCost(oldScore);
@@ -1028,7 +1092,7 @@ const CharacterView = {
     },
 
     /** Calculate total point-buy cost for a set of scores. */
-    _totalPointsForScores(scores) {
+    _totalPointsForScores(scores: Record<string, number>): number {
         let total = 0;
         for (const s of Object.values(scores)) {
             total += this._getCost(s);
@@ -1040,8 +1104,8 @@ const CharacterView = {
     _updateSkills() {
         const template = this._rules?.class_templates?.[this.selectedClass];
         const skills = template?.skills || [];
-        this.els.skillsDisplay.innerHTML = skills
-            .map((s) => `<span class="skill-tag">${s}</span>`)
+        this.els.skillsDisplay!.innerHTML = skills
+            .map((s: string) => `<span class="skill-tag">${s}</span>`)
             .join("");
     },
 
@@ -1050,7 +1114,7 @@ const CharacterView = {
     // ------------------------------------------------------------------
 
     /** Update ability increment/decrement button states for a grid. */
-    _updateAbilityButtons(gridSelector) {
+    _updateAbilityButtons(gridSelector: string) {
         const standardAbilities =
             this._rules?.standard_abilities || ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
         for (const abil of standardAbilities) {
@@ -1060,8 +1124,8 @@ const CharacterView = {
             if (card) {
                 const incBtn = card.querySelector(".abil-btn.inc");
                 const decBtn = card.querySelector(".abil-btn.dec");
-                if (incBtn) incBtn.disabled = !this._canIncrease(abil);
-                if (decBtn) decBtn.disabled = !this._canDecrease(abil);
+                if (incBtn) (incBtn as HTMLButtonElement).disabled = !this._canIncrease(abil);
+                if (decBtn) (decBtn as HTMLButtonElement).disabled = !this._canDecrease(abil);
             }
         }
     },
@@ -1073,7 +1137,7 @@ const CharacterView = {
             // Manual grid
             const scoreEl = document.getElementById(`abil-${abil}`);
             const costEl = document.getElementById(`cost-${abil}`);
-            if (scoreEl) scoreEl.textContent = score;
+            if (scoreEl) scoreEl.textContent = String(score);
             if (costEl) {
                 costEl.textContent = `(${this._getCost(score)} pts)`;
             }
@@ -1081,7 +1145,7 @@ const CharacterView = {
             // Campfire grid
             const campScoreEl = document.getElementById(`camp-abil-${abil}`);
             const campCostEl = document.getElementById(`camp-cost-${abil}`);
-            if (campScoreEl) campScoreEl.textContent = score;
+            if (campScoreEl) campScoreEl.textContent = String(score);
             if (campCostEl) {
                 campCostEl.textContent = `(${this._getCost(score)} pts)`;
             }
@@ -1093,11 +1157,11 @@ const CharacterView = {
 
         // Update remaining points (manual)
         if (this.els.remainingSpan) {
-            this.els.remainingSpan.textContent = this.remainingPoints;
+            this.els.remainingSpan.textContent = String(this.remainingPoints);
         }
         // Update remaining points (campfire)
         if (this.els.campRemainingSpan) {
-            this.els.campRemainingSpan.textContent = this.remainingPoints;
+            this.els.campRemainingSpan.textContent = String(this.remainingPoints);
         }
     },
 
@@ -1142,17 +1206,19 @@ const CharacterView = {
 
             // Show the review screen instead of navigating directly
             this._showReviewScreen(data.character);
-        } catch (err) {
+        } catch (err: unknown) {
+            const error = err as Error;
             this._showValidation(
-                `Failed to create character: ${err.message}`,
+                `Failed to create character: ${error.message}`,
                 "error",
             );
         }
     },
 
     /** Display a validation/success message. */
-    _showValidation(msg, type) {
+    _showValidation(msg: string, type: string) {
         const el = this.els.validationMsg;
+        if (!el) return;
         el.textContent = msg;
         el.className = "validation-msg " + type;
         el.classList.remove("hidden");
@@ -1175,9 +1241,10 @@ const CharacterView = {
                     data.error || `Server responded with ${resp.status}`,
                 );
             }
-        } catch (err) {
+        } catch (err: unknown) {
+            const error = err as Error;
             this._showLoadError(
-                `Failed to delete character: ${err.message}`,
+                `Failed to delete character: ${error.message}`,
             );
             return;
         }
@@ -1188,6 +1255,7 @@ const CharacterView = {
     /** Render the list of characters from the server in the Load tab. */
     async _renderLoadList() {
         const container = this.els.characterList;
+        if (!container) return;
 
         // Show loading state
         container.innerHTML =
@@ -1211,26 +1279,26 @@ const CharacterView = {
             } else {
                 container.innerHTML = characters
                     .map(
-                        (c) => `
+                        (c: Record<string, unknown>) => `
                     <div class="char-card">
                         <div class="char-info">
-                            <h3>${_esc(c.name)}</h3>
+                            <h3>${_esc(c.name as string)}</h3>
                             <p class="char-meta">
-                                ${_esc(c.class)} · Level ${c.level}
+                                ${_esc(c.class as string)} · Level ${c.level}
                                 ${
                                     c.timestamp
-                                        ? " · " + _formatTimestamp(c.timestamp)
+                                        ? " · " + _formatTimestamp(c.timestamp as string)
                                         : ""
                                 }
                             </p>
                         </div>
                         <div class="char-actions">
                             <button class="btn btn-sm btn-load"
-                                data-id="${_esc(c.id)}"
-                                data-name="${_esc(c.name)}">Load</button>
+                                data-id="${_esc(c.id as string)}"
+                                data-name="${_esc(c.name as string)}">Load</button>
                             <button class="btn btn-sm btn-danger btn-delete"
-                                data-id="${_esc(c.id)}"
-                                data-name="${_esc(c.name)}">Del</button>
+                                data-id="${_esc(c.id as string)}"
+                                data-name="${_esc(c.name as string)}">Del</button>
                         </div>
                     </div>
                 `,
@@ -1238,20 +1306,21 @@ const CharacterView = {
                     .join("");
 
                 // Bind events for load/delete buttons
-                container.querySelectorAll(".btn-load").forEach((btn) => {
+                container.querySelectorAll(".btn-load").forEach((btn: Element) => {
                     btn.addEventListener("click", () => {
-                        this._loadCharacter(btn.dataset.id);
+                        this._loadCharacter((btn as HTMLElement).dataset.id!);
                     });
                 });
-                container.querySelectorAll(".btn-delete").forEach((btn) => {
+                container.querySelectorAll(".btn-delete").forEach((btn: Element) => {
                     btn.addEventListener("click", () => {
-                        this._deleteCharacter(btn.dataset.id);
+                        this._deleteCharacter((btn as HTMLElement).dataset.id!);
                     });
                 });
             }
-        } catch (err) {
+        } catch (err: unknown) {
+            const error = err as Error;
             container.innerHTML =
-                '<p class="empty-state">Could not load characters from server.</p>';
+                '<p class="empty-state">Could not load characters from server: ' + error.message + '</p>';
         }
 
         // ---- Render saved games section ----
@@ -1278,18 +1347,18 @@ const CharacterView = {
             }
 
             savesContainer.innerHTML = saves
-                .map((s) => {
+                .map((s: Record<string, unknown>) => {
                     const saveName =
                         s.name || s.character_name || "Unknown";
                     const charName = s.character_name || "Unknown";
                     const turnCount = s.turn_count ?? "?";
                     const ts = s.timestamp
-                        ? _formatTimestamp(s.timestamp)
+                        ? _formatTimestamp(s.timestamp as string)
                         : "";
                     return `
-                    <div class="save-card" data-name="${_esc(saveName)}">
+                    <div class="save-card" data-name="${_esc(saveName as string)}">
                         <div class="save-info">
-                            <h3>${_esc(charName)}</h3>
+                            <h3>${_esc(charName as string)}</h3>
                             <p class="save-meta">
                                 Turn ${turnCount} · ${ts}
                             </p>
@@ -1306,11 +1375,12 @@ const CharacterView = {
 
             savesContainer
                 .querySelectorAll(".btn-continue-save")
-                .forEach((btn) => {
+                .forEach((btn: Element) => {
                     btn.addEventListener("click", () => {
-                        const card = btn.closest(".save-card");
+                        const card = (btn as HTMLElement).closest(".save-card") as HTMLElement | null;
+                        if (!card) return;
                         const saveName = card.dataset.name;
-                        App.state.loadSaveName = saveName;
+                        App.state.loadSaveName = saveName ?? null;
                         App.navigate("game");
                     });
                 });
@@ -1336,9 +1406,10 @@ const CharacterView = {
 
             App.state.character = data.character;
             App.navigate("game");
-        } catch (err) {
+        } catch (err: unknown) {
+            const error = err as Error;
             this._showLoadError(
-                `Failed to load character: ${err.message}`,
+                `Failed to load character: ${error.message}`,
             );
         }
     },
@@ -1351,7 +1422,7 @@ const CharacterView = {
         el.className = "validation-msg error";
         el.textContent = message;
         el.style.marginBottom = "0.5rem";
-        this.els.tabLoad.prepend(el);
+        this.els.tabLoad!.prepend(el);
         setTimeout(() => el.remove(), 5000);
     },
 
