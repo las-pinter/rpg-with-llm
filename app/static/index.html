@@ -225,13 +225,11 @@
                     <!-- Campfire Mode (default) -->
                     <div class="sub-tab-content active" id="campfire-content">
                         <!-- Character Header -->
-                        <div class="character-title-card" id="char-name-header">
-                            <input type="text" id="char-name" class="character-title-name"
-                                placeholder="Your Name">
-                        </div>
-
-                        <!-- Class Selection -->
                         <div class="form-row">
+                            <div class="form-group flex-grow">
+                                <label for="char-name">Your Name</label>
+                                <input type="text" id="char-name" placeholder="Enter your character's name">
+                            </div>
                             <div class="form-group">
                                 <label for="char-class">Class</label>
                                 <select id="char-class"></select>
@@ -348,9 +346,6 @@
                                 <div class="review-buttons">
                                     <button class="btn" id="review-edit-btn">✏️ Edit</button>
                                     <button class="btn" id="review-regenerate-btn">🔄 Regenerate</button>
-                                    <button class="btn btn-primary" id="review-start-btn">
-                                        ⚔️ Start Adventure
-                                    </button>
                                 </div>
                             </div>
                             <div class="review-loading" id="review-loading" style="display:none">
@@ -358,6 +353,11 @@
                                 <p>The Dungeon Master is weaving your story...</p>
                             </div>
                             <div class="review-character-sheet" id="review-character-sheet"></div>
+                            <div class="review-footer">
+                                <button class="btn btn-primary btn-start" id="review-start-btn">
+                                    ⚔️ Start Adventure
+                                </button>
+                            </div>
                         </div>
                     </div>
 
