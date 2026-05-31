@@ -19,7 +19,7 @@ from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
 from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
-from app.agents.summarizer import summarize_turns
+from app.agents.summarizer import summarize_story, summarize_turns
 from app.agents.tools import dispatch_tool
 from app.character.model import Character
 from app.llm.base import LLMProvider
@@ -515,6 +515,10 @@ class DungeonMaster:
         self.history: SessionHistory = SessionHistory(max_turns=5)
         self.npcs: dict[str, dict[str, str]] = {}
 
+        # Story summarization state
+        self._pending_story_entries: list[str] = []
+        self._story_summary_interval: int = 3  # Summarize every 3 turns
+
     def _build_context(
         self,
         player_input: str,
@@ -608,11 +612,18 @@ class DungeonMaster:
                 self.world_state.story_log.append(
                     f"[Turn {self.turn_count}] {impossibility_narrative}"
                 )
+                self._pending_story_entries.append(
+                    f"[Turn {self.turn_count}] {impossibility_narrative}"
+                )
             self._sync_npcs_to_world_state()
             try:
                 self._maybe_summarize()
             except Exception:
                 logger.exception("Summarization failed, continuing")
+            try:
+                self._maybe_summarize_story()
+            except Exception:
+                logger.exception("Story summarization failed, continuing")
 
             state_dict = (
                 self.world_state.to_dict() if self.world_state is not None else {}
@@ -1178,12 +1189,18 @@ class DungeonMaster:
         # world state exists
         if narrative and self.world_state is not None:
             self.world_state.story_log.append(f"[Turn {self.turn_count}] {narrative}")
+            # Accumulate for story summarization
+            self._pending_story_entries.append(f"[Turn {self.turn_count}] {narrative}")
 
         # Check if summarization should trigger
         try:
             self._maybe_summarize()
         except Exception:
             logger.exception("Summarization failed, continuing")
+        try:
+            self._maybe_summarize_story()
+        except Exception:
+            logger.exception("Story summarization failed, continuing")
 
         logger.debug(
             "Token usage after turn: prompt=%s, completion=%s, total=%s",
@@ -1400,3 +1417,32 @@ class DungeonMaster:
                 )
         except Exception:
             logger.exception("Summarization failed after turn")
+
+    def _maybe_summarize_story(self) -> None:
+        """Batch recent story_log entries into a condensed novel-like summary."""
+        if not self._pending_story_entries or self.world_state is None:
+            return
+
+        # Only summarize when we've accumulated enough entries
+        if len(self._pending_story_entries) < self._story_summary_interval:
+            return
+
+        # Join accumulated entries
+        turns_text = "\n\n".join(self._pending_story_entries)
+
+        # Call the summarizer
+        try:
+            summary = summarize_story(turns_text, self.summarizer_provider)
+            if summary:
+                self.world_state.story_summary.append(summary)
+                logger.debug(
+                    "Story summary appended (entry %d, %d chars)",
+                    len(self.world_state.story_summary),
+                    len(summary),
+                )
+                # Clear pending entries after successful summarization
+                self._pending_story_entries = []
+        except Exception:
+            logger.exception(
+                "Story summarization failed, keeping entries for next cycle"
+            )

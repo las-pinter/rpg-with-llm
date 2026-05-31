@@ -53,6 +53,7 @@ interface WorldState {
     character_name?: string;
     character_id?: string;
     story_log?: string[];
+    story_summary?: string[];
     [key: string]: unknown;
 }
 

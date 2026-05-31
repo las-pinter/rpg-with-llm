@@ -59,6 +59,24 @@ SUMMARIZER_SYSTEM_PROMPT: str = (
 )
 
 # ---------------------------------------------------------------------------
+# Story Writer System Prompt
+# ---------------------------------------------------------------------------
+
+STORY_WRITER_SYSTEM_PROMPT: str = (
+    "You are a fantasy novelist chronicling the adventures of a hero. "
+    "Your job is to transform raw gameplay narrative into a flowing, "
+    "novel-like story entry.\n\n"
+    "Guidelines:\n"
+    "- Write 2-4 paragraphs of atmospheric, evocative prose\n"
+    "- Focus on the hero's actions, decisions, and their consequences\n"
+    "- Use a dark fantasy tone fitting a gritty RPG world\n"
+    "- Keep it concise but vivid — this is a chapter summary, not a full chapter\n"
+    "- Write in third person, past tense\n"
+    "- Do NOT use bullet points or lists — write natural prose\n"
+    "- Each entry should stand alone as a short passage in the hero's journal"
+)
+
+# ---------------------------------------------------------------------------
 # Token estimation
 # ---------------------------------------------------------------------------
 
@@ -228,6 +246,70 @@ def summarize_turns(
 
 
 # ---------------------------------------------------------------------------
+# Story summarization
+# ---------------------------------------------------------------------------
+
+
+def summarize_story(
+    turns_text: str,
+    provider: LLMProvider | None,
+    max_retries: int = 2,
+) -> str:
+    """Transform raw gameplay narrative into a novel-like story summary entry.
+
+    Sends *turns_text* to the LLM with the story writer prompt, retries on
+    failure up to *max_retries* times, and falls back to a simple truncation
+    if the provider is unavailable or all retries fail.  Never raises an
+    exception — always returns a string.
+
+    Parameters
+    ----------
+    turns_text : str
+        Raw concatenated recent turns (player input + DM narrative).
+    provider : LLMProvider or None
+        The LLM provider to use for story writing.  If ``None``, the
+        fallback truncation is returned immediately.
+    max_retries : int
+        Maximum number of retry attempts on failure.  Defaults to 2.
+
+    Returns
+    -------
+    str
+        The novel-like summary, or a truncated fallback if story writing
+        could not be completed.
+    """
+    if not turns_text or not isinstance(turns_text, str):
+        return ""
+    if provider is None:
+        return _truncation_fallback(turns_text)
+
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": STORY_WRITER_SYSTEM_PROMPT},
+        {"role": "user", "content": turns_text},
+    ]
+
+    for attempt in range(max_retries):
+        try:
+            response = provider.call(messages)
+            content = response.get("content", "").strip()
+            if content:
+                return content
+            logger.warning(
+                "Empty response from story summarizer (attempt %d/%d)",
+                attempt + 1,
+                max_retries,
+            )
+        except Exception:
+            logger.exception(
+                "Story summarizer failed (attempt %d/%d)",
+                attempt + 1,
+                max_retries,
+            )
+
+    return _truncation_fallback(turns_text)
+
+
+# ---------------------------------------------------------------------------
 # Caveman compression for summaries
 # ---------------------------------------------------------------------------
 
@@ -268,7 +350,9 @@ def compress_summary(summary: str) -> str:
 
 __all__ = [
     "SUMMARIZER_SYSTEM_PROMPT",
+    "STORY_WRITER_SYSTEM_PROMPT",
     "summarize_turns",
+    "summarize_story",
     "should_summarize",
     "count_tokens",
     "compress_summary",
