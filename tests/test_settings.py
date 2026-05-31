@@ -38,7 +38,7 @@ class TestGetSettings:
         """GET returns default DM agent settings."""
         resp = client.get("/api/settings")
         settings = resp.get_json()["settings"]
-        assert settings["dm_max_tokens"] == 4096
+        assert settings["dm_max_tokens"] == 16000
         assert settings["dm_temperature"] == 0.8
         assert settings["dm_timeout"] == 300
 
@@ -54,7 +54,7 @@ class TestGetSettings:
         """GET returns default summarizer agent settings."""
         resp = client.get("/api/settings")
         settings = resp.get_json()["settings"]
-        assert settings["summarizer_max_tokens"] == 4096
+        assert settings["summarizer_max_tokens"] == 16000
         assert settings["summarizer_temperature"] == 0.3
         assert settings["summarizer_timeout"] == 300
 
@@ -104,9 +104,9 @@ class TestGetSettings:
         assert settings["temperature"] == 0.5
 
         # Agent-specific fields should remain at defaults
-        assert settings["dm_max_tokens"] == 4096
+        assert settings["dm_max_tokens"] == 16000
         assert settings["npc_max_tokens"] == 1024
-        assert settings["summarizer_max_tokens"] == 4096
+        assert settings["summarizer_max_tokens"] == 16000
 
     def test_no_saved_config_uses_defaults(self, client, monkeypatch):
         """GET uses hardcoded defaults when no saved config exists."""
@@ -213,7 +213,7 @@ class TestPostSettings:
         assert settings["base_url"] == "http://new:11434"
         # Other fields should remain defaults
         assert settings["model"] == "llama3.2"
-        assert settings["dm_max_tokens"] == 4096
+        assert settings["dm_max_tokens"] == 16000
 
         # Verify save was called with correct config
         saved_config = mock_save.call_args[0][0]
@@ -504,5 +504,5 @@ class TestPostSettings:
         settings = resp2.get_json()["settings"]
         assert settings["base_url"] == "http://roundtrip:11434"
         assert settings["model"] == "roundtrip-model"
-        assert settings["dm_max_tokens"] == 4096  # back to default
+        assert settings["dm_max_tokens"] == 16000  # back to default
         assert settings["npc_max_tokens"] == 1024  # unchanged default
