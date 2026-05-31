@@ -8,6 +8,7 @@ const GameView: {
     state: GameState;
     els: GameElements;
     _storyKeyHandler: ((e: KeyboardEvent) => void) | null;
+    _charDetailsKeyHandler?: ((e: KeyboardEvent) => void) | null;
     init(): void;
     _onShow(): Promise<void>;
     _enableInput(): void;
@@ -35,6 +36,8 @@ const GameView: {
     _loadGame(slug: string): Promise<void>;
     _showStoryModal(): Promise<void>;
     _hideStoryModal(): void;
+    _showCharDetailsModal(): void;
+    _hideCharDetailsModal(): void;
     _scrollToBottom(): void;
     _stripXmlTags(str: string): string;
 } = {
@@ -54,6 +57,7 @@ const GameView: {
     els: {} as GameElements,
 
     _storyKeyHandler: null,
+    _charDetailsKeyHandler: null,
 
     // ------------------------------------------------------------------
     // Initialisation
@@ -73,8 +77,6 @@ const GameView: {
             // Sidebar
             sidebarName: document.getElementById("sidebar-name"),
             sidebarClassLevel: document.getElementById("sidebar-class-level"),
-            charAppearance: document.getElementById("sidebar-appearance"),
-            charBackstory: document.getElementById("sidebar-backstory"),
             hpFill: document.getElementById("hp-fill"),
             hpText: document.getElementById("hp-text"),
             statsList: document.getElementById("stats-list"),
@@ -170,6 +172,19 @@ const GameView: {
         if (storyModal) {
             storyModal.addEventListener("click", (e: Event) => {
                 if (e.target === storyModal) this._hideStoryModal();
+            });
+        }
+
+        // Character Details modal
+        const charDetailsBtn = document.getElementById("char-details-btn");
+        const charDetailsCloseBtn = document.getElementById("char-details-close-btn");
+        if (charDetailsBtn) charDetailsBtn.addEventListener("click", () => this._showCharDetailsModal());
+        if (charDetailsCloseBtn) charDetailsCloseBtn.addEventListener("click", () => this._hideCharDetailsModal());
+
+        const charDetailsModal = document.getElementById("char-details-modal");
+        if (charDetailsModal) {
+            charDetailsModal.addEventListener("click", (e: Event) => {
+                if (e.target === charDetailsModal) this._hideCharDetailsModal();
             });
         }
 
@@ -466,10 +481,6 @@ const GameView: {
         const cls = chara.character_class || "?";
         const lvl = chara.level || 1;
         this.els.sidebarClassLevel!.textContent = `${cls} · Level ${lvl}`;
-
-        // Character info — appearance & backstory
-        this.els.charAppearance!.textContent = chara.appearance || "—";
-        this.els.charBackstory!.textContent = chara.backstory || "—";
 
         // HP bar
         const hp = chara.hp || 0;
@@ -1014,6 +1025,78 @@ const GameView: {
         if (this._storyKeyHandler) {
             document.removeEventListener("keydown", this._storyKeyHandler);
             this._storyKeyHandler = null;
+        }
+    },
+
+    // ------------------------------------------------------------------
+    // Character Details Modal
+    // ------------------------------------------------------------------
+
+    /** Show the Character Details modal with appearance, backstory, and personality. */
+    _showCharDetailsModal(): void {
+        const modal = document.getElementById("char-details-modal");
+        const content = document.getElementById("char-details-content");
+        if (!modal || !content) return;
+
+        modal.style.display = "flex";
+        content.innerHTML = "";
+
+        // Escape key closes the modal
+        this._charDetailsKeyHandler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") this._hideCharDetailsModal();
+        };
+        document.addEventListener("keydown", this._charDetailsKeyHandler);
+
+        const chara = App.state.character;
+        if (!chara) {
+            content.innerHTML = '<p class="text-muted">No character data available.</p>';
+            return;
+        }
+
+        const cls = chara.character_class || "Unknown";
+        const lvl = chara.level || 1;
+        const appearance = chara.appearance || "No appearance described.";
+        const backstory = chara.backstory || "No backstory yet.";
+        const personality = (chara as any).personality || null;
+
+        let html = `
+            <div class="char-detail-header">
+                <h2>${_esc(chara.name || "Unknown Hero")}</h2>
+                <p class="char-detail-subtitle">${_esc(cls)} · Level ${lvl}</p>
+            </div>
+            <div class="char-detail-section">
+                <div class="char-detail-label">Appearance</div>
+                <p class="char-detail-text">${_esc(appearance)}</p>
+            </div>
+        `;
+
+        if (personality) {
+            html += `
+            <div class="char-detail-section">
+                <div class="char-detail-label">Personality</div>
+                <p class="char-detail-text">${_esc(personality)}</p>
+            </div>`;
+        }
+
+        html += `
+            <div class="char-detail-section">
+                <div class="char-detail-label">Backstory</div>
+                <p class="char-detail-text">${_esc(backstory)}</p>
+            </div>
+        `;
+
+        content.innerHTML = html;
+    },
+
+    /** Hide the Character Details modal. */
+    _hideCharDetailsModal(): void {
+        const modal = document.getElementById("char-details-modal");
+        if (modal) modal.style.display = "none";
+        const content = document.getElementById("char-details-content");
+        if (content) content.innerHTML = "";
+        if (this._charDetailsKeyHandler) {
+            document.removeEventListener("keydown", this._charDetailsKeyHandler);
+            this._charDetailsKeyHandler = null;
         }
     },
 

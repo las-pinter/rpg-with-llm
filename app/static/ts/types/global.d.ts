@@ -181,8 +181,6 @@ interface GameElements {
     npcThinkingText: HTMLElement | null;
     sidebarName: HTMLElement | null;
     sidebarClassLevel: HTMLElement | null;
-    charAppearance: HTMLElement | null;
-    charBackstory: HTMLElement | null;
     hpFill: HTMLElement | null;
     hpText: HTMLElement | null;
     statsList: HTMLElement | null;
