@@ -15,6 +15,7 @@ def register_routes(app: flask.Flask) -> None:  # type: ignore[name-defined]
     from app.routes.config import bp as config_bp
     from app.routes.game import bp as game_bp
     from app.routes.health import bp as health_bp
+    from app.routes.react import bp as react_bp
     from app.routes.saves import bp as saves_bp
     from app.routes.settings import bp as settings_bp
 
@@ -24,3 +25,4 @@ def register_routes(app: flask.Flask) -> None:  # type: ignore[name-defined]
     app.register_blueprint(config_bp)
     app.register_blueprint(game_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(react_bp)
