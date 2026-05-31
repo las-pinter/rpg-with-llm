@@ -28,7 +28,7 @@ class TestSaveEndpoint:
     """Tests for POST /api/save."""
 
     def test_save_success(self, client):
-        """POST with valid state and name returns 200 with metadata."""
+        """POST with valid state and name returns 200 with slug."""
         with patch(
             "app.routes.saves._storage.save", return_value="20260514_120000_000000"
         ):
@@ -40,8 +40,7 @@ class TestSaveEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
-        assert data["name"] == "my_save"
-        assert data["timestamp"] == "20260514_120000_000000"
+        assert data["slug"] == "20260514_120000_000000"
 
     def test_save_autosave_default_name(self, client):
         """POST with state but no name defaults to a timestamped adventure name."""
@@ -56,7 +55,7 @@ class TestSaveEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
-        assert data["name"].startswith("Adventure - ")
+        assert data["slug"] == "20260514_120000_000000"
 
     def test_save_missing_state(self, client):
         """POST without 'state' returns 400."""
@@ -317,9 +316,10 @@ class TestSaveLoadIntegration:
             assert resp.status_code == 200
             save_data = resp.get_json()
             assert save_data["ok"] is True
-            assert save_data["name"] == "integration_test"
-            assert isinstance(save_data["timestamp"], str)
-            assert len(save_data["timestamp"]) > 0
+            assert isinstance(save_data["slug"], str)
+            assert len(save_data["slug"]) > 0
+
+            slug = save_data["slug"]
 
             # --- List ---------------------------------------------------
             resp = client.get("/api/saves")
@@ -330,7 +330,7 @@ class TestSaveLoadIntegration:
             assert list_data["saves"][0]["turn_count"] == 42
 
             # --- Load ---------------------------------------------------
-            resp = client.post("/api/load/integration_test")
+            resp = client.post(f"/api/load/{slug}")
             assert resp.status_code == 200
             state = resp.get_json()["state"]
             assert state["current_location"] == "dungeon"
@@ -343,18 +343,23 @@ class TestSaveLoadIntegration:
     # ------------------------------------------------------------------
 
     def test_save_overwrite_with_real_storage(self, client, real_storage):
-        """Saving twice with the same name overwrites; load gets latest."""
+        """Saving twice with the same name; load gets the latest."""
         with patch("app.routes.saves._storage", real_storage):
-            client.post(
+            resp1 = client.post(
                 "/api/save",
                 json={"state": {"version": "1.0", "turn_count": 1}, "name": "dup"},
             )
-            client.post(
+            slug1 = resp1.get_json()["slug"]
+            resp2 = client.post(
                 "/api/save",
                 json={"state": {"version": "1.0", "turn_count": 99}, "name": "dup"},
             )
+            slug2 = resp2.get_json()["slug"]
 
-            resp = client.post("/api/load/dup")
+            # Different slugs because each has a unique timestamp
+            assert slug1 != slug2
+
+            resp = client.post(f"/api/load/{slug2}")
             assert resp.status_code == 200
             assert resp.get_json()["state"]["turn_count"] == 99
 
@@ -388,10 +393,12 @@ class TestSaveLoadIntegration:
     # ------------------------------------------------------------------
 
     def test_save_default_name_with_real_storage(self, client, real_storage):
-        """Save without a name defaults to a timestamped adventure name."""
+        """Save without a name returns a slug."""
         with patch("app.routes.saves._storage", real_storage):
             resp = client.post("/api/save", json={"state": {}})
-            assert resp.get_json()["name"].startswith("Adventure - ")
+            slug = resp.get_json()["slug"]
+            assert isinstance(slug, str)
+            assert len(slug) > 0
 
             resp = client.get("/api/saves")
             assert len(resp.get_json()["saves"]) == 1
@@ -423,12 +430,13 @@ class TestDeleteSaveEndpoint:
         """Deleting an existing save returns 200 with ok=True."""
         with patch("app.routes.saves._storage", real_storage):
             # First save something
-            client.post(
+            resp = client.post(
                 "/api/save",
                 json={"state": {"version": "1.0"}, "name": "to_delete"},
             )
+            slug = resp.get_json()["slug"]
 
-            resp = client.delete("/api/delete/to_delete")
+            resp = client.delete(f"/api/delete/{slug}")
 
         assert resp.status_code == 200
         data = resp.get_json()
@@ -452,17 +460,18 @@ class TestDeleteSaveEndpoint:
     def test_delete_with_real_storage_round_trip(self, client, real_storage):
         """Save, list, delete, list again — save should disappear."""
         with patch("app.routes.saves._storage", real_storage):
-            client.post(
+            resp = client.post(
                 "/api/save",
                 json={"state": {"version": "1.0", "turn_count": 5}, "name": "del_test"},
             )
+            slug = resp.get_json()["slug"]
 
             # Verify save exists
             resp = client.get("/api/saves")
             assert len(resp.get_json()["saves"]) == 1
 
             # Delete it
-            resp = client.delete("/api/delete/del_test")
+            resp = client.delete(f"/api/delete/{slug}")
             assert resp.status_code == 200
             assert resp.get_json()["ok"] is True
 

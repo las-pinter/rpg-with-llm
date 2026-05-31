@@ -32,7 +32,7 @@ const GameView: {
     _hideSaveModal(): void;
     _confirmSave(): Promise<void>;
     _showLoadModal(): Promise<void>;
-    _loadGame(saveName: string): Promise<void>;
+    _loadGame(slug: string): Promise<void>;
     _showStoryModal(): Promise<void>;
     _hideStoryModal(): void;
     _scrollToBottom(): void;
@@ -854,9 +854,9 @@ const GameView: {
             loadList.innerHTML = saves
                 .map(
                     (s: any) => `
-                <div class="save-card" data-name="${_esc(s.name || s.character_name || "Unknown")}">
+                <div class="save-card" data-id="${_esc(s.id)}">
                     <div class="save-info">
-                        <h3>${_esc(s.character_name || "Unknown")}</h3>
+                        <h3>${_esc(s.name || s.character_name || "Unknown")}</h3>
                         <p class="save-meta">
                             Turn ${s.turn_count ?? "?"} · ${s.timestamp ? _formatTimestamp(s.timestamp) : ""}
                         </p>
@@ -874,9 +874,9 @@ const GameView: {
             loadList.querySelectorAll(".btn-load-save").forEach((btn) => {
                 btn.addEventListener("click", () => {
                     const card = (btn as HTMLElement).closest(".save-card") as HTMLElement | null;
-                    const saveName = card?.dataset.name;
-                    if (saveName) {
-                        this._loadGame(saveName);
+                    const slug = card?.dataset.id;
+                    if (slug) {
+                        this._loadGame(slug);
                     }
                 });
             });
@@ -885,11 +885,12 @@ const GameView: {
             loadList.querySelectorAll(".btn-delete-save").forEach((btn) => {
                 btn.addEventListener("click", async () => {
                     const card = (btn as HTMLElement).closest(".save-card") as HTMLElement | null;
-                    const saveName = card?.dataset.name;
-                    if (!saveName || !confirm(`Delete save "${saveName}"?`)) return;
+                    const slug = card?.dataset.id;
+                    const saveName = card?.querySelector("h3")?.textContent || slug;
+                    if (!slug || !confirm(`Delete save "${saveName}"?`)) return;
                     try {
                         const resp = await fetch(
-                            `/api/delete/${encodeURIComponent(saveName)}`,
+                            `/api/delete/${encodeURIComponent(slug)}`,
                             { method: "DELETE" },
                         );
                         if (!resp.ok) {
@@ -918,12 +919,12 @@ const GameView: {
     },
 
     /** Load a saved game: fetch state + character, restore them, and enter game. */
-    async _loadGame(saveName: string): Promise<void> {
+    async _loadGame(slug: string): Promise<void> {
         const loadModal = document.getElementById("load-modal");
         const loadOverlay = document.getElementById("load-modal-overlay");
 
         try {
-            const resp = await fetch(`/api/load/${encodeURIComponent(saveName)}`, { method: "POST" });
+            const resp = await fetch(`/api/load/${encodeURIComponent(slug)}`, { method: "POST" });
             const data = await resp.json();
 
             if (data.ok) {
@@ -952,7 +953,7 @@ const GameView: {
                 loadOverlay!.classList.add("hidden");
 
                 // Add a brief load message
-                this._addNarrative(`[Game loaded: "${saveName}"]`, {});
+                this._addNarrative(`[Game loaded: "${slug}"]`, {});
                 this._addTurnSeparator();
                 this._renderSidebar();
                 this._enableInput();

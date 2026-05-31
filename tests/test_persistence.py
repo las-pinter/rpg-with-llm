@@ -104,29 +104,34 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Saving a WorldState must create the expected JSON file."""
-        storage.save(sample_world, name="test_save")
-        save_path = storage.saves_dir / "test_save.json"
+        slug = storage.save(sample_world, name="test_save")
+        save_path = storage.saves_dir / f"{slug}.json"
         assert save_path.is_file()
 
-    def test_save_returns_timestamp(
+    def test_save_returns_slug(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
-        """The save ID returned must be a timestamp string."""
-        save_id = storage.save(sample_world, name="ts_test")
-        # Format: YYYYMMDD_HHMMSS_ffffff (22 chars with microseconds)
-        assert len(save_id) == 22
-        assert save_id[8] == "_"
-        assert save_id[:8].isdigit()
-        assert save_id[9:15].isdigit()
-        assert save_id[15] == "_"
-        assert save_id[16:].isdigit()
+        """The save ID returned must be a slug containing timestamp."""
+        slug = storage.save(sample_world, name="ts_test")
+        # Slug format: {slugified_name}-{YYYYMMDD_HHMMSS_ffffff}-{rand_hex}
+        # e.g. "ts-test-20260531_120000_123456-abcd"
+        assert slug.startswith("ts-test-")
+        # Remove the random suffix first, then extract timestamp
+        without_rand = slug.rsplit("-", 1)[0]
+        ts_part = without_rand.rsplit("-", 1)[1] if "-" in without_rand else ""
+        assert len(ts_part) == 22
+        assert ts_part[8] == "_"
+        assert ts_part[:8].isdigit()
+        assert ts_part[9:15].isdigit()
+        assert ts_part[15] == "_"
+        assert ts_part[16:].isdigit()
 
     def test_save_file_contains_valid_json(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """The contents of the save file must be parseable JSON."""
-        storage.save(sample_world, name="json_test")
-        save_path = storage.saves_dir / "json_test.json"
+        slug = storage.save(sample_world, name="json_test")
+        save_path = storage.saves_dir / f"{slug}.json"
         with open(save_path) as f:
             data = json.load(f)
         assert isinstance(data, dict)
@@ -142,8 +147,8 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Round-trip: save then load must yield an identical WorldState."""
-        storage.save(sample_world, name="roundtrip")
-        restored = storage.load("roundtrip")
+        slug = storage.save(sample_world, name="roundtrip")
+        restored = storage.load(slug)
 
         assert restored.version == sample_world.version
         assert restored.character_id == sample_world.character_id
@@ -170,11 +175,11 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Saving twice under different names -- both must load correctly."""
-        storage.save(sample_world, name="save_one")
-        storage.save(sample_world, name="save_two")
+        slug_one = storage.save(sample_world, name="save_one")
+        slug_two = storage.save(sample_world, name="save_two")
 
-        loaded_one = storage.load("save_one")
-        loaded_two = storage.load("save_two")
+        loaded_one = storage.load(slug_one)
+        loaded_two = storage.load(slug_two)
 
         assert loaded_one.turn_count == 7
         assert loaded_two.turn_count == 7
@@ -191,11 +196,15 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """After saving, list_saves must return metadata including the save."""
-        storage.save(sample_world, name="autosave")
+        slug = storage.save(sample_world, name="autosave")
         saves = storage.list_saves()
         assert len(saves) == 1
 
         meta = saves[0]
+        assert "id" in meta
+        assert meta["id"] == slug
+        assert "name" in meta
+        assert meta["name"] == "autosave"
         assert "timestamp" in meta
         assert meta["turn_count"] == 7
 
@@ -219,11 +228,27 @@ class TestWorldStorage:
         assert len(saves) == 1
 
         meta = saves[0]
+        assert "id" in meta
+        assert "name" in meta
         assert "timestamp" in meta
         assert "character_name" in meta
         assert "level" in meta
         assert "turn_count" in meta
         assert meta["turn_count"] == 7
+
+    def test_list_saves_backward_compat_old_index(self, storage: WorldStorage) -> None:
+        """Old index entries without id/name must get them from the key."""
+        import json
+
+        idx_path = storage.saves_dir / "index.json"
+        idx_path.write_text(
+            json.dumps({"saves": {"old-key": {"timestamp": "123", "turn_count": 1}}})
+        )
+        saves = storage.list_saves()
+        assert len(saves) == 1
+        assert saves[0]["id"] == "old-key"
+        assert saves[0]["name"] == "old-key"
+        assert saves[0]["timestamp"] == "123"
 
     # ------------------------------------------------------------------
     # Delete
@@ -233,21 +258,21 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Deleting a save must remove its JSON file."""
-        storage.save(sample_world, name="delete_me")
-        save_path = storage.saves_dir / "delete_me.json"
+        slug = storage.save(sample_world, name="delete_me")
+        save_path = storage.saves_dir / f"{slug}.json"
         assert save_path.is_file()
 
-        storage.delete("delete_me")
+        storage.delete(slug)
         assert not save_path.exists()
 
     def test_delete_removes_index_entry(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Deleting a save must also remove it from the index."""
-        storage.save(sample_world, name="gone_soon")
+        slug = storage.save(sample_world, name="gone_soon")
         assert len(storage.list_saves()) == 1
 
-        storage.delete("gone_soon")
+        storage.delete(slug)
         assert len(storage.list_saves()) == 0
 
     def test_delete_non_existent_raises_error(self, storage: WorldStorage) -> None:
@@ -263,8 +288,8 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """save_exists must return True for a saved game."""
-        storage.save(sample_world, name="check_me")
-        assert storage.save_exists("check_me") is True
+        slug = storage.save(sample_world, name="check_me")
+        assert storage.save_exists(slug) is True
 
     def test_save_exists_returns_false_when_save_absent(
         self, storage: WorldStorage
@@ -332,15 +357,15 @@ class TestWorldStorage:
         try:
             os.rename = tracking_rename  # type: ignore[assignment]
             os.replace = tracking_replace  # type: ignore[assignment]
-            storage.save(sample_world, name="atomic_test")
+            slug = storage.save(sample_world, name="atomic_test")
             assert len(tmp_paths) >= 1, "No tmp file was used during save"
         finally:
             os.rename = original_rename
             os.replace = original_replace
 
         # Confirm the final file exists and tmp file is gone
-        assert (storage.saves_dir / "atomic_test.json").exists()
-        assert not (storage.saves_dir / "atomic_test.json.tmp").exists()
+        assert (storage.saves_dir / f"{slug}.json").exists()
+        assert not (storage.saves_dir / f"{slug}.json.tmp").exists()
 
     # ------------------------------------------------------------------
     # Auto-save mechanism
@@ -391,20 +416,23 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Save names with safe characters must work."""
-        storage.save(sample_world, name="player_save_001")
-        assert storage.save_exists("player_save_001")
+        slug = storage.save(sample_world, name="player_save_001")
+        assert storage.save_exists(slug)
 
     def test_overwrite_existing_save(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
-        """Saving with an existing name must overwrite without error."""
+        """Saving with the same name twice creates separate slug files."""
         ws1 = WorldState(turn_count=1)
         ws2 = WorldState(turn_count=2)
 
-        storage.save(ws1, name="overwrite")
-        storage.save(ws2, name="overwrite")
+        slug1 = storage.save(ws1, name="overwrite")
+        slug2 = storage.save(ws2, name="overwrite")
 
-        loaded = storage.load("overwrite")
+        # Different slugs because they contain unique timestamps
+        assert slug1 != slug2
+
+        loaded = storage.load(slug2)
         assert loaded.turn_count == 2
 
     def test_index_is_rebuilt_on_corrupt_index(
@@ -471,23 +499,20 @@ class TestWorldStorage:
     def test_load_with_parent_dir_reference_raises_error(
         self, storage: WorldStorage
     ) -> None:
-        """Loading with '..' in name must raise ValueError."""
-        with pytest.raises(ValueError, match="(parent directory|path separator)"):
+        """Loading with '..' in name must raise FileNotFoundError."""
+        with pytest.raises(FileNotFoundError, match="not found"):
             storage.load("../../tmp/evil")
 
     def test_delete_with_parent_dir_reference_raises_error(
         self, storage: WorldStorage
     ) -> None:
-        """Deleting with '..' in name must raise ValueError."""
-        with pytest.raises(ValueError, match="(parent directory|path separator)"):
+        """Deleting with '..' in name must raise FileNotFoundError."""
+        with pytest.raises(FileNotFoundError, match="not found"):
             storage.delete("../../tmp/evil")
 
-    def test_save_exists_with_parent_dir_reference_raises_error(
-        self, storage: WorldStorage
-    ) -> None:
-        """save_exists with '..' in name must raise ValueError."""
-        with pytest.raises(ValueError, match="(parent directory|path separator)"):
-            storage.save_exists("../../tmp/evil")
+    def test_save_exists_with_parent_dir_reference(self, storage: WorldStorage) -> None:
+        """save_exists with '..' in name returns False (no validation)."""
+        assert storage.save_exists("../../tmp/evil") is False
 
     def test_save_with_long_name_raises_error(
         self, storage: WorldStorage, sample_world: WorldState
@@ -510,9 +535,9 @@ class TestWorldStorage:
         assert not storage.saves_dir.exists()
 
         # Save must recreate the directory
-        storage.save(sample_world, name="after_deletion")
+        slug = storage.save(sample_world, name="after_deletion")
         assert storage.saves_dir.is_dir()
-        assert storage.save_exists("after_deletion")
+        assert storage.save_exists(slug)
 
     # ------------------------------------------------------------------
     # Bug 5: delete() with already-deleted file — no crash, index cleaned
@@ -522,15 +547,15 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """If save file is manually deleted, delete() must clean the index."""
-        storage.save(sample_world, name="manually_gone")
+        slug = storage.save(sample_world, name="manually_gone")
         assert len(storage.list_saves()) == 1
 
         # Manually delete the file
-        save_path = storage.saves_dir / "manually_gone.json"
+        save_path = storage.saves_dir / f"{slug}.json"
         save_path.unlink()
 
         # delete() should succeed and clean the index
-        storage.delete("manually_gone")
+        storage.delete(slug)
         assert len(storage.list_saves()) == 0
 
     # ------------------------------------------------------------------
@@ -574,13 +599,14 @@ class TestWorldStorage:
     def test_save_embeds_character_in_state(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
-        """Saving with character data embeds _character key in the JSON file."""
+        """Saving with character data embeds _character key in the JSON file.
+        Duplicate flat fields are removed when _character is present."""
         char_data = {"name": "Test Hero", "class": "Mage", "level": 5}
         sample_world._character = char_data
         sample_world.character_name = "Test Hero"
-        storage.save(sample_world, name="char_embed")
+        slug = storage.save(sample_world, name="char_embed")
 
-        save_path = storage.saves_dir / "char_embed.json"
+        save_path = storage.saves_dir / f"{slug}.json"
         with open(save_path) as f:
             raw_data = json.load(f)
 
@@ -588,7 +614,12 @@ class TestWorldStorage:
         assert raw_data["_character"]["name"] == "Test Hero"
         assert raw_data["_character"]["class"] == "Mage"
         assert raw_data["_character"]["level"] == 5
-        assert raw_data["character_name"] == "Test Hero"
+        # Duplicate flat fields removed by to_dict() when _character is present
+        # (inventory and gold are world-level runtime state, NOT redundant)
+        assert "character_name" not in raw_data
+        assert "character_id" not in raw_data
+        assert "inventory" in raw_data
+        assert "gold" in raw_data
 
     def test_load_extracts_embedded_character(
         self, storage: WorldStorage, sample_world: WorldState
@@ -597,14 +628,16 @@ class TestWorldStorage:
         char_data = {"name": "Load Hero", "class": "Warrior", "level": 3}
         sample_world._character = char_data
         sample_world.character_name = "Load Hero"
-        storage.save(sample_world, name="char_load")
+        slug = storage.save(sample_world, name="char_load")
 
-        loaded = storage.load("char_load")
+        loaded = storage.load(slug)
         assert loaded._character is not None
         assert loaded._character["name"] == "Load Hero"
         assert loaded._character["class"] == "Warrior"
         assert loaded._character["level"] == 3
-        assert loaded.character_name == "Load Hero"
+        # character_name loaded from saved file — removed by to_dict()
+        # when _character is present, defaults to "" in from_dict
+        assert loaded.character_name == ""
 
     def test_load_falls_back_to_companion_character(self, client, monkeypatch) -> None:
         """Load falls back to old .char.json companion file when _character
@@ -660,14 +693,13 @@ class TestWorldStorage:
         monkeypatch.setattr("app.routes.saves._storage", storage)
 
         # Save a game (creates the state file properly)
-        save_name = "cleanup_companion"
         ws = WorldState(turn_count=5, _character={"name": "Hero"})
-        storage.save(ws, name=save_name)
+        slug = storage.save(ws, name="cleanup_companion")
 
         # Create companion file in the legacy location
         companion_dir = tmp_dir / "data" / "saves"
         companion_dir.mkdir(parents=True)
-        save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+        save_key = hashlib.sha256(slug.encode("utf-8")).hexdigest()
         char_path = companion_dir / f"{save_key}.char.json"
         with open(char_path, "w") as f:
             json.dump({"name": "Legacy Hero"}, f)
@@ -676,27 +708,61 @@ class TestWorldStorage:
         monkeypatch.chdir(tmp_dir)
 
         # Delete via Flask endpoint — companion file should be removed
-        resp = client.delete(f"/api/delete/{save_name}")
+        resp = client.delete(f"/api/delete/{slug}")
         assert resp.status_code == 200
         assert resp.get_json()["ok"] is True
         assert not char_path.exists(), "Companion file should be cleaned up"
 
     def test_world_state_character_round_trip(self) -> None:
         """WorldState.from_dict(to_dict()) preserves _character and
-        character_name."""
-        char_data = {"name": "Round Trip Hero", "class": "Rogue"}
+        removes duplicate flat fields."""
+        char_data = {"name": "Round Trip Hero", "class": "Rogue", "inventory": []}
         ws = WorldState(
+            character_id="hero_42",
             character_name="Round Trip Hero",
+            inventory=["sword"],
+            gold=100,
             _character=char_data,
             turn_count=10,
         )
 
         d = ws.to_dict()
         assert d["_character"] == char_data
-        assert d["character_name"] == "Round Trip Hero"
+        # character_name and character_id are redundant with _character
+        # and removed; inventory and gold are world-level state, preserved
+        assert "character_name" not in d
+        assert "character_id" not in d
+        assert "inventory" in d
+        assert d["inventory"] == ["sword"]
+        assert "gold" in d
+        assert d["gold"] == 100
         assert d["turn_count"] == 10
 
         ws2 = WorldState.from_dict(d)
         assert ws2._character == char_data
-        assert ws2.character_name == "Round Trip Hero"
+        # character_name defaulted to "" since it was removed
+        assert ws2.character_name == ""
+        assert ws2.inventory == ["sword"]
+        assert ws2.gold == 100
         assert ws2.turn_count == 10
+
+    def test_world_state_to_dict_without_character_preserves_fields(
+        self,
+    ) -> None:
+        """When _character is None, to_dict() keeps all flat fields."""
+        ws = WorldState(
+            character_id="hero_42",
+            character_name="Sir Hero",
+            inventory=["sword"],
+            gold=100,
+            _character=None,
+            turn_count=5,
+        )
+
+        d = ws.to_dict()
+        assert d["_character"] is None
+        assert d["character_name"] == "Sir Hero"
+        assert d["character_id"] == "hero_42"
+        assert d["inventory"] == ["sword"]
+        assert d["gold"] == 100
+        assert d["turn_count"] == 5
