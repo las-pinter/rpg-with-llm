@@ -28,7 +28,7 @@ _config_manager = ConfigManager(config_dir=Path("data"))
 
 _DEFAULT_SETTINGS: dict = {
     # DM agent
-    "dm_max_tokens": 4096,
+    "dm_max_tokens": 16000,
     "dm_temperature": 0.8,
     "dm_timeout": 300,
     # NPC agent
@@ -36,7 +36,7 @@ _DEFAULT_SETTINGS: dict = {
     "npc_temperature": 0.8,
     "npc_timeout": 300,
     # Summarizer agent
-    "summarizer_max_tokens": 4096,
+    "summarizer_max_tokens": 16000,
     "summarizer_temperature": 0.3,
     "summarizer_timeout": 300,
     # Provider defaults

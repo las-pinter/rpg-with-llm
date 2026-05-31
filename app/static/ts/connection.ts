@@ -716,13 +716,13 @@ const ConnectionView = {
                 summarizerEnabled: this.els.summarizerEnabled
                     ? this.els.summarizerEnabled.checked
                     : false,
-                dmMaxTokens: this.els.dmMaxTokens ? this.els.dmMaxTokens.value : 4096,
+                dmMaxTokens: this.els.dmMaxTokens ? this.els.dmMaxTokens.value : 16000,
                 dmTemperature: this.els.dmTemperature ? this.els.dmTemperature.value : 0.8,
                 dmTimeout: this.els.dmTimeout ? this.els.dmTimeout.value : 300,
                 npcMaxTokens: this.els.npcMaxTokens ? this.els.npcMaxTokens.value : 1024,
                 npcTemperature: this.els.npcTemperature ? this.els.npcTemperature.value : 0.8,
                 npcTimeout: this.els.npcTimeout ? this.els.npcTimeout.value : 300,
-                summarizerMaxTokens: this.els.summarizerMaxTokens ? this.els.summarizerMaxTokens.value : 4096,
+                summarizerMaxTokens: this.els.summarizerMaxTokens ? this.els.summarizerMaxTokens.value : 16000,
                 summarizerTemperature: this.els.summarizerTemperature ? this.els.summarizerTemperature.value : 0.3,
                 summarizerTimeout: this.els.summarizerTimeout ? this.els.summarizerTimeout.value : 300,
             };
