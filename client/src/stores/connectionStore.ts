@@ -66,6 +66,6 @@ export const useConnectionStore = create<ConnectionStore>()(
         providerType: state.providerType,
         apiKey: state.apiKey,
       }),
-    }
-  )
+    },
+  ),
 )

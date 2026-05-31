@@ -10,14 +10,18 @@ export default function CharacterPage() {
       <p style={{ marginTop: '1rem', color: '#7a6e5a' }}>
         (Character creation form coming soon)
       </p>
-      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+      <div
+        style={{
+          marginTop: '1rem',
+          display: 'flex',
+          gap: '0.5rem',
+          justifyContent: 'center',
+        }}
+      >
         <button className="btn" onClick={() => navigate('/')}>
           Back to Connection
         </button>
-        <button
-          className="btn btn-primary"
-          onClick={() => navigate('/game')}
-        >
+        <button className="btn btn-primary" onClick={() => navigate('/game')}>
           Continue to Game
         </button>
       </div>

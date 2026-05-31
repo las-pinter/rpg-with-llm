@@ -29,7 +29,11 @@ body {
 }
 
 /* ----- Typography ----- */
-h1, h2, h3, h4, h5 {
+h1,
+h2,
+h3,
+h4,
+h5 {
   font-family: var(--font-narrative);
   font-weight: 400;
   letter-spacing: 0.02em;
@@ -89,10 +93,10 @@ a:hover {
   margin-bottom: 0.3rem;
 }
 
-input[type="text"],
-input[type="url"],
-input[type="password"],
-input[type="number"],
+input[type='text'],
+input[type='url'],
+input[type='password'],
+input[type='number'],
 textarea,
 select {
   width: 100%;
@@ -103,7 +107,9 @@ select {
   color: var(--text-primary);
   font-size: 0.95rem;
   font-family: var(--font-ui);
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
   outline: none;
 }
 
@@ -250,17 +256,27 @@ select {
 
 /* ----- Animations ----- */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ----- Accessibility ----- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
