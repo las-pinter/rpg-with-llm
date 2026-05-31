@@ -534,18 +534,9 @@
 
                 <div class="sidebar-section">
                     <h3>Character Info</h3>
-                    <div class="char-info-content">
-                        <div class="char-info-block">
-                            <span class="char-info-label">Appearance</span>
-                            <p class="char-info-text" id="sidebar-appearance">—</p>
-                        </div>
-                        <div class="char-info-block">
-                            <span class="char-info-label">Backstory</span>
-                            <div class="char-backstory-scroll">
-                                <p class="char-info-text" id="sidebar-backstory">—</p>
-                            </div>
-                        </div>
-                    </div>
+                    <button class="btn btn-sm sidebar-action-btn" id="char-details-btn">
+                        📖 Character Details
+                    </button>
                 </div>
 
                 <div class="sidebar-section">
@@ -714,6 +705,21 @@
             </div>
             <div class="modal-body" id="story-content">
                 <p class="text-muted">Loading story...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         CHARACTER DETAILS MODAL
+         ============================================================ -->
+    <div id="char-details-modal" class="modal-overlay" style="display:none;">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3>📖 Character Details</h3>
+                <button id="char-details-close-btn" class="btn btn-sm">✕</button>
+            </div>
+            <div class="modal-body" id="char-details-content">
+                <p class="text-muted">Loading character details...</p>
             </div>
         </div>
     </div>
