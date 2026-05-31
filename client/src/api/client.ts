@@ -8,11 +8,7 @@ export interface ApiError {
   errors?: Record<string, string>
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown
-): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = `${BASE_URL}${path}`
   const headers: Record<string, string> = {}
   let options: RequestInit = { method }

@@ -36,10 +36,12 @@
   --border-light: #3a3a58;
 
   /* ---- Typography ---- */
-  --font-narrative: Georgia, 'Palatino Linotype', 'Book Antiqua',
-    Palatino, 'Times New Roman', Times, serif;
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-narrative:
+    Georgia, 'Palatino Linotype', 'Book Antiqua', Palatino, 'Times New Roman', Times,
+    serif;
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+    sans-serif;
   --font-mono: 'Courier New', Courier, monospace;
 
   /* ---- Radii ---- */

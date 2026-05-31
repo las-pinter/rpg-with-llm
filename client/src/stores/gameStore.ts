@@ -41,8 +41,7 @@ const initialState: GameState = {
 
 export const useGameStore = create<GameStore>()((set) => ({
   ...initialState,
-  appendNarrative: (text) =>
-    set((state) => ({ narrative: state.narrative + text })),
+  appendNarrative: (text) => set((state) => ({ narrative: state.narrative + text })),
   setNarrative: (narrative) => set({ narrative }),
   setWorldState: (worldState) => set({ worldState }),
   setPlayerInput: (playerInput) => set({ playerInput }),

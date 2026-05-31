@@ -59,7 +59,7 @@ export interface GenerateCharacterParams {
 }
 
 export function generateCharacter(
-  params: GenerateCharacterParams
+  params: GenerateCharacterParams,
 ): Promise<CharacterResponse> {
   return post<CharacterResponse>('/api/character/generate', params)
 }
@@ -80,7 +80,7 @@ export interface CreateCharacterParams {
 }
 
 export function createCharacter(
-  params: CreateCharacterParams
+  params: CreateCharacterParams,
 ): Promise<CharacterResponse> {
   return post<CharacterResponse>('/api/character/create', params)
 }
@@ -121,7 +121,9 @@ export function getSettings(): Promise<SettingsResponse> {
   return get<SettingsResponse>('/api/settings')
 }
 
-export function saveSettings(settings: Record<string, unknown>): Promise<SettingsResponse> {
+export function saveSettings(
+  settings: Record<string, unknown>,
+): Promise<SettingsResponse> {
   return post<SettingsResponse>('/api/settings', settings)
 }
 
