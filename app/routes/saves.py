@@ -85,13 +85,13 @@ def save_game() -> tuple[flask.Response, int] | flask.Response:
 
     try:
         world_state = WorldState.from_dict(state_dict)
-        timestamp = _storage.save(world_state, name)
-        logger.debug("Game '%s' saved successfully at %s", name, timestamp)
+        slug = _storage.save(world_state, name)
+        logger.debug("Game '%s' saved successfully with slug '%s'", name, slug)
     except Exception:
         logger.exception("Failed to save game '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
-    return jsonify({"ok": True, "name": name, "timestamp": timestamp})
+    return jsonify({"ok": True, "slug": slug})
 
 
 @bp.route("/saves", methods=["GET"])
@@ -106,7 +106,7 @@ def list_saves() -> tuple[flask.Response, int] | flask.Response:
     return jsonify({"ok": True, "saves": saves})
 
 
-def _load_companion_character(save_name: str) -> dict | None:
+def _load_companion_character(slug: str) -> dict | None:
     """Load companion character data for a save, or None.
 
     This is a backward-compatibility shim for old saves that used
@@ -114,7 +114,7 @@ def _load_companion_character(save_name: str) -> dict | None:
     in the world state file.
     """
     char_dir = (Path("data") / "saves").resolve()
-    save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+    save_key = hashlib.sha256(slug.encode("utf-8")).hexdigest()
     char_path = (char_dir / f"{save_key}.char.json").resolve()
     try:
         char_path.relative_to(char_dir)
@@ -129,10 +129,10 @@ def _load_companion_character(save_name: str) -> dict | None:
         return None
 
 
-def _delete_companion_character(save_name: str) -> None:
+def _delete_companion_character(slug: str) -> None:
     """Delete orphan companion character file for a save, if it exists."""
     char_dir = (Path("data") / "saves").resolve()
-    save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
+    save_key = hashlib.sha256(slug.encode("utf-8")).hexdigest()
     char_path = (char_dir / f"{save_key}.char.json").resolve()
     try:
         char_path.relative_to(char_dir)
@@ -144,8 +144,8 @@ def _delete_companion_character(save_name: str) -> None:
         pass
 
 
-@bp.route("/load/<string:name>", methods=["POST"])
-def load_game(name: str) -> tuple[flask.Response, int] | flask.Response:
+@bp.route("/load/<string:slug>", methods=["POST"])
+def load_game(slug: str) -> tuple[flask.Response, int] | flask.Response:
     """Restore a previously saved world state.
 
     Returns
@@ -156,44 +156,44 @@ def load_game(name: str) -> tuple[flask.Response, int] | flask.Response:
     Errors
     ------
     404
-        If no save with the given *name* exists.
+        If no save with the given *slug* exists.
     400
         If the save file is corrupt or unreadable.
     """
     try:
-        world_state = _storage.load(name)
+        world_state = _storage.load(slug)
         logger.debug(
             "Loaded game '%s' — location=%s, turn=%d",
-            name,
+            slug,
             world_state.current_location,
             world_state.turn_count,
         )
     except FileNotFoundError:
-        return jsonify({"ok": False, "error": f"Save '{name}' not found"}), 404
+        return jsonify({"ok": False, "error": f"Save '{slug}' not found"}), 404
     except ValueError:
-        logger.warning("Invalid or corrupt save data for '%s'", name, exc_info=True)
+        logger.warning("Invalid or corrupt save data for '%s'", slug, exc_info=True)
         return (
             jsonify({"ok": False, "error": "Invalid or corrupt save data"}),
             400,
         )
     except Exception:
-        logger.exception("Failed to load save '%s'", name)
+        logger.exception("Failed to load save '%s'", slug)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
     # Extract character data from embedded _character field
     char_data = world_state._character
     if char_data is None:
         # Backward compat: try loading from old companion file
-        char_data = _load_companion_character(name)
+        char_data = _load_companion_character(slug)
     result: dict[str, object] = {"ok": True, "state": world_state.to_dict()}
     if char_data is not None:
         result["character"] = char_data
     return jsonify(result)
 
 
-@bp.route("/delete/<string:name>", methods=["DELETE"])
-def delete_save(name: str) -> tuple[flask.Response, int] | flask.Response:
-    """Delete a saved game by name.
+@bp.route("/delete/<string:slug>", methods=["DELETE"])
+def delete_save(slug: str) -> tuple[flask.Response, int] | flask.Response:
+    """Delete a saved game by slug.
 
     Returns
     -------
@@ -202,35 +202,35 @@ def delete_save(name: str) -> tuple[flask.Response, int] | flask.Response:
     Errors
     ------
     404
-        If no save with the given *name* exists.
+        If no save with the given *slug* exists.
     500
         If an internal error occurs.
     """
     try:
-        _storage.delete(name)
+        _storage.delete(slug)
     except FileNotFoundError:
-        return jsonify({"ok": False, "error": f"Save '{name}' not found"}), 404
+        return jsonify({"ok": False, "error": f"Save '{slug}' not found"}), 404
     except Exception:
-        logger.exception("Failed to delete save '%s'", name)
+        logger.exception("Failed to delete save '%s'", slug)
         return (
             jsonify({"ok": False, "error": "Internal server error"}),
             500,
         )
 
     # Clean up any orphan .char.json companion files (legacy format)
-    _delete_companion_character(name)
+    _delete_companion_character(slug)
 
     return jsonify({"ok": True})
 
 
-@bp.route("/story/<name>", methods=["GET"])
-def get_story(name: str) -> tuple[flask.Response, int] | flask.Response:
+@bp.route("/story/<string:slug>", methods=["GET"])
+def get_story(slug: str) -> tuple[flask.Response, int] | flask.Response:
     """Return the story log for a saved game.
 
     Parameters
     ----------
-    name : str
-        The name of the saved game (URL-decoded automatically by Flask).
+    slug : str
+        The slug of the saved game (URL-decoded automatically by Flask).
 
     Returns
     -------
@@ -239,10 +239,10 @@ def get_story(name: str) -> tuple[flask.Response, int] | flask.Response:
     Errors
     ------
     404
-        If no save with the given *name* exists.
+        If no save with the given *slug* exists.
     """
     try:
-        world_state = _storage.load(name)
+        world_state = _storage.load(slug)
         return jsonify({"ok": True, "story": world_state.story_log})
     except FileNotFoundError:
         return jsonify({"ok": False, "error": "Save not found"}), 404

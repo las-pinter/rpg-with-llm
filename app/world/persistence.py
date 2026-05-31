@@ -9,6 +9,8 @@ for fast listing without re-reading every file.
 from __future__ import annotations
 
 import json
+import re
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -63,24 +65,36 @@ class WorldStorage:
         if len(name) > 200:
             raise ValueError("Save name too long (max 200 characters)")
 
+    def _generate_slug(self, character_name: str) -> str:
+        """Generate a filesystem-safe unique slug for a save file."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", character_name.lower()).strip("-")
+        if not safe_name:
+            safe_name = "unknown"
+        rand_suffix = secrets.token_hex(2)  # 4 hex chars = 65536 combos
+        return f"{safe_name}-{timestamp}-{rand_suffix}"
+
     # ------------------------------------------------------------------
     # Save
     # ------------------------------------------------------------------
 
     def save(self, world_state: WorldState, name: str = "autosave") -> str:
-        """Atomically persist *world_state* under the given *name*."""
+        """Atomically persist *world_state* and return the generated slug."""
         self._validate_name(name)
         # Ensure directory exists — it may have been deleted at runtime (Bug 4)
         self.saves_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = _timestamp_now()
+        slug = self._generate_slug(world_state.character_name or name)
         data: dict[str, Any] = world_state.to_dict()
 
-        final_path = self.saves_dir / f"{name}.json"
+        final_path = self.saves_dir / f"{slug}.json"
         atomic_write(final_path, data, indent=2)
 
         # Populate metadata from WorldState (Bug 6)
         metadata: dict[str, Any] = {
+            "id": slug,
+            "name": name,
             "timestamp": timestamp,
             "character_name": world_state.character_name
             or world_state.character_id
@@ -88,30 +102,29 @@ class WorldStorage:
             "level": world_state.turn_count,  # Placeholder until character system
             "turn_count": world_state.turn_count,
         }
-        self._update_index(name, metadata)
+        self._update_index(slug, metadata)
         self._last_save_turn = world_state.turn_count
-        return timestamp
+        return slug
 
     # ------------------------------------------------------------------
     # Load
     # ------------------------------------------------------------------
 
-    def load(self, name: str) -> WorldState:
-        """Load and return a WorldState previously saved under *name*."""
-        self._validate_name(name)
-        final_path = self.saves_dir / f"{name}.json"
+    def load(self, slug: str) -> WorldState:
+        """Load and return a WorldState previously saved under *slug*."""
+        final_path = self.saves_dir / f"{slug}.json"
         if not final_path.exists():
-            raise FileNotFoundError(f"Save '{name}' not found at {final_path}")
+            raise FileNotFoundError(f"Save '{slug}' not found at {final_path}")
         try:
             with open(final_path, encoding="utf-8") as f:
                 data: Any = json.load(f)
         except json.JSONDecodeError as exc:
             raise ValueError(
-                f"Save file '{name}' is corrupt -- invalid JSON: {exc}"
+                f"Save file '{slug}' is corrupt -- invalid JSON: {exc}"
             ) from exc
         if not isinstance(data, dict):
             raise ValueError(
-                f"Save file '{name}' is corrupt -- expected a JSON object "
+                f"Save file '{slug}' is corrupt -- expected a JSON object "
                 f"(dict) but got {type(data).__name__}"
             )
         return WorldState.from_dict(data)
@@ -131,23 +144,31 @@ class WorldStorage:
         except (json.JSONDecodeError, OSError):
             return []
         saves: dict[str, Any] = index.get("saves", {})
-        return list(saves.values())
+        # Ensure backward compat: every entry has id and name fields
+        result: list[dict[str, Any]] = []
+        for key, entry in saves.items():
+            if isinstance(entry, dict):
+                if "id" not in entry:
+                    entry["id"] = key
+                if "name" not in entry:
+                    entry["name"] = key
+                result.append(entry)
+        return result
 
     # ------------------------------------------------------------------
     # Delete
     # ------------------------------------------------------------------
 
-    def delete(self, name: str) -> None:
-        """Delete the save with the given *name*."""
-        self._validate_name(name)
-        save_path = self.saves_dir / f"{name}.json"
+    def delete(self, slug: str) -> None:
+        """Delete the save with the given *slug*."""
+        save_path = self.saves_dir / f"{slug}.json"
 
         # Check if the save exists in index or on disk
-        if not save_path.exists() and not self._index_has(name):
-            raise FileNotFoundError(f"Save '{name}' not found at {save_path}")
+        if not save_path.exists() and not self._index_has(slug):
+            raise FileNotFoundError(f"Save '{slug}' not found at {save_path}")
 
         # Remove from index FIRST so orphan metadata can't linger (Bug 5)
-        self._remove_from_index(name)
+        self._remove_from_index(slug)
 
         # Then try to delete the file (may already be gone)
         try:
@@ -159,10 +180,9 @@ class WorldStorage:
     # Save exists
     # ------------------------------------------------------------------
 
-    def save_exists(self, name: str) -> bool:
-        """Return True if a save with *name* exists on disk."""
-        self._validate_name(name)
-        return (self.saves_dir / f"{name}.json").exists()
+    def save_exists(self, slug: str) -> bool:
+        """Return True if a save with *slug* exists on disk."""
+        return (self.saves_dir / f"{slug}.json").exists()
 
     # ------------------------------------------------------------------
     # Auto-save

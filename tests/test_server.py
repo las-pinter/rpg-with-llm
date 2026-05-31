@@ -1873,7 +1873,7 @@ class TestStoryEndpoint:
     """Tests for GET /api/story/<name>."""
 
     def test_get_story_endpoint_returns_story(self, client):
-        """Save a game with story_log, then GET /api/story/<name>
+        """Save a game with story_log, then GET /api/story/<slug>
         returns the story_log."""
         state = {
             "version": "1.0",
@@ -1887,8 +1887,9 @@ class TestStoryEndpoint:
             json={"state": state, "name": "story_test_save"},
         )
         assert resp.status_code == 200
+        slug = resp.get_json()["slug"]
 
-        resp = client.get("/api/story/story_test_save")
+        resp = client.get(f"/api/story/{slug}")
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True

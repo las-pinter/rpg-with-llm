@@ -151,6 +151,10 @@ def generate_character() -> tuple[flask.Response, int] | flask.Response:
     logger.info(
         "Character generated: %s (%s)", character.name, character.character_class
     )
+    try:
+        _character_storage.save(character)
+    except Exception as e:
+        logger.warning("Failed to save character to disk: %s", e)
     return jsonify({"ok": True, "character": character.to_dict()})
 
 

@@ -157,7 +157,16 @@ class WorldState:
         Nested dataclasses (Location, Quest, FactionStanding, DMNotes)
         are recursively converted to plain dicts via ``asdict()``.
         """
-        return asdict(self)
+        result = asdict(self)
+        # Remove duplicate flat fields that are already in _character
+        # to prevent data duplication and divergence in save files
+        if result.get("_character") is not None:
+            # Strip only fields that are genuinely redundant with _character.
+            # inventory and gold are WORLD-LEVEL runtime state, not character
+            # duplicates — stripping them causes data loss on save/reload.
+            for field in ("character_id", "character_name"):
+                result.pop(field, None)
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorldState:

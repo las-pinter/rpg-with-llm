@@ -1348,17 +1348,17 @@ const CharacterView: {
 
             savesContainer.innerHTML = saves
                 .map((s: Record<string, unknown>) => {
-                    const saveName =
-                        s.name || s.character_name || "Unknown";
-                    const charName = s.character_name || "Unknown";
+                    const saveId = (s.id as string) || "";
+                    const displayName = (s.name as string) || s.character_name as string || "Unknown";
+                    const charName = s.character_name as string || "Unknown";
                     const turnCount = s.turn_count ?? "?";
                     const ts = s.timestamp
                         ? _formatTimestamp(s.timestamp as string)
                         : "";
                     return `
-                    <div class="save-card" data-name="${_esc(saveName as string)}">
+                    <div class="save-card" data-id="${_esc(saveId)}">
                         <div class="save-info">
-                            <h3>${_esc(charName as string)}</h3>
+                            <h3>${_esc(displayName)}</h3>
                             <p class="save-meta">
                                 Turn ${turnCount} · ${ts}
                             </p>
@@ -1379,8 +1379,8 @@ const CharacterView: {
                     btn.addEventListener("click", () => {
                         const card = (btn as HTMLElement).closest(".save-card") as HTMLElement | null;
                         if (!card) return;
-                        const saveName = card.dataset.name;
-                        App.state.loadSaveName = saveName ?? null;
+                        const saveId = card.dataset.id;
+                        App.state.loadSaveName = saveId ?? null;
                         App.navigate("game");
                     });
                 });
