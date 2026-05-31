@@ -996,24 +996,34 @@ const GameView: {
         };
         document.addEventListener("keydown", this._storyKeyHandler);
 
-        const storyLog = this.state.worldState?.story_log;
+        const ws = this.state.worldState;
 
-        if (!storyLog || storyLog.length === 0) {
-            content.innerHTML = '<p class="text-muted">The adventure has just begun... no story yet!</p>';
-            return;
-        }
+        // Prefer condensed story_summary, fall back to raw story_log
+        const summaries = ws?.story_summary;
+        const storyLog = ws?.story_log;
 
-        // Render each story entry
-        content.innerHTML = storyLog.map((entry: string) => {
-            const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
-            if (match) {
+        if (summaries && summaries.length > 0) {
+            // Render novel-like summaries
+            content.innerHTML = summaries.map((entry: string) => {
                 return `<div class="story-entry">
-                    <div class="story-turn-header">Turn ${_esc(match[1])}</div>
-                    <div class="story-narrative">${_esc(match[2])}</div>
+                    <div class="story-narrative">${_esc(entry)}</div>
                 </div>`;
-            }
-            return `<div class="story-entry"><div class="story-narrative">${_esc(entry)}</div></div>`;
-        }).join('');
+            }).join('');
+        } else if (storyLog && storyLog.length > 0) {
+            // Fallback: render raw story_log entries
+            content.innerHTML = storyLog.map((entry: string) => {
+                const match = entry.match(/^\[Turn (\d+)\]\s*(.*)/s);
+                if (match) {
+                    return `<div class="story-entry">
+                        <div class="story-turn-header">Turn ${_esc(match[1])}</div>
+                        <div class="story-narrative">${_esc(match[2])}</div>
+                    </div>`;
+                }
+                return `<div class="story-entry"><div class="story-narrative">${_esc(entry)}</div></div>`;
+            }).join('');
+        } else {
+            content.innerHTML = '<p class="text-muted">The adventure has just begun... no story yet!</p>';
+        }
     },
 
     /** Hide the story modal and clean up. */

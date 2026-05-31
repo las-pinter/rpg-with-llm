@@ -143,6 +143,8 @@ class WorldState:
     turn_count: int = 0
     established_facts: list[str] = field(default_factory=list)
     story_log: list[str] = field(default_factory=list)
+    # Novel-like condensed story summaries, updated periodically by the summarizer
+    story_summary: list[str] = field(default_factory=list)
 
     # Embedded character data for single-file save (not part of game logic)
     _character: dict[str, Any] | None = field(default=None, repr=False)
@@ -246,6 +248,13 @@ class WorldState:
         else:
             story_log = []
 
+        # story_summary — ensure it's a list of strings
+        raw_story_summary = data.get("story_summary", [])
+        if isinstance(raw_story_summary, list):
+            story_summary = [str(s) for s in raw_story_summary if isinstance(s, str)]
+        else:
+            story_summary = []
+
         return cls(
             version=version,
             character_id=data.get("character_id"),
@@ -261,5 +270,6 @@ class WorldState:
             turn_count=turn_count,
             established_facts=established_facts,
             story_log=story_log,
+            story_summary=story_summary,
             _character=data.get("_character"),
         )
