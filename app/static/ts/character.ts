@@ -813,6 +813,7 @@ const CharacterView: {
             const display = (el as HTMLElement).textContent!.trim();
 
             if (path === "backstory" || path === "appearance") {
+                el.classList.add("editing");
                 const textarea = document.createElement("textarea");
                 textarea.value =
                     value != null ? String(value) : display;
