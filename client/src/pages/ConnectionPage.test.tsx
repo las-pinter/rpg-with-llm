@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { useConnectionStore } from '../stores/connectionStore'
 import ConnectionPage from './ConnectionPage'
 
@@ -32,6 +32,20 @@ function renderPage() {
 
 function resetStore() {
   useConnectionStore.getState().reset()
+}
+
+function LocationDisplay() {
+  const location = useLocation()
+  return <div data-testid="current-location">{location.pathname}</div>
+}
+
+function renderPageForNav() {
+  return render(
+    <MemoryRouter initialEntries={['/']}>
+      <ConnectionPage />
+      <LocationDisplay />
+    </MemoryRouter>,
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -62,6 +76,13 @@ describe('ConnectionPage — rendering', () => {
     renderPage()
     expect(
       screen.getByRole('heading', { name: /connection setup/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('renders the subtitle text', () => {
+    renderPage()
+    expect(
+      screen.getByText(/configure your llm provider to begin the adventure/i),
     ).toBeInTheDocument()
   })
 
@@ -107,6 +128,18 @@ describe('ConnectionPage — rendering', () => {
 })
 
 /* ------------------------------------------------------------------ */
+/*  useSettings integration                                             */
+/* ------------------------------------------------------------------ */
+
+describe('ConnectionPage — useSettings', () => {
+  it('calls useSettings hook on render', () => {
+    mockUseSettings.mockClear()
+    renderPage()
+    expect(mockUseSettings).toHaveBeenCalledOnce()
+  })
+})
+
+/* ------------------------------------------------------------------ */
 /*  Start Adventure button state                                       */
 /* ------------------------------------------------------------------ */
 
@@ -127,17 +160,32 @@ describe('ConnectionPage — Start Adventure button', () => {
   it('navigates to /character when clicked and enabled', async () => {
     const user = userEvent.setup()
     useConnectionStore.getState().setConnectionTested(true)
+    renderPageForNav()
+
+    await user.click(screen.getByRole('button', { name: /start adventure/i }))
+
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/character')
+  })
+
+  it('does not navigate when disabled', async () => {
+    const user = userEvent.setup()
+    renderPageForNav()
+
+    await user.click(screen.getByRole('button', { name: /start adventure/i }))
+
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/')
+  })
+
+  it('is disabled when connectionTested is null (edge case)', () => {
+    useConnectionStore.setState({ connectionTested: null as unknown as boolean })
     renderPage()
+    expect(screen.getByRole('button', { name: /start adventure/i })).toBeDisabled()
+  })
 
-    const startBtn = screen.getByRole('button', { name: /start adventure/i })
-    await user.click(startBtn)
-
-    // After clicking, we should be on the /character route
-    // Since we navigate inside MemoryRouter, this transitions the router
-    expect(window.location.pathname).toBe('/')
-    // Actually MemoryRouter manages its own history — let's just verify
-    // the button click doesn't throw and is wired up correctly
-    // The real route validation is done through the app-level test
+  it('is disabled when error is present and connectionTested is false', () => {
+    mockUseSettings.mockReturnValue({ loading: false, error: 'fail' })
+    renderPage()
+    expect(screen.getByRole('button', { name: /start adventure/i })).toBeDisabled()
   })
 })
 
@@ -151,6 +199,15 @@ describe('ConnectionPage — Back button', () => {
     const backBtn = screen.getByRole('button', { name: /back/i })
     expect(backBtn).toBeInTheDocument()
     expect(backBtn).toBeEnabled()
+  })
+
+  it('navigates to / when clicked', async () => {
+    const user = userEvent.setup()
+    renderPageForNav()
+
+    await user.click(screen.getByRole('button', { name: /back/i }))
+
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/')
   })
 })
 
@@ -170,6 +227,21 @@ describe('ConnectionPage — loading state', () => {
     renderPage()
     expect(screen.getByText(/loading settings/i)).toBeInTheDocument()
     expect(screen.queryByText(/could not load/i)).not.toBeInTheDocument()
+  })
+
+  it('renders all form controls while loading is true', () => {
+    mockUseSettings.mockReturnValue({ loading: true, error: null })
+    renderPage()
+    expect(screen.getByLabelText('Provider')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /fetch models/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('does not show loading banner when not loading', () => {
+    mockUseSettings.mockReturnValue({ loading: false, error: null })
+    renderPage()
+    expect(screen.queryByText(/loading settings/i)).not.toBeInTheDocument()
   })
 })
 
