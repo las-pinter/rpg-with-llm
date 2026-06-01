@@ -184,6 +184,19 @@ describe('TestConnectionButton — validation: apiKey missing', () => {
 
     expect(checkHealth).not.toHaveBeenCalled()
   })
+
+  it('sets connectionTested to false when apiKey validation fails', async () => {
+    const user = userEvent.setup()
+    useConnectionStore.getState().setProviderType('groq')
+    useConnectionStore.getState().setApiKey('')
+    // Pre-set to true so we can verify the component flips it back
+    useConnectionStore.getState().setConnectionTested(true)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+
+    expect(useConnectionStore.getState().connectionTested).toBe(false)
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -637,6 +650,25 @@ describe('TestConnectionButton — API error response', () => {
       expect(screen.getByRole('button', { name: 'Test Connection' })).toBeEnabled()
     })
   })
+
+  it('sets connectionTested to false on API error', async () => {
+    const user = userEvent.setup()
+    const mockCheckHealth = vi.mocked(checkHealth)
+    mockCheckHealth.mockResolvedValue({
+      ok: false,
+      latency_ms: 0,
+      model: '',
+      error: 'Bad gateway',
+    })
+    useConnectionStore.getState().setConnectionTested(true)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().connectionTested).toBe(false)
+    })
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -723,6 +755,20 @@ describe('TestConnectionButton — network error', () => {
       expect(useConnectionStore.getState().healthOk).toBe(false)
     })
     expect(mockSaveSettings).not.toHaveBeenCalled()
+  })
+
+  it('sets connectionTested to false on network error', async () => {
+    const user = userEvent.setup()
+    const mockCheckHealth = vi.mocked(checkHealth)
+    mockCheckHealth.mockRejectedValue(new Error('Connection refused'))
+    useConnectionStore.getState().setConnectionTested(true)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().connectionTested).toBe(false)
+    })
   })
 })
 
@@ -824,6 +870,54 @@ describe('TestConnectionButton — timeout handling', () => {
     await vi.advanceTimersByTimeAsync(15000)
 
     expect(screen.getByText('Connected')).toBeInTheDocument()
+  })
+
+  it('sets connectionTested to false on timeout', async () => {
+    const user = userEvent.setup()
+    const mockCheckHealth = vi.mocked(checkHealth)
+    mockCheckHealth.mockReturnValue(new Promise(() => {}))
+    useConnectionStore.getState().setTimeout(1)
+    useConnectionStore.getState().setConnectionTested(true)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await vi.advanceTimersByTimeAsync(1500)
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().connectionTested).toBe(false)
+    })
+  })
+
+  it('sets checking to false after timeout', async () => {
+    const user = userEvent.setup()
+    const mockCheckHealth = vi.mocked(checkHealth)
+    mockCheckHealth.mockReturnValue(new Promise(() => {}))
+    useConnectionStore.getState().setTimeout(1)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await vi.advanceTimersByTimeAsync(1500)
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().checking).toBe(false)
+    })
+  })
+
+  it('does not call saveSettings on timeout', async () => {
+    const user = userEvent.setup()
+    const mockCheckHealth = vi.mocked(checkHealth)
+    const mockSaveSettings = vi.mocked(saveSettings)
+    mockCheckHealth.mockReturnValue(new Promise(() => {}))
+    useConnectionStore.getState().setTimeout(1)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await vi.advanceTimersByTimeAsync(1500)
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().healthOk).toBe(false)
+    })
+    expect(mockSaveSettings).not.toHaveBeenCalled()
   })
 })
 
@@ -946,6 +1040,27 @@ describe('TestConnectionButton — edge cases', () => {
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
     await waitFor(() => {
       expect(screen.getByText('Connected')).toBeInTheDocument()
+    })
+  })
+
+  it('bypasses apiKey validation when providerType is empty string', async () => {
+    const user = userEvent.setup()
+    const mockCheckHealth = vi.mocked(checkHealth)
+    mockCheckHealth.mockResolvedValue({
+      ok: true,
+      latency_ms: 5,
+      model: 'llama3.2',
+      error: null,
+    })
+    // Empty providerType means apiKeyRequired is false — health check proceeds
+    useConnectionStore.getState().setProviderType('')
+    useConnectionStore.getState().setApiKey(null)
+    render(<TestConnectionButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+
+    await waitFor(() => {
+      expect(mockCheckHealth).toHaveBeenCalled()
     })
   })
 })
