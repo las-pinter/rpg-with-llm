@@ -8,10 +8,15 @@ export interface ApiError {
   errors?: Record<string, string>
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const url = `${BASE_URL}${path}`
   const headers: Record<string, string> = {}
-  let options: RequestInit = { method }
+  let options: RequestInit = { method, signal }
 
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
@@ -41,8 +46,8 @@ export function get<T>(path: string): Promise<T> {
   return request<T>('GET', path)
 }
 
-export function post<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>('POST', path, body)
+export function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  return request<T>('POST', path, body, signal)
 }
 
 export function del<T>(path: string): Promise<T> {

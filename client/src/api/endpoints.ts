@@ -27,8 +27,11 @@ export interface HealthCheckParams {
   provider_type?: string
 }
 
-export function checkHealth(params: HealthCheckParams): Promise<HealthResponse> {
-  return post<HealthResponse>('/api/health', params)
+export function checkHealth(
+  params: HealthCheckParams,
+  signal?: AbortSignal,
+): Promise<HealthResponse> {
+  return post<HealthResponse>('/api/health', params, signal)
 }
 
 export interface ListModelsParams {
