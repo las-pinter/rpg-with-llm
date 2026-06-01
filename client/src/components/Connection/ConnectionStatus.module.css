@@ -1,0 +1,65 @@
+/* ConnectionStatus — status dot with pulse animation and four colour states. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+}
+
+/* ---- Dot base ---- */
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+
+/* ---- State colours ---- */
+.dotIdle {
+  background: var(--text-muted);
+}
+
+.dotLoading {
+  background: var(--accent-amber);
+  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--accent-glow-strong);
+}
+
+.dotSuccess {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success-bg);
+}
+
+.dotError {
+  background: var(--danger);
+  box-shadow: 0 0 6px var(--danger-bg);
+}
+
+/* ---- Text ---- */
+.text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.latency {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-left: auto;
+}
+
+/* ---- Pulse keyframe ---- */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
