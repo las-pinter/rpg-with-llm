@@ -7,9 +7,11 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { act } from 'react'
 import { useConnectionStore } from '../../stores/connectionStore'
 import ConnectionStatus from './ConnectionStatus'
 import styles from './ConnectionStatus.module.css'
+
 
 /** Reset the connection store before each test. */
 function resetStore() {
@@ -153,5 +155,75 @@ describe('ConnectionStatus — accessibility', () => {
     const { container } = render(<ConnectionStatus />)
     const dot = container.querySelector('span:first-child')
     expect(dot).toHaveAttribute('aria-hidden', 'true')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  State priority — loading wins over error                            */
+/* ------------------------------------------------------------------ */
+
+describe('ConnectionStatus — priority: loading over error', () => {
+  it('shows loading when checking is true even if healthOk is false', () => {
+    // Set a failed health result first…
+    useConnectionStore.getState().setHealthResult(false, null, 'Server down')
+    // …then a new check starts (e.g. retry button)
+    useConnectionStore.getState().setChecking(true)
+    render(<ConnectionStatus />)
+    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.queryByText('Server down')).not.toBeInTheDocument()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  Edge cases                                                          */
+/* ------------------------------------------------------------------ */
+
+describe('ConnectionStatus — edge cases', () => {
+  it('renders empty status text when healthError is empty string', () => {
+    useConnectionStore.getState().setHealthResult(false, null, '')
+    const { container } = render(<ConnectionStatus />)
+    const textEl = container.querySelector('[class*="text"]')
+    expect(textEl).toBeInTheDocument()
+    expect(textEl?.textContent).toBe('')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  State transitions (integration with store)                          */
+/* ------------------------------------------------------------------ */
+
+describe('ConnectionStatus — state transitions', () => {
+  it('moves through idle → loading → success on rerender', () => {
+    // Step 1: idle
+    const { rerender } = render(<ConnectionStatus />)
+    expect(screen.getByText('Not tested')).toBeInTheDocument()
+
+    // Step 2: loading
+    act(() => useConnectionStore.getState().setChecking(true))
+    rerender(<ConnectionStatus />)
+    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+
+    // Step 3: success with latency
+    act(() => useConnectionStore.getState().setHealthResult(true, 33, null))
+    rerender(<ConnectionStatus />)
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.getByText('33ms')).toBeInTheDocument()
+  })
+
+  it('moves through idle → loading → error on rerender', () => {
+    // Step 1: idle
+    const { rerender } = render(<ConnectionStatus />)
+    expect(screen.getByText('Not tested')).toBeInTheDocument()
+
+    // Step 2: loading
+    act(() => useConnectionStore.getState().setChecking(true))
+    rerender(<ConnectionStatus />)
+    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+
+    // Step 3: error
+    act(() => useConnectionStore.getState().setHealthResult(false, null, 'Timeout'))
+    rerender(<ConnectionStatus />)
+    expect(screen.getByText('Timeout')).toBeInTheDocument()
+    expect(screen.queryByText(/ms$/)).not.toBeInTheDocument()
   })
 })
