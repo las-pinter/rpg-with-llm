@@ -1,0 +1,163 @@
+/* ConnectionPage — LLM provider setup form with dark fantasy theme. */
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+  animation: fadeIn 0.3s ease;
+}
+
+/* ---- Title ---- */
+
+.title {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+  color: var(--accent-gold, #d4a547);
+}
+
+.subtitle {
+  color: var(--text-muted, #7a6e5a);
+  font-style: italic;
+  font-size: 0.95rem;
+  font-family: var(--font-narrative, Georgia, serif);
+  margin-bottom: 1.5rem;
+}
+
+.accentBar {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--accent-gold, #d4a547) 0%,
+    transparent 100%
+  );
+  margin-bottom: 1.5rem;
+  border: none;
+}
+
+/* ---- Status banners ---- */
+
+.loadingBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius, 5px);
+  background: var(--bg-elevated, #2a2a46);
+  border: 1px solid var(--border, #2a2a44);
+  color: var(--text-secondary, #b8aa90);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-light, #3a3a58);
+  border-top-color: var(--accent-gold, #d4a547);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius, 5px);
+  background: var(--danger-bg, rgba(184, 48, 48, 0.12));
+  border: 1px solid var(--danger-border, rgba(184, 48, 48, 0.3));
+  color: var(--danger, #b83030);
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+/* ---- Form sections ---- */
+
+.section {
+  margin-bottom: 1.25rem;
+  background: var(--bg-surface, #22223a);
+  border: 1px solid var(--border, #2a2a44);
+  border-radius: var(--radius-lg, 8px);
+  padding: 1.25rem;
+}
+
+.section:last-of-type {
+  margin-bottom: 1.5rem;
+}
+
+/* ---- Footer ---- */
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border, #2a2a44);
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.55rem 1.2rem;
+  background: var(--bg-elevated, #2a2a46);
+  color: var(--text-secondary, #b8aa90);
+  border: 1px solid var(--border-light, #3a3a58);
+  border-radius: var(--radius, 5px);
+  font-size: 0.9rem;
+  font-family: var(--font-ui, sans-serif);
+  cursor: pointer;
+  transition: all 150ms ease;
+  text-decoration: none;
+}
+
+.backButton:hover {
+  background: var(--bg-hover, #2e2e4e);
+  border-color: var(--accent-gold, #d4a547);
+  color: var(--accent-gold, #d4a547);
+}
+
+.startButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.4rem;
+  background: var(--accent-amber, #b8862d);
+  color: var(--text-inverse, #1a1a2e);
+  border: 1px solid var(--accent-gold, #d4a547);
+  border-radius: var(--radius, 5px);
+  font-size: 0.9rem;
+  font-family: var(--font-ui, sans-serif);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.startButton:hover:not(:disabled) {
+  background: var(--accent-gold, #d4a547);
+  box-shadow: 0 0 12px var(--accent-glow, rgba(212, 165, 71, 0.15));
+}
+
+.startButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 600px) {
+  .page {
+    padding: 1rem;
+  }
+
+  .footer {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .backButton,
+  .startButton {
+    width: 100%;
+    justify-content: center;
+  }
+}
