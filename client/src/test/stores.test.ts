@@ -172,18 +172,152 @@ describe('connectionStore', () => {
     expect(state.loading).toBe(false)
   })
 
-  it('reset restores all new defaults', () => {
-    const store = useConnectionStore.getState()
-    store.setTimeout(600)
-    store.setNpcEnabled(false)
-    store.setConnectionTested(true)
-    store.setModels(['codellama'])
-    store.setLoading(true)
-    store.setError('oh no')
-    store.reset()
+  it('setSettings with a single field merges partial', () => {
+    useConnectionStore.getState().setSettings({ dm_max_tokens: 999 })
     const state = useConnectionStore.getState()
+    expect(state.dm_max_tokens).toBe(999)
+    // Other agent fields unchanged
+    expect(state.dm_temperature).toBe(0.8)
+    expect(state.dm_timeout).toBe(120)
+    // Other unrelated fields unchanged
     expect(state.timeout).toBe(300)
+  })
+
+  it('setSettings with null values merges correctly', () => {
+    useConnectionStore.getState().setSettings({
+      apiKey: 'some-key',
+      max_tokens: 4096,
+      temperature: 0.5,
+    })
+    useConnectionStore.getState().setSettings({
+      apiKey: null,
+      max_tokens: null,
+      temperature: null,
+    })
+    const state = useConnectionStore.getState()
+    expect(state.apiKey).toBeNull()
+    expect(state.max_tokens).toBeNull()
+    expect(state.temperature).toBeNull()
+  })
+
+  it('setSettings multiple sequential calls merge correctly', () => {
+    const store = useConnectionStore.getState()
+    store.setSettings({ timeout: 100 })
+    store.setSettings({ timeout: 200, npcEnabled: false })
+    store.setSettings({ summarizerEnabled: false })
+    const state = useConnectionStore.getState()
+    expect(state.timeout).toBe(200) // overwritten by second call
+    expect(state.npcEnabled).toBe(false)
+    expect(state.summarizerEnabled).toBe(false)
+  })
+
+  it('updates providerType', () => {
+    useConnectionStore.getState().setProviderType('groq')
+    expect(useConnectionStore.getState().providerType).toBe('groq')
+  })
+
+  it('updates apiKey to string and back to null', () => {
+    useConnectionStore.getState().setApiKey('sk-test-key')
+    expect(useConnectionStore.getState().apiKey).toBe('sk-test-key')
+    useConnectionStore.getState().setApiKey(null)
+    expect(useConnectionStore.getState().apiKey).toBeNull()
+  })
+
+  it('updates checking', () => {
+    useConnectionStore.getState().setChecking(true)
+    expect(useConnectionStore.getState().checking).toBe(true)
+    useConnectionStore.getState().setChecking(false)
+    expect(useConnectionStore.getState().checking).toBe(false)
+  })
+
+  it('sets temperature to null', () => {
+    useConnectionStore.getState().setTemperature(0.5)
+    expect(useConnectionStore.getState().temperature).toBe(0.5)
+    useConnectionStore.getState().setTemperature(null)
+    expect(useConnectionStore.getState().temperature).toBeNull()
+  })
+
+  it('sets error to null', () => {
+    useConnectionStore.getState().setError('Something went wrong')
+    expect(useConnectionStore.getState().error).toBe('Something went wrong')
+    useConnectionStore.getState().setError(null)
+    expect(useConnectionStore.getState().error).toBeNull()
+  })
+
+  it('setting models to empty list', () => {
+    useConnectionStore.getState().setModels(['llama3', 'mistral'])
+    useConnectionStore.getState().setModels([])
+    expect(useConnectionStore.getState().models).toEqual([])
+  })
+
+  it('reset restores ALL fields to initial values', () => {
+    const store = useConnectionStore.getState()
+
+    // Mutate every mutable field
+    store.setBaseUrl('http://other.com')
+    store.setModel('other-model')
+    store.setProviderType('groq')
+    store.setApiKey('sk-key')
+    store.setChecking(true)
+    store.setHealthResult(true, 42, null)
+    store.setSettings({
+      timeout: 999,
+      max_tokens: 2048,
+      temperature: 0.5,
+      dm_max_tokens: 1,
+      dm_temperature: 0.1,
+      dm_timeout: 1,
+      npc_max_tokens: 1,
+      npc_temperature: 0.1,
+      npc_timeout: 1,
+      summarizer_max_tokens: 1,
+      summarizer_temperature: 0.1,
+      summarizer_timeout: 1,
+      npcEnabled: false,
+      summarizerEnabled: false,
+      connectionTested: true,
+      models: ['codellama'],
+      loading: true,
+      error: 'oh no',
+    })
+
+    store.reset()
+
+    const state = useConnectionStore.getState()
+
+    // Connection config
+    expect(state.baseUrl).toBe('http://localhost:11434')
+    expect(state.model).toBe('llama3.2')
+    expect(state.providerType).toBe('ollama')
+    expect(state.apiKey).toBeNull()
+
+    // Health / status
+    expect(state.checking).toBe(false)
+    expect(state.healthOk).toBeNull()
+    expect(state.healthError).toBeNull()
+    expect(state.latencyMs).toBeNull()
+
+    // Agent-specific settings
+    expect(state.dm_max_tokens).toBe(16000)
+    expect(state.dm_temperature).toBe(0.8)
+    expect(state.dm_timeout).toBe(120)
+    expect(state.npc_max_tokens).toBe(1024)
+    expect(state.npc_temperature).toBe(0.7)
+    expect(state.npc_timeout).toBe(60)
+    expect(state.summarizer_max_tokens).toBe(16000)
+    expect(state.summarizer_temperature).toBe(0.7)
+    expect(state.summarizer_timeout).toBe(120)
+
+    // Provider-level settings
+    expect(state.timeout).toBe(300)
+    expect(state.max_tokens).toBeNull()
+    expect(state.temperature).toBeNull()
+
+    // Toggles
     expect(state.npcEnabled).toBe(true)
+    expect(state.summarizerEnabled).toBe(true)
+
+    // Status
     expect(state.connectionTested).toBe(false)
     expect(state.models).toEqual([])
     expect(state.loading).toBe(false)
