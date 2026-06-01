@@ -102,6 +102,7 @@ export function useSettings() {
     return () => {
       cancelled = true
     }
+    // Intentionally runs once on mount — getSettings is a module-level static import
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
