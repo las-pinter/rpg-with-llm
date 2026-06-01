@@ -7,12 +7,94 @@
  * settings with enable toggle.
  */
 
-import { useState, type ChangeEvent } from 'react'
+import { useState, useId, type ChangeEvent } from 'react'
 import { useConnectionStore } from '../../stores/connectionStore'
 import styles from './AdvancedSection.module.css'
 
+/** Factory for integer-setting handlers (max_tokens, timeout). */
+function makeIntHandler(key: string) {
+  return (e: ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10)
+    if (!isNaN(val) && val >= 1) {
+      useConnectionStore.getState().setSettings({ [key]: val })
+    }
+  }
+}
+
+/** Factory for float-setting handlers (temperature, 0–2 range). */
+function makeFloatHandler(key: string) {
+  return (e: ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value)
+    if (!isNaN(val) && val >= 0 && val <= 2) {
+      useConnectionStore.getState().setSettings({ [key]: val })
+    }
+  }
+}
+
+/** Renders the three standard settings fields for a given prefix. */
+function SettingsFields({
+  prefix,
+  maxTokens,
+  temperature,
+  timeout,
+}: {
+  prefix: string
+  maxTokens: number
+  temperature: number
+  timeout: number
+}) {
+  return (
+    <>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={`${prefix}-max-tokens`}>
+          Max Tokens
+        </label>
+        <input
+          id={`${prefix}-max-tokens`}
+          className={styles.numberInput}
+          type="number"
+          min={1}
+          value={maxTokens}
+          onChange={makeIntHandler(`${prefix}_max_tokens`)}
+        />
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={`${prefix}-temperature`}>
+          Temperature
+        </label>
+        <input
+          id={`${prefix}-temperature`}
+          className={styles.numberInput}
+          type="number"
+          min={0}
+          max={2}
+          step={0.1}
+          value={temperature}
+          onChange={makeFloatHandler(`${prefix}_temperature`)}
+        />
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={`${prefix}-timeout`}>
+          Timeout (s)
+        </label>
+        <input
+          id={`${prefix}-timeout`}
+          className={styles.numberInput}
+          type="number"
+          min={1}
+          value={timeout}
+          onChange={makeIntHandler(`${prefix}_timeout`)}
+        />
+      </div>
+    </>
+  )
+}
+
 export default function AdvancedSection() {
   const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
 
   // DM settings
   const dmMaxTokens = useConnectionStore((s) => s.dm_max_tokens)
@@ -43,83 +125,8 @@ export default function AdvancedSection() {
     setExpanded((prev) => !prev)
   }
 
-  /* ---- DM handlers ---- */
-
-  function handleDmMaxTokens(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseInt(e.target.value, 10)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({ dm_max_tokens: val })
-    }
-  }
-
-  function handleDmTemperature(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseFloat(e.target.value)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({ dm_temperature: val })
-    }
-  }
-
-  function handleDmTimeout(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseInt(e.target.value, 10)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({ dm_timeout: val })
-    }
-  }
-
-  /* ---- NPC handlers ---- */
-
-  function handleNpcMaxTokens(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseInt(e.target.value, 10)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({ npc_max_tokens: val })
-    }
-  }
-
-  function handleNpcTemperature(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseFloat(e.target.value)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({ npc_temperature: val })
-    }
-  }
-
-  function handleNpcTimeout(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseInt(e.target.value, 10)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({ npc_timeout: val })
-    }
-  }
-
   function handleNpcToggle() {
     useConnectionStore.getState().setNpcEnabled(!npcEnabled)
-  }
-
-  /* ---- Summarizer handlers ---- */
-
-  function handleSummarizerMaxTokens(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseInt(e.target.value, 10)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({
-        summarizer_max_tokens: val,
-      })
-    }
-  }
-
-  function handleSummarizerTemperature(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseFloat(e.target.value)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({
-        summarizer_temperature: val,
-      })
-    }
-  }
-
-  function handleSummarizerTimeout(e: ChangeEvent<HTMLInputElement>) {
-    const val = parseInt(e.target.value, 10)
-    if (!isNaN(val)) {
-      useConnectionStore.getState().setSettings({
-        summarizer_timeout: val,
-      })
-    }
   }
 
   function handleSummarizerToggle() {
@@ -134,7 +141,7 @@ export default function AdvancedSection() {
         className={styles.header}
         onClick={toggleExpanded}
         aria-expanded={expanded}
-        aria-controls="advanced-settings-content"
+        aria-controls={contentId}
       >
         <span>Advanced Settings</span>
         <span
@@ -147,59 +154,19 @@ export default function AdvancedSection() {
 
       {/* ---- Collapsible Content ---- */}
       {expanded && (
-        <div
-          id="advanced-settings-content"
-          className={styles.content}
-        >
+        <div id={contentId} className={styles.content}>
           {/* ================================================================ */}
           {/*  A. DM Generation Settings                                       */}
           {/* ================================================================ */}
           <div className={styles.subsection}>
             <h4 className={styles.subsectionTitle}>Dungeon Master</h4>
 
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="dm-max-tokens">
-                Max Tokens
-              </label>
-              <input
-                id="dm-max-tokens"
-                className={styles.numberInput}
-                type="number"
-                min={1}
-                value={dmMaxTokens}
-                onChange={handleDmMaxTokens}
-              />
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="dm-temperature">
-                Temperature
-              </label>
-              <input
-                id="dm-temperature"
-                className={styles.numberInput}
-                type="number"
-                min={0}
-                max={2}
-                step={0.1}
-                value={dmTemperature}
-                onChange={handleDmTemperature}
-              />
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="dm-timeout">
-                Timeout (s)
-              </label>
-              <input
-                id="dm-timeout"
-                className={styles.numberInput}
-                type="number"
-                min={1}
-                value={dmTimeout}
-                onChange={handleDmTimeout}
-              />
-            </div>
+            <SettingsFields
+              prefix="dm"
+              maxTokens={dmMaxTokens}
+              temperature={dmTemperature}
+              timeout={dmTimeout}
+            />
           </div>
 
           {/* ================================================================ */}
@@ -222,60 +189,12 @@ export default function AdvancedSection() {
             </div>
 
             {npcEnabled && (
-              <>
-                <div className={styles.field}>
-                  <label
-                    className={styles.label}
-                    htmlFor="npc-max-tokens"
-                  >
-                    Max Tokens
-                  </label>
-                  <input
-                    id="npc-max-tokens"
-                    className={styles.numberInput}
-                    type="number"
-                    min={1}
-                    value={npcMaxTokens}
-                    onChange={handleNpcMaxTokens}
-                  />
-                </div>
-
-                <div className={styles.field}>
-                  <label
-                    className={styles.label}
-                    htmlFor="npc-temperature"
-                  >
-                    Temperature
-                  </label>
-                  <input
-                    id="npc-temperature"
-                    className={styles.numberInput}
-                    type="number"
-                    min={0}
-                    max={2}
-                    step={0.1}
-                    value={npcTemperature}
-                    onChange={handleNpcTemperature}
-                  />
-                </div>
-
-                <div className={styles.field}>
-                  <label
-                    className={styles.label}
-                    htmlFor="npc-timeout"
-                  >
-                    Timeout (s)
-                  </label>
-                  <input
-                    id="npc-timeout"
-                    className={styles.numberInput}
-                    type="number"
-                    min={1}
-                    value={npcTimeout}
-                    onChange={handleNpcTimeout}
-                  />
-                </div>
-              </>
+              <SettingsFields
+                prefix="npc"
+                maxTokens={npcMaxTokens}
+                temperature={npcTemperature}
+                timeout={npcTimeout}
+              />
             )}
           </div>
 
@@ -302,60 +221,12 @@ export default function AdvancedSection() {
             </div>
 
             {summarizerEnabled && (
-              <>
-                <div className={styles.field}>
-                  <label
-                    className={styles.label}
-                    htmlFor="summarizer-max-tokens"
-                  >
-                    Max Tokens
-                  </label>
-                  <input
-                    id="summarizer-max-tokens"
-                    className={styles.numberInput}
-                    type="number"
-                    min={1}
-                    value={summarizerMaxTokens}
-                    onChange={handleSummarizerMaxTokens}
-                  />
-                </div>
-
-                <div className={styles.field}>
-                  <label
-                    className={styles.label}
-                    htmlFor="summarizer-temperature"
-                  >
-                    Temperature
-                  </label>
-                  <input
-                    id="summarizer-temperature"
-                    className={styles.numberInput}
-                    type="number"
-                    min={0}
-                    max={2}
-                    step={0.1}
-                    value={summarizerTemperature}
-                    onChange={handleSummarizerTemperature}
-                  />
-                </div>
-
-                <div className={styles.field}>
-                  <label
-                    className={styles.label}
-                    htmlFor="summarizer-timeout"
-                  >
-                    Timeout (s)
-                  </label>
-                  <input
-                    id="summarizer-timeout"
-                    className={styles.numberInput}
-                    type="number"
-                    min={1}
-                    value={summarizerTimeout}
-                    onChange={handleSummarizerTimeout}
-                  />
-                </div>
-              </>
+              <SettingsFields
+                prefix="summarizer"
+                maxTokens={summarizerMaxTokens}
+                temperature={summarizerTemperature}
+                timeout={summarizerTimeout}
+              />
             )}
           </div>
         </div>
