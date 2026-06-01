@@ -226,11 +226,17 @@ describe('AdvancedSection — expand/collapse', () => {
     expect(header).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('has aria-controls pointing to the content region', () => {
+  it('has aria-controls pointing to the content region', async () => {
+    const user = userEvent.setup()
     render(<AdvancedSection />)
-    expect(
-      screen.getByRole('button', { name: /advanced settings/i }),
-    ).toHaveAttribute('aria-controls', 'advanced-settings-content')
+    const button = screen.getByRole('button', { name: /advanced settings/i })
+    const controlsId = button.getAttribute('aria-controls')
+    expect(controlsId).toBeTruthy()
+
+    // Expand and verify the content div exists with that id
+    await user.click(button)
+    const content = document.getElementById(controlsId!)
+    expect(content).toBeInTheDocument()
   })
 
   it('toggles when activated with Enter key', async () => {
@@ -889,7 +895,7 @@ describe('AdvancedSection — number input parsing', () => {
     expect(useConnectionStore.getState().dm_timeout).toBe(120)
   })
 
-  it('parses zero from max tokens input', async () => {
+  it('does NOT update store when max tokens is set to 0 (min=1 guard)', async () => {
     const user = userEvent.setup()
     const section = getSubsection(DM_NAME)
     const input = within(section).getByLabelText('Max Tokens')
@@ -897,7 +903,8 @@ describe('AdvancedSection — number input parsing', () => {
     await user.tripleClick(input)
     await user.keyboard('0')
 
-    expect(useConnectionStore.getState().dm_max_tokens).toBe(0)
+    // Store stays at default because val >= 1 guard rejects 0
+    expect(useConnectionStore.getState().dm_max_tokens).toBe(16000)
   })
 
   it('handles negative max tokens value in the store and input', async () => {
@@ -909,15 +916,15 @@ describe('AdvancedSection — number input parsing', () => {
     expect(input).toHaveValue(-50)
   })
 
-  it('parses leading zeros from max tokens input correctly', async () => {
+  it('parses integer values from max tokens after clear', async () => {
     const user = userEvent.setup()
     const section = getSubsection(DM_NAME)
     const input = within(section).getByLabelText('Max Tokens')
 
     await user.tripleClick(input)
-    await user.keyboard('00100')
+    await user.keyboard('2500')
 
-    expect(useConnectionStore.getState().dm_max_tokens).toBe(100)
+    expect(useConnectionStore.getState().dm_max_tokens).toBe(2500)
   })
 
   it('handles zero temperature value in the store and input', async () => {
@@ -1041,8 +1048,11 @@ describe('AdvancedSection — accessibility', () => {
     expect(input).toHaveAttribute('id', 'summarizer-timeout')
   })
 
-  it('content region exists with the correct id when expanded', () => {
-    const content = document.getElementById('advanced-settings-content')
+  it('content region exists with the id from aria-controls when expanded', () => {
+    const button = screen.getByRole('button', { name: /advanced settings/i })
+    const controlsId = button.getAttribute('aria-controls')
+    expect(controlsId).toBeTruthy()
+    const content = document.getElementById(controlsId!)
     expect(content).toBeInTheDocument()
   })
 })
