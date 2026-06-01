@@ -44,6 +44,151 @@ describe('connectionStore', () => {
     expect(state.baseUrl).toBe('http://localhost:11434')
     expect(state.model).toBe('llama3.2')
   })
+
+  it('has new default values for agent settings', () => {
+    const state = useConnectionStore.getState()
+    expect(state.dm_max_tokens).toBe(16000)
+    expect(state.dm_temperature).toBe(0.8)
+    expect(state.dm_timeout).toBe(120)
+    expect(state.npc_max_tokens).toBe(1024)
+    expect(state.npc_temperature).toBe(0.7)
+    expect(state.npc_timeout).toBe(60)
+    expect(state.summarizer_max_tokens).toBe(16000)
+    expect(state.summarizer_temperature).toBe(0.7)
+    expect(state.summarizer_timeout).toBe(120)
+  })
+
+  it('has new default values for provider-level and status fields', () => {
+    const state = useConnectionStore.getState()
+    expect(state.timeout).toBe(300)
+    expect(state.max_tokens).toBeNull()
+    expect(state.temperature).toBeNull()
+    expect(state.npcEnabled).toBe(true)
+    expect(state.summarizerEnabled).toBe(true)
+    expect(state.connectionTested).toBe(false)
+    expect(state.models).toEqual([])
+    expect(state.loading).toBe(false)
+    expect(state.error).toBeNull()
+  })
+
+  it('updates dm settings', () => {
+    useConnectionStore.getState().setSettings({
+      dm_max_tokens: 32000,
+      dm_temperature: 0.9,
+      dm_timeout: 240,
+    })
+    const state = useConnectionStore.getState()
+    expect(state.dm_max_tokens).toBe(32000)
+    expect(state.dm_temperature).toBe(0.9)
+    expect(state.dm_timeout).toBe(240)
+  })
+
+  it('updates npc settings via individual setters', () => {
+    useConnectionStore.getState().setSettings({
+      npc_max_tokens: 2048,
+      npc_temperature: 0.5,
+      npc_timeout: 120,
+    })
+    const state = useConnectionStore.getState()
+    expect(state.npc_max_tokens).toBe(2048)
+    expect(state.npc_temperature).toBe(0.5)
+    expect(state.npc_timeout).toBe(120)
+  })
+
+  it('updates summarizer settings via setSettings', () => {
+    useConnectionStore.getState().setSettings({
+      summarizer_max_tokens: 8000,
+      summarizer_temperature: 0.6,
+      summarizer_timeout: 60,
+    })
+    const state = useConnectionStore.getState()
+    expect(state.summarizer_max_tokens).toBe(8000)
+    expect(state.summarizer_temperature).toBe(0.6)
+    expect(state.summarizer_timeout).toBe(60)
+  })
+
+  it('updates provider-level settings', () => {
+    const store = useConnectionStore.getState()
+    store.setTimeout(600)
+    store.setMaxTokens(4096)
+    store.setTemperature(0.5)
+    const state = useConnectionStore.getState()
+    expect(state.timeout).toBe(600)
+    expect(state.max_tokens).toBe(4096)
+    expect(state.temperature).toBe(0.5)
+  })
+
+  it('sets max_tokens to null', () => {
+    useConnectionStore.getState().setMaxTokens(4096)
+    expect(useConnectionStore.getState().max_tokens).toBe(4096)
+    useConnectionStore.getState().setMaxTokens(null)
+    expect(useConnectionStore.getState().max_tokens).toBeNull()
+  })
+
+  it('toggles npcEnabled and summarizerEnabled', () => {
+    useConnectionStore.getState().setNpcEnabled(false)
+    expect(useConnectionStore.getState().npcEnabled).toBe(false)
+    useConnectionStore.getState().setSummarizerEnabled(false)
+    expect(useConnectionStore.getState().summarizerEnabled).toBe(false)
+  })
+
+  it('updates connectionTested', () => {
+    useConnectionStore.getState().setConnectionTested(true)
+    expect(useConnectionStore.getState().connectionTested).toBe(true)
+  })
+
+  it('updates models list', () => {
+    const models = ['llama3.2', 'mistral', 'codellama']
+    useConnectionStore.getState().setModels(models)
+    expect(useConnectionStore.getState().models).toEqual(models)
+  })
+
+  it('updates loading and error', () => {
+    useConnectionStore.getState().setLoading(true)
+    expect(useConnectionStore.getState().loading).toBe(true)
+    useConnectionStore.getState().setError('Something went wrong')
+    expect(useConnectionStore.getState().error).toBe('Something went wrong')
+  })
+
+  it('setSettings bulk update merges partial state', () => {
+    useConnectionStore.getState().setSettings({
+      timeout: 500,
+      npcEnabled: false,
+      summarizerEnabled: false,
+    })
+    const state = useConnectionStore.getState()
+    expect(state.timeout).toBe(500)
+    expect(state.npcEnabled).toBe(false)
+    expect(state.summarizerEnabled).toBe(false)
+    // Unchanged fields keep defaults
+    expect(state.loading).toBe(false)
+    expect(state.error).toBeNull()
+  })
+
+  it('setSettings with empty object does nothing', () => {
+    useConnectionStore.getState().setSettings({})
+    const state = useConnectionStore.getState()
+    expect(state.timeout).toBe(300)
+    expect(state.loading).toBe(false)
+  })
+
+  it('reset restores all new defaults', () => {
+    const store = useConnectionStore.getState()
+    store.setTimeout(600)
+    store.setNpcEnabled(false)
+    store.setConnectionTested(true)
+    store.setModels(['codellama'])
+    store.setLoading(true)
+    store.setError('oh no')
+    store.reset()
+    const state = useConnectionStore.getState()
+    expect(state.timeout).toBe(300)
+    expect(state.npcEnabled).toBe(true)
+    expect(state.connectionTested).toBe(false)
+    expect(state.models).toEqual([])
+    expect(state.loading).toBe(false)
+    expect(state.error).toBeNull()
+  })
 })
 
 describe('characterStore', () => {
