@@ -1,0 +1,47 @@
+/* TestConnectionButton — dark fantasy "Test Connection" button + status. */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 1.2rem;
+  background: var(--accent-amber, #b8862d);
+  color: var(--text-inverse, #1a1a2e);
+  border: 1px solid var(--accent-gold, #d4a547);
+  border-radius: var(--radius, 5px);
+  font-size: 0.9rem;
+  font-family: var(--font-ui, sans-serif);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition, 150ms ease);
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--accent-gold, #d4a547);
+  color: var(--text-inverse, #1a1a2e);
+  border-color: var(--accent-gold, #d4a547);
+  box-shadow: 0 0 12px var(--accent-glow, rgba(212, 165, 71, 0.15));
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent-gold, #d4a547);
+  outline-offset: 2px;
+}
