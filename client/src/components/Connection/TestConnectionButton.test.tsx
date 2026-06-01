@@ -7,7 +7,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock the API module before any imports that use it
@@ -292,12 +292,15 @@ describe('TestConnectionButton — successful health check', () => {
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
     await waitFor(() => {
-      expect(mockCheckHealth).toHaveBeenCalledWith({
-        base_url: 'http://my-host:8080',
-        model: 'gpt-4',
-        api_key: 'sk-test-key',
-        provider_type: 'groq',
-      })
+      expect(mockCheckHealth).toHaveBeenCalledWith(
+        {
+          base_url: 'http://my-host:8080',
+          model: 'gpt-4',
+          api_key: 'sk-test-key',
+          provider_type: 'groq',
+        },
+        expect.any(AbortSignal),
+      )
     })
   })
 
@@ -824,7 +827,9 @@ describe('TestConnectionButton — timeout handling', () => {
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
     // Advance timers past the 1s timeout
-    await vi.advanceTimersByTimeAsync(1500)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
 
     await waitFor(() => {
       expect(screen.getByText('Request timed out after 1s')).toBeInTheDocument()
@@ -839,7 +844,9 @@ describe('TestConnectionButton — timeout handling', () => {
     render(<TestConnectionButton />)
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
-    await vi.advanceTimersByTimeAsync(1500)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
 
     await waitFor(() => {
       expect(useConnectionStore.getState().healthOk).toBe(false)
@@ -867,7 +874,9 @@ describe('TestConnectionButton — timeout handling', () => {
     })
 
     // Advance past the timeout — should still be connected
-    await vi.advanceTimersByTimeAsync(15000)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000)
+    })
 
     expect(screen.getByText('Connected')).toBeInTheDocument()
   })
@@ -881,7 +890,9 @@ describe('TestConnectionButton — timeout handling', () => {
     render(<TestConnectionButton />)
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
-    await vi.advanceTimersByTimeAsync(1500)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
 
     await waitFor(() => {
       expect(useConnectionStore.getState().connectionTested).toBe(false)
@@ -896,7 +907,9 @@ describe('TestConnectionButton — timeout handling', () => {
     render(<TestConnectionButton />)
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
-    await vi.advanceTimersByTimeAsync(1500)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
 
     await waitFor(() => {
       expect(useConnectionStore.getState().checking).toBe(false)
@@ -912,7 +925,9 @@ describe('TestConnectionButton — timeout handling', () => {
     render(<TestConnectionButton />)
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
-    await vi.advanceTimersByTimeAsync(1500)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
 
     await waitFor(() => {
       expect(useConnectionStore.getState().healthOk).toBe(false)
@@ -1009,6 +1024,7 @@ describe('TestConnectionButton — edge cases', () => {
         expect.objectContaining({
           base_url: 'http://localhost:11434',
         }),
+        expect.any(AbortSignal),
       )
     })
   })

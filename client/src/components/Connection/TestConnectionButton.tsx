@@ -58,12 +58,15 @@ export default function TestConnectionButton() {
 
     try {
       const response = await Promise.race([
-        checkHealth({
-          base_url: store.baseUrl.trim(),
-          model: store.model,
-          ...(store.apiKey ? { api_key: store.apiKey } : {}),
-          ...(store.providerType ? { provider_type: store.providerType } : {}),
-        }),
+        checkHealth(
+          {
+            base_url: store.baseUrl.trim(),
+            model: store.model,
+            ...(store.apiKey ? { api_key: store.apiKey } : {}),
+            ...(store.providerType ? { provider_type: store.providerType } : {}),
+          },
+          controller.signal,
+        ),
         new Promise<never>((_, reject) => {
           controller.signal.addEventListener(
             'abort',
