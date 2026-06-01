@@ -79,6 +79,84 @@ describe('AdvancedSection — collapsed by default', () => {
 })
 
 /* ------------------------------------------------------------------ */
+/*  Initial disabled state                                             */
+/* ------------------------------------------------------------------ */
+
+describe('AdvancedSection — initial disabled state', () => {
+  it('hides NPC inputs when npcEnabled starts as false', async () => {
+    act(() => {
+      useConnectionStore.getState().setNpcEnabled(false)
+    })
+
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+    await user.click(
+      screen.getByRole('button', { name: /advanced settings/i }),
+    )
+
+    const section = getSubsection(NPC_NAME)
+    expect(
+      within(section).queryByLabelText('Max Tokens'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(section).queryByLabelText('Temperature'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(section).queryByLabelText('Timeout (s)'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides summarizer inputs when summarizerEnabled starts as false', async () => {
+    act(() => {
+      useConnectionStore.getState().setSummarizerEnabled(false)
+    })
+
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+    await user.click(
+      screen.getByRole('button', { name: /advanced settings/i }),
+    )
+
+    const section = getSubsection(SUMMARIZER_NAME)
+    expect(
+      within(section).queryByLabelText('Max Tokens'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(section).queryByLabelText('Temperature'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(section).queryByLabelText('Timeout (s)'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows NPC inputs when npcEnabled starts as true', async () => {
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+    await user.click(
+      screen.getByRole('button', { name: /advanced settings/i }),
+    )
+
+    const section = getSubsection(NPC_NAME)
+    expect(
+      within(section).getByLabelText('Max Tokens'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows summarizer inputs when summarizerEnabled starts as true', async () => {
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+    await user.click(
+      screen.getByRole('button', { name: /advanced settings/i }),
+    )
+
+    const section = getSubsection(SUMMARIZER_NAME)
+    expect(
+      within(section).getByLabelText('Max Tokens'),
+    ).toBeInTheDocument()
+  })
+})
+
+/* ------------------------------------------------------------------ */
 /*  Expand / collapse                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -153,6 +231,36 @@ describe('AdvancedSection — expand/collapse', () => {
     expect(
       screen.getByRole('button', { name: /advanced settings/i }),
     ).toHaveAttribute('aria-controls', 'advanced-settings-content')
+  })
+
+  it('toggles when activated with Enter key', async () => {
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+
+    const header = screen.getByRole('button', {
+      name: /advanced settings/i,
+    })
+    header.focus()
+    await user.keyboard('{Enter}')
+
+    expect(
+      screen.getByRole('heading', { name: DM_NAME }),
+    ).toBeInTheDocument()
+  })
+
+  it('toggles when activated with Space key', async () => {
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+
+    const header = screen.getByRole('button', {
+      name: /advanced settings/i,
+    })
+    header.focus()
+    await user.keyboard(' ')
+
+    expect(
+      screen.getByRole('heading', { name: DM_NAME }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -256,6 +364,15 @@ describe('AdvancedSection — DM settings', () => {
     const section = getSubsection(DM_NAME)
     const input = within(section).getByLabelText('Temperature')
     expect(input).toHaveValue(1.5)
+  })
+
+  it('reflects an externally mutated dm_timeout in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ dm_timeout: 300 })
+    })
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveValue(300)
   })
 })
 
@@ -380,6 +497,92 @@ describe('AdvancedSection — NPC toggle', () => {
     expect(input).toHaveAttribute('max', '2')
     expect(input).toHaveAttribute('step', '0.1')
   })
+
+  it('NPC max tokens has min=1', () => {
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveAttribute('min', '1')
+  })
+
+  it('NPC timeout has min=1', () => {
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveAttribute('min', '1')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  NPC settings — store interaction                                   */
+/* ------------------------------------------------------------------ */
+
+describe('AdvancedSection — NPC store interaction', () => {
+  beforeEach(async () => {
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+    await user.click(
+      screen.getByRole('button', { name: /advanced settings/i }),
+    )
+  })
+
+  it('updates npc_max_tokens in the store when changed', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+
+    await user.tripleClick(input)
+    await user.keyboard('2048')
+
+    expect(useConnectionStore.getState().npc_max_tokens).toBe(2048)
+  })
+
+  it('updates npc_temperature in the store when changed', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Temperature')
+
+    await user.tripleClick(input)
+    await user.keyboard('0.5')
+
+    expect(useConnectionStore.getState().npc_temperature).toBe(0.5)
+  })
+
+  it('updates npc_timeout in the store when changed', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+
+    await user.tripleClick(input)
+    await user.keyboard('90')
+
+    expect(useConnectionStore.getState().npc_timeout).toBe(90)
+  })
+
+  it('reflects an externally mutated npc_max_tokens in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ npc_max_tokens: 4096 })
+    })
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveValue(4096)
+  })
+
+  it('reflects an externally mutated npc_temperature in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ npc_temperature: 1.2 })
+    })
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Temperature')
+    expect(input).toHaveValue(1.2)
+  })
+
+  it('reflects an externally mutated npc_timeout in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ npc_timeout: 180 })
+    })
+    const section = getSubsection(NPC_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveValue(180)
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -498,6 +701,92 @@ describe('AdvancedSection — summarizer toggle', () => {
     expect(input).toHaveAttribute('max', '2')
     expect(input).toHaveAttribute('step', '0.1')
   })
+
+  it('summarizer max tokens has min=1', () => {
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveAttribute('min', '1')
+  })
+
+  it('summarizer timeout has min=1', () => {
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveAttribute('min', '1')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  Summarizer settings — store interaction                            */
+/* ------------------------------------------------------------------ */
+
+describe('AdvancedSection — summarizer store interaction', () => {
+  beforeEach(async () => {
+    const user = userEvent.setup()
+    render(<AdvancedSection />)
+    await user.click(
+      screen.getByRole('button', { name: /advanced settings/i }),
+    )
+  })
+
+  it('updates summarizer_max_tokens in the store when changed', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+
+    await user.tripleClick(input)
+    await user.keyboard('8000')
+
+    expect(useConnectionStore.getState().summarizer_max_tokens).toBe(8000)
+  })
+
+  it('updates summarizer_temperature in the store when changed', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Temperature')
+
+    await user.tripleClick(input)
+    await user.keyboard('0.5')
+
+    expect(useConnectionStore.getState().summarizer_temperature).toBe(0.5)
+  })
+
+  it('updates summarizer_timeout in the store when changed', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+
+    await user.tripleClick(input)
+    await user.keyboard('60')
+
+    expect(useConnectionStore.getState().summarizer_timeout).toBe(60)
+  })
+
+  it('reflects an externally mutated summarizer_max_tokens in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ summarizer_max_tokens: 32000 })
+    })
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveValue(32000)
+  })
+
+  it('reflects an externally mutated summarizer_temperature in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ summarizer_temperature: 1.5 })
+    })
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Temperature')
+    expect(input).toHaveValue(1.5)
+  })
+
+  it('reflects an externally mutated summarizer_timeout in the store', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ summarizer_timeout: 300 })
+    })
+    const section = getSubsection(SUMMARIZER_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveValue(300)
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -566,6 +855,79 @@ describe('AdvancedSection — number input parsing', () => {
 
     expect(useConnectionStore.getState().dm_timeout).toBe(120)
   })
+
+  it('does NOT update store when letters are typed into max tokens', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+
+    await user.clear(input)
+    await user.type(input, 'abc')
+
+    expect(useConnectionStore.getState().dm_max_tokens).toBe(16000)
+  })
+
+  it('does NOT update store when letters are typed into temperature', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Temperature')
+
+    await user.clear(input)
+    await user.type(input, 'abc')
+
+    expect(useConnectionStore.getState().dm_temperature).toBe(0.8)
+  })
+
+  it('does NOT update store when letters are typed into timeout', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Timeout (s)')
+
+    await user.clear(input)
+    await user.type(input, 'abc')
+
+    expect(useConnectionStore.getState().dm_timeout).toBe(120)
+  })
+
+  it('parses zero from max tokens input', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+
+    await user.tripleClick(input)
+    await user.keyboard('0')
+
+    expect(useConnectionStore.getState().dm_max_tokens).toBe(0)
+  })
+
+  it('handles negative max tokens value in the store and input', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ dm_max_tokens: -50 })
+    })
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveValue(-50)
+  })
+
+  it('parses leading zeros from max tokens input correctly', async () => {
+    const user = userEvent.setup()
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Max Tokens')
+
+    await user.tripleClick(input)
+    await user.keyboard('00100')
+
+    expect(useConnectionStore.getState().dm_max_tokens).toBe(100)
+  })
+
+  it('handles zero temperature value in the store and input', async () => {
+    act(() => {
+      useConnectionStore.getState().setSettings({ dm_temperature: 0 })
+    })
+    const section = getSubsection(DM_NAME)
+    const input = within(section).getByLabelText('Temperature')
+    expect(input).toHaveValue(0)
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -629,5 +991,58 @@ describe('AdvancedSection — accessibility', () => {
     expect(
       screen.getByRole('heading', { name: SUMMARIZER_NAME }),
     ).toBeInTheDocument()
+  })
+
+  it('associates NPC max tokens label with input via htmlFor/id', () => {
+    const section = getSubsection(NPC_NAME)
+    const label = within(section).getByText('Max Tokens')
+    expect(label).toHaveAttribute('for', 'npc-max-tokens')
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveAttribute('id', 'npc-max-tokens')
+  })
+
+  it('associates NPC temperature label with input via htmlFor/id', () => {
+    const section = getSubsection(NPC_NAME)
+    const label = within(section).getByText('Temperature')
+    expect(label).toHaveAttribute('for', 'npc-temperature')
+    const input = within(section).getByLabelText('Temperature')
+    expect(input).toHaveAttribute('id', 'npc-temperature')
+  })
+
+  it('associates NPC timeout label with input via htmlFor/id', () => {
+    const section = getSubsection(NPC_NAME)
+    const label = within(section).getByText('Timeout (s)')
+    expect(label).toHaveAttribute('for', 'npc-timeout')
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveAttribute('id', 'npc-timeout')
+  })
+
+  it('associates summarizer max tokens label with input via htmlFor/id', () => {
+    const section = getSubsection(SUMMARIZER_NAME)
+    const label = within(section).getByText('Max Tokens')
+    expect(label).toHaveAttribute('for', 'summarizer-max-tokens')
+    const input = within(section).getByLabelText('Max Tokens')
+    expect(input).toHaveAttribute('id', 'summarizer-max-tokens')
+  })
+
+  it('associates summarizer temperature label with input via htmlFor/id', () => {
+    const section = getSubsection(SUMMARIZER_NAME)
+    const label = within(section).getByText('Temperature')
+    expect(label).toHaveAttribute('for', 'summarizer-temperature')
+    const input = within(section).getByLabelText('Temperature')
+    expect(input).toHaveAttribute('id', 'summarizer-temperature')
+  })
+
+  it('associates summarizer timeout label with input via htmlFor/id', () => {
+    const section = getSubsection(SUMMARIZER_NAME)
+    const label = within(section).getByText('Timeout (s)')
+    expect(label).toHaveAttribute('for', 'summarizer-timeout')
+    const input = within(section).getByLabelText('Timeout (s)')
+    expect(input).toHaveAttribute('id', 'summarizer-timeout')
+  })
+
+  it('content region exists with the correct id when expanded', () => {
+    const content = document.getElementById('advanced-settings-content')
+    expect(content).toBeInTheDocument()
   })
 })
