@@ -134,6 +134,45 @@ describe('useSettings — initial fetch', () => {
 })
 
 /* ------------------------------------------------------------------ */
+/*  Fetch guards — double-fetch and re-entrant protection            */
+/* ------------------------------------------------------------------ */
+
+describe('useSettings — fetch guards', () => {
+  it('fetches settings exactly once during mount lifecycle', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+
+    renderHook(() => useSettings())
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().loading).toBe(false)
+    })
+
+    expect(getSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fetch if store is already loading (re-entrant guard)', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+
+    act(() => {
+      useConnectionStore.getState().setLoading(true)
+    })
+
+    renderHook(() => useSettings())
+
+    // Small delay to let any effect run
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(getSettings).not.toHaveBeenCalled()
+  })
+})
+
+/* ------------------------------------------------------------------ */
 /*  Loading states                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -238,6 +277,25 @@ describe('useSettings — error handling', () => {
 
     // Store should still have default values (no update after unmount)
     expect(useConnectionStore.getState().baseUrl).toBe('http://localhost:11434')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  Edge cases                                                        */
+/* ------------------------------------------------------------------ */
+
+describe('useSettings — edge cases', () => {
+  it('handles settings response with missing fields without crashing', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      ok: true,
+      settings: {} as any,
+    })
+
+    renderHook(() => useSettings())
+
+    await waitFor(() => {
+      expect(useConnectionStore.getState().loading).toBe(false)
+    })
   })
 })
 
@@ -361,5 +419,111 @@ describe('useSettings — saveSettings', () => {
     const promise = result.current.saveSettings()
     expect(promise).toBeInstanceOf(Promise)
     await promise
+  })
+
+  it('maps all fields correctly when saving settings', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+    vi.mocked(saveSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+
+    const { result } = renderHook(() => useSettings())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      useConnectionStore.getState().setSettings({
+        baseUrl: 'http://full-map:9090',
+        model: 'full-map-model',
+        providerType: 'openrouter',
+        apiKey: 'sk-full-map',
+        dm_max_tokens: 1111,
+        dm_temperature: 0.11,
+        dm_timeout: 222,
+        npc_max_tokens: 3333,
+        npc_temperature: 0.44,
+        npc_timeout: 555,
+        summarizer_max_tokens: 6666,
+        summarizer_temperature: 0.55,
+        summarizer_timeout: 777,
+        timeout: 8888,
+        max_tokens: 9999,
+        temperature: 0.66,
+      })
+    })
+
+    await act(async () => {
+      await result.current.saveSettings()
+    })
+
+    expect(saveSettings).toHaveBeenCalledWith({
+      base_url: 'http://full-map:9090',
+      model: 'full-map-model',
+      provider_type: 'openrouter',
+      api_key: 'sk-full-map',
+      dm_max_tokens: 1111,
+      dm_temperature: 0.11,
+      dm_timeout: 222,
+      npc_max_tokens: 3333,
+      npc_temperature: 0.44,
+      npc_timeout: 555,
+      summarizer_max_tokens: 6666,
+      summarizer_temperature: 0.55,
+      summarizer_timeout: 777,
+      timeout: 8888,
+      max_tokens: 9999,
+      temperature: 0.66,
+    })
+  })
+
+  it('preserves null values through saveSettings mapping', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+    vi.mocked(saveSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+
+    const { result } = renderHook(() => useSettings())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    await act(async () => {
+      await result.current.saveSettings()
+    })
+
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        api_key: null,
+        max_tokens: null,
+        temperature: null,
+      }),
+    )
+  })
+
+  it('throws network error when saveSettings API rejects', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      ok: true,
+      settings: mockSettings,
+    })
+    vi.mocked(saveSettings).mockRejectedValue(new Error('Network failure'))
+
+    const { result } = renderHook(() => useSettings())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    await expect(result.current.saveSettings()).rejects.toThrow('Network failure')
   })
 })
