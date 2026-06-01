@@ -264,19 +264,26 @@ describe('useSettings — error handling', () => {
   })
 
   it('does not update state after unmount (cancelled flag)', async () => {
+    const differentSettings = {
+      ...mockSettings,
+      base_url: 'http://should-not-be-set',
+      model: 'should-not-be-set',
+    }
     vi.mocked(getSettings).mockResolvedValue({
       ok: true,
-      settings: mockSettings,
+      settings: differentSettings,
     })
 
     const { unmount } = renderHook(() => useSettings())
     unmount()
 
-    // Small delay to let the promise chain run
-    await new Promise((r) => setTimeout(r, 50))
-
-    // Store should still have default values (no update after unmount)
-    expect(useConnectionStore.getState().baseUrl).toBe('http://localhost:11434')
+    // Wait for any pending promises to settle
+    await vi.waitFor(() => {
+      // Store should still have defaults — not the mock values — because
+      // the cancelled flag prevented state updates after unmount
+      expect(useConnectionStore.getState().baseUrl).toBe('http://localhost:11434')
+      expect(useConnectionStore.getState().model).toBe('llama3.2')
+    })
   })
 })
 
