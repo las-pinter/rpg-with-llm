@@ -1,0 +1,191 @@
+/* AdvancedSection — collapsible settings panel for DM, NPC, and summarizer. */
+
+.container {
+  margin-top: 1.5rem;
+  border: 1px solid var(--border, #2a2a44);
+  border-radius: var(--radius, 5px);
+  background: var(--bg-surface, #22223a);
+  overflow: hidden;
+}
+
+/* ---- Header ---- */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #e8dcc8);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-ui, sans-serif);
+  cursor: pointer;
+  transition: background var(--transition, 150ms ease);
+}
+
+.header:hover {
+  background: var(--bg-hover, #2e2e4e);
+}
+
+/* ---- Chevron ---- */
+
+.chevron {
+  font-size: 0.7rem;
+  color: var(--accent-gold, #d4a547);
+  transition: transform var(--transition-slow, 300ms ease);
+  line-height: 1;
+}
+
+.chevronExpanded {
+  transform: rotate(90deg);
+}
+
+/* ---- Content wrapper ---- */
+
+.content {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--border, #2a2a44);
+  animation: fadeIn var(--transition-slow, 300ms) ease;
+}
+
+/* ---- Subsection ---- */
+
+.subsection {
+  padding: 1rem 0;
+}
+
+.subsection + .subsection {
+  border-top: 1px solid var(--border-light, #3a3a58);
+}
+
+.subsectionTitle {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-gold, #d4a547);
+  font-family: var(--font-ui, sans-serif);
+  margin: 0 0 0.75rem;
+  font-weight: 400;
+}
+
+/* ---- Field row (label + input) ---- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.6rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #b8aa90);
+  font-family: var(--font-ui, sans-serif);
+}
+
+/* ---- Number input (narrower than full-width text inputs) ---- */
+
+.numberInput {
+  width: 120px;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-input, #0f0f1a);
+  border: 1px solid var(--border, #2a2a44);
+  border-radius: var(--radius, 5px);
+  color: var(--text-primary, #e8dcc8);
+  font-size: 0.85rem;
+  font-family: var(--font-mono, monospace);
+  outline: none;
+  transition:
+    border-color var(--transition, 150ms ease),
+    box-shadow var(--transition, 150ms ease);
+}
+
+.numberInput:focus {
+  border-color: var(--accent-gold, #d4a547);
+  box-shadow: 0 0 0 2px var(--accent-border, rgba(212, 165, 71, 0.3));
+}
+
+.numberInput:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- Toggle row (checkbox + label) ---- */
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ---- Custom checkbox ---- */
+
+.checkbox {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--bg-input, #0f0f1a);
+  border: 1px solid var(--border, #2a2a44);
+  border-radius: var(--radius-sm, 3px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition, 150ms ease);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.checkbox:checked {
+  background: var(--accent-amber, #b8862d);
+  border-color: var(--accent-gold, #d4a547);
+}
+
+.checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-inverse, #1a1a2e);
+  font-size: 0.75rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--accent-gold, #d4a547);
+  outline-offset: 2px;
+}
+
+/* ---- Toggle label ---- */
+
+.toggleLabel {
+  font-size: 0.8rem;
+  color: var(--text-primary, #e8dcc8);
+  font-family: var(--font-ui, sans-serif);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ---- Fade-in animation ---- */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
