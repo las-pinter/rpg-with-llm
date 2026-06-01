@@ -33,7 +33,7 @@ export default function ConnectionPage() {
       {loading && (
         <div className={styles.loadingBanner} role="status">
           <span className={styles.spinner} aria-hidden="true" />
-          <span>Loading settings...</span>
+          <span>Loading...</span>
         </div>
       )}
 

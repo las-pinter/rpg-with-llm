@@ -219,13 +219,13 @@ describe('ConnectionPage — loading state', () => {
   it('shows a loading indicator when useSettings is loading', () => {
     mockUseSettings.mockReturnValue({ loading: true, error: null })
     renderPage()
-    expect(screen.getByText(/loading settings/i)).toBeInTheDocument()
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
   })
 
   it('does not show an error banner when loading', () => {
     mockUseSettings.mockReturnValue({ loading: true, error: 'fail' })
     renderPage()
-    expect(screen.getByText(/loading settings/i)).toBeInTheDocument()
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
     expect(screen.queryByText(/could not load/i)).not.toBeInTheDocument()
   })
 
@@ -241,7 +241,7 @@ describe('ConnectionPage — loading state', () => {
   it('does not show loading banner when not loading', () => {
     mockUseSettings.mockReturnValue({ loading: false, error: null })
     renderPage()
-    expect(screen.queryByText(/loading settings/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
   })
 })
 
@@ -286,7 +286,7 @@ describe('ConnectionPage — accessibility', () => {
     renderPage()
     const statuses = screen.getAllByRole('status')
     const loadingStatus = statuses.find((s) =>
-      s.textContent?.includes('Loading settings'),
+      s.textContent?.includes('Loading...'),
     )
     expect(loadingStatus).toBeInTheDocument()
   })
