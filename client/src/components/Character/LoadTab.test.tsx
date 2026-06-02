@@ -279,7 +279,7 @@ describe('LoadTab — character delete action', () => {
 
     const fetchCharacters = vi
       .spyOn(useCharacterStore.getState(), 'fetchCharacters')
-      .mockImplementation(async () => {})
+      .mockResolvedValue({ ok: false, characters: [] })
 
     renderLoadTab()
 
