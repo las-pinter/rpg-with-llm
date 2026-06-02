@@ -1,0 +1,75 @@
+/* StoryProgress — campfire story flow progress bar with clickable step dots. */
+
+.wrapper {
+  margin-bottom: 1rem;
+}
+
+.progressText {
+  font-family: var(--font-narrative);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.counter {
+  color: var(--text-secondary);
+}
+
+.bar {
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-gold), var(--accent-amber));
+  border-radius: 2px;
+  transition: width var(--transition-slow);
+}
+
+/* Step dots row */
+.dots {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+  padding: 0;
+}
+
+.dot:hover {
+  border-color: var(--accent-gold);
+  background: var(--bg-hover);
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.dot.active {
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 6px var(--accent-glow-strong);
+}
+
+.dot.completed {
+  background: var(--success);
+  border-color: var(--success);
+}
