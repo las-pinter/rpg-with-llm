@@ -1082,12 +1082,14 @@ describe('characterStore', () => {
       expect(useCharacterStore.getState().savedCharacters).toEqual([])
     })
 
-    it('does not update savedCharacters on network error', async () => {
+    it('propagates network errors from listCharacters', async () => {
       vi.mocked(listCharacters).mockRejectedValue(new Error('Network error'))
 
-      await useCharacterStore.getState().fetchCharacters()
+      await expect(
+        useCharacterStore.getState().fetchCharacters(),
+      ).rejects.toThrow('Network error')
 
-      // Background fetch fails silently — savedCharacters stays empty
+      // savedCharacters stays empty because the promise rejected before setting state
       expect(useCharacterStore.getState().savedCharacters).toEqual([])
     })
   })

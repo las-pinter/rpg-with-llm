@@ -6,6 +6,8 @@ import type {
   CharacterRules,
   SaveMeta,
   CharacterListItem,
+  CharactersListResponse,
+  SavesListResponse,
 } from '../api/types'
 import {
   listCharacters,
@@ -57,6 +59,8 @@ export interface CharacterState {
 
   /** Which creation sub-mode is active. */
   creationMode: 'campfire' | 'manual' | 'review'
+  /** Which top-level tab is active: 'create' or 'load'. */
+  activeTab: 'create' | 'load'
 
   // ------------------------------------------------------------------
   // Campfire story
@@ -104,6 +108,7 @@ export interface CharacterActions {
   setSelectedClass: (selectedClass: string) => void
   setRemainingPoints: (points: number) => void
   setCreationMode: (mode: 'campfire' | 'manual' | 'review') => void
+  setActiveTab: (tab: 'create' | 'load') => void
   setStoryAnswers: (answers: string[]) => void
   setCurrentQuestion: (index: number) => void
   setGeneratedCharacter: (character: Character | null) => void
@@ -148,10 +153,10 @@ export interface CharacterActions {
 
   // ---- Load tab ----
 
-  /** Fetch saved characters list from the backend. */
-  fetchCharacters: () => Promise<void>
-  /** Fetch saved games list from the backend. */
-  fetchSaves: () => Promise<void>
+  /** Fetch saved characters list from the backend. Returns API response for callers that need it. */
+  fetchCharacters: () => Promise<CharactersListResponse>
+  /** Fetch saved games list from the backend. Returns API response for callers that need it. */
+  fetchSaves: () => Promise<SavesListResponse>
   /** Load a character by ID and set it as currentCharacter. */
   loadCharacterById: (id: string) => Promise<void>
   /** Delete a character by ID and refresh the list. */
@@ -185,6 +190,7 @@ const initialState: CharacterState = {
   selectedClass: '',
   remainingPoints: 27,
   creationMode: 'campfire',
+  activeTab: 'create',
   storyAnswers: [],
   currentQuestion: 0,
   generatedCharacter: null,
@@ -215,6 +221,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
   setSelectedClass: (selectedClass) => set({ selectedClass }),
   setRemainingPoints: (remainingPoints) => set({ remainingPoints }),
   setCreationMode: (creationMode) => set({ creationMode }),
+  setActiveTab: (activeTab) => set({ activeTab }),
   setStoryAnswers: (storyAnswers) => set({ storyAnswers }),
   setCurrentQuestion: (currentQuestion) => set({ currentQuestion }),
   setGeneratedCharacter: (generatedCharacter) => set({ generatedCharacter }),
@@ -341,7 +348,8 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       remainingPoints,
       storyAnswers: new Array(rules.assisted_creation_questions.length).fill(''),
       currentQuestion: 0,
-      creationMode: 'campfire',
+  creationMode: 'campfire',
+  activeTab: 'create',
       generatedCharacter: null,
       isEditing: false,
       manualName: '',
@@ -387,25 +395,19 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
   // ---- Load tab ----
 
   fetchCharacters: async () => {
-    try {
-      const response = await listCharacters()
-      if (response.ok) {
-        set({ savedCharacters: response.characters })
-      }
-    } catch {
-      // Background fetch — fail silently
+    const response = await listCharacters()
+    if (response.ok) {
+      set({ savedCharacters: response.characters })
     }
+    return response
   },
 
   fetchSaves: async () => {
-    try {
-      const response = await listSaves()
-      if (response.ok) {
-        set({ savedGames: response.saves })
-      }
-    } catch {
-      // Background fetch — fail silently
+    const response = await listSaves()
+    if (response.ok) {
+      set({ savedGames: response.saves })
     }
+    return response
   },
 
   loadCharacterById: async (id) => {
