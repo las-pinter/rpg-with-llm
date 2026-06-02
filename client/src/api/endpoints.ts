@@ -58,6 +58,8 @@ export interface GenerateCharacterParams {
     base_url: string
     model: string
     api_key?: string
+    /** Backend defaults to 'ollama' if omitted. */
+    provider_type?: string
   }
 }
 
