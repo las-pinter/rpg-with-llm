@@ -1,7 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach } from 'vitest'
+
+// Mock API module before any imports that use it
+vi.mock('../api/endpoints', () => ({
+  listCharacters: vi.fn(),
+  listSaves: vi.fn(),
+  loadCharacterById: vi.fn(),
+  deleteCharacterById: vi.fn(),
+  loadGame: vi.fn(),
+  deleteSave: vi.fn(),
+}))
+
+import { listCharacters, loadCharacterById } from '../api/endpoints'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useCharacterStore } from '../stores/characterStore'
 import { useGameStore } from '../stores/gameStore'
+import type { CharacterListItem } from '../api/types'
 
 describe('connectionStore', () => {
   beforeEach(() => {
@@ -334,8 +347,23 @@ describe('characterStore', () => {
     const state = useCharacterStore.getState()
     expect(state.currentCharacter).toBeNull()
     expect(state.savedCharacters).toEqual([])
+    expect(state.savedGames).toEqual([])
     expect(state.loading).toBe(false)
     expect(state.error).toBeNull()
+    expect(state.rules).toBeNull()
+    expect(state.rulesLoading).toBe(false)
+    expect(state.rulesError).toBeNull()
+    expect(state.abilities).toEqual({})
+    expect(state.selectedClass).toBe('')
+    expect(state.remainingPoints).toBe(27)
+    expect(state.creationMode).toBe('campfire')
+    expect(state.storyAnswers).toEqual([])
+    expect(state.currentQuestion).toBe(0)
+    expect(state.generatedCharacter).toBeNull()
+    expect(state.isEditing).toBe(false)
+    expect(state.manualName).toBe('')
+    expect(state.manualAppearance).toBe('')
+    expect(state.manualBackstory).toBe('')
   })
 
   it('sets current character', () => {
@@ -343,7 +371,6 @@ describe('characterStore', () => {
       name: 'Test Hero',
       character_class: 'Fighter',
       level: 1,
-      race: 'Human',
       abilities: { STR: 15, DEX: 13, CON: 14, INT: 10, WIS: 12, CHA: 8 },
       hp: 12,
       max_hp: 12,
@@ -352,9 +379,7 @@ describe('characterStore', () => {
       backstory: '',
       appearance: '',
       personality: '',
-      ideals: '',
-      bonds: '',
-      flaws: '',
+      hooks: [],
       inventory: ['Sword'],
       gold: 10,
       xp: 0,
@@ -365,40 +390,773 @@ describe('characterStore', () => {
   })
 
   it('manages saved characters list', () => {
-    const char1 = {
-      name: 'Hero 1',
-      character_class: 'Rogue',
-      level: 1,
-      race: 'Elf',
-      abilities: { STR: 8, DEX: 15, CON: 13, INT: 14, WIS: 12, CHA: 10 },
-      hp: 9,
-      max_hp: 9,
-      ac: 14,
-      skills: ['Stealth'],
-      backstory: '',
-      appearance: '',
-      personality: '',
-      ideals: '',
-      bonds: '',
-      flaws: '',
-      inventory: ['Dagger'],
-      gold: 15,
-      xp: 0,
-      created_at: '2024-01-01',
-    }
-    useCharacterStore.getState().addSavedCharacter(char1)
+    const items: CharacterListItem[] = [
+      { id: '1', name: 'Hero 1', class: 'Rogue', level: 1, timestamp: '2024-01-01' },
+      { id: '2', name: 'Hero 2', class: 'Fighter', level: 2, timestamp: '2024-01-02' },
+    ]
+    useCharacterStore.getState().setSavedCharacters(items)
+    expect(useCharacterStore.getState().savedCharacters).toHaveLength(2)
+    useCharacterStore.getState().setSavedCharacters([items[0]])
     expect(useCharacterStore.getState().savedCharacters).toHaveLength(1)
-    useCharacterStore.getState().removeSavedCharacter('Hero 1')
-    expect(useCharacterStore.getState().savedCharacters).toHaveLength(0)
+  })
+
+  it('manages saved games list', () => {
+    const saves = [
+      { id: 'save-1', name: 'Adventure 1', timestamp: '2024-01-01', turn_count: 5 },
+      { id: 'save-2', name: 'Adventure 2', timestamp: '2024-01-02', turn_count: 12 },
+    ]
+    useCharacterStore.getState().setSavedGames(saves)
+    expect(useCharacterStore.getState().savedGames).toHaveLength(2)
+    useCharacterStore.getState().setSavedGames([])
+    expect(useCharacterStore.getState().savedGames).toHaveLength(0)
+  })
+
+  it('sets creation mode', () => {
+    useCharacterStore.getState().setCreationMode('manual')
+    expect(useCharacterStore.getState().creationMode).toBe('manual')
+    useCharacterStore.getState().setCreationMode('review')
+    expect(useCharacterStore.getState().creationMode).toBe('review')
+    useCharacterStore.getState().setCreationMode('campfire')
+    expect(useCharacterStore.getState().creationMode).toBe('campfire')
+  })
+
+  it('updates campaign story state', () => {
+    useCharacterStore.getState().setStoryAnswers(['a', 'b', 'c', 'd', 'e', 'f', 'g'])
+    expect(useCharacterStore.getState().storyAnswers).toHaveLength(7)
+    useCharacterStore.getState().setCurrentQuestion(3)
+    expect(useCharacterStore.getState().currentQuestion).toBe(3)
+  })
+
+  it('saves current answer and navigates questions', () => {
+    useCharacterStore.getState().setStoryAnswers(['', '', ''])
+    useCharacterStore.getState().saveCurrentAnswer('my answer')
+    expect(useCharacterStore.getState().storyAnswers[0]).toBe('my answer')
+
+    useCharacterStore.getState().nextQuestion()
+    expect(useCharacterStore.getState().currentQuestion).toBe(1)
+
+    useCharacterStore.getState().prevQuestion()
+    expect(useCharacterStore.getState().currentQuestion).toBe(0)
+  })
+
+  it('does not go below 0 or above max questions', () => {
+    useCharacterStore.getState().setStoryAnswers(['a', 'b'])
+    useCharacterStore.getState().setCurrentQuestion(0)
+    useCharacterStore.getState().prevQuestion()
+    expect(useCharacterStore.getState().currentQuestion).toBe(0)
+
+    useCharacterStore.getState().setCurrentQuestion(1)
+    useCharacterStore.getState().nextQuestion()
+    expect(useCharacterStore.getState().currentQuestion).toBe(1)
+  })
+
+  it('jumps to specific question via goToQuestion', () => {
+    useCharacterStore.getState().setStoryAnswers(['a', 'b', 'c'])
+    useCharacterStore.getState().goToQuestion(2)
+    expect(useCharacterStore.getState().currentQuestion).toBe(2)
+  })
+
+  it('sets generated character and edit mode', () => {
+    expect(useCharacterStore.getState().isEditing).toBe(false)
+    useCharacterStore.getState().setIsEditing(true)
+    expect(useCharacterStore.getState().isEditing).toBe(true)
+    useCharacterStore.getState().setIsEditing(false)
+    expect(useCharacterStore.getState().isEditing).toBe(false)
+  })
+
+  it('sets manual form fields', () => {
+    useCharacterStore.getState().setManualName('Hero')
+    useCharacterStore.getState().setManualAppearance('Tall')
+    useCharacterStore.getState().setManualBackstory('A tale')
+    expect(useCharacterStore.getState().manualName).toBe('Hero')
+    expect(useCharacterStore.getState().manualAppearance).toBe('Tall')
+    expect(useCharacterStore.getState().manualBackstory).toBe('A tale')
+  })
+
+  it('sets rules state fields', () => {
+    useCharacterStore.getState().setRulesLoading(true)
+    expect(useCharacterStore.getState().rulesLoading).toBe(true)
+    useCharacterStore.getState().setRulesError('Network error')
+    expect(useCharacterStore.getState().rulesError).toBe('Network error')
+    useCharacterStore.getState().setRulesLoading(false)
+    useCharacterStore.getState().setRulesError(null)
+    expect(useCharacterStore.getState().rulesLoading).toBe(false)
+    expect(useCharacterStore.getState().rulesError).toBeNull()
+  })
+
+  it('setState bulk update merges partial state', () => {
+    useCharacterStore.getState().setState({
+      loading: true,
+      creationMode: 'manual',
+      manualName: 'Bulk Hero',
+    })
+    const state = useCharacterStore.getState()
+    expect(state.loading).toBe(true)
+    expect(state.creationMode).toBe('manual')
+    expect(state.manualName).toBe('Bulk Hero')
+    // Unchanged fields keep defaults
+    expect(state.error).toBeNull()
+    expect(state.remainingPoints).toBe(27)
   })
 
   it('resets to initial state', () => {
     useCharacterStore.getState().setLoading(true)
     useCharacterStore.getState().setError('Something went wrong')
+    useCharacterStore.getState().setCreationMode('review')
+    useCharacterStore.getState().setManualName('Temp')
     useCharacterStore.getState().reset()
     const state = useCharacterStore.getState()
     expect(state.loading).toBe(false)
     expect(state.error).toBeNull()
+    expect(state.creationMode).toBe('campfire')
+    expect(state.manualName).toBe('')
+  })
+
+  it('point-buy canIncrease/canDecrease guards missing abilities', () => {
+    const state = useCharacterStore.getState()
+    // Without rules and empty abilities, guards return false
+    expect(state.canIncrease('STR')).toBe(false)
+    expect(state.canDecrease('STR')).toBe(false)
+  })
+
+  it('point-buy increase and decrease work with default cost table', () => {
+    useCharacterStore.getState().setAbilities({ STR: 10 })
+    useCharacterStore.getState().increaseAbility('STR')
+    // Without rules but score=10 is under maxScore default (15) and
+    // pointCost is 0 (costs table empty), so increase works
+    expect(useCharacterStore.getState().abilities['STR']).toBe(11)
+    expect(useCharacterStore.getState().remainingPoints).toBe(27)
+
+    useCharacterStore.getState().decreaseAbility('STR')
+    // Decrease works because score=11 > minScore default (8)
+    expect(useCharacterStore.getState().abilities['STR']).toBe(10)
+    expect(useCharacterStore.getState().remainingPoints).toBe(27)
+  })
+
+  it('point-buy cannot increase at max score', () => {
+    useCharacterStore.getState().setRemainingPoints(99)
+    useCharacterStore.getState().setAbilities({ STR: 15 })
+    // With default maxScore=15, STR=15 cannot increase further
+    expect(useCharacterStore.getState().canIncrease('STR')).toBe(false)
+  })
+
+  it('point-buy cannot decrease at min score', () => {
+    useCharacterStore.getState().setAbilities({ STR: 8 })
+    // With default minScore=8, STR=8 cannot decrease further
+    expect(useCharacterStore.getState().canDecrease('STR')).toBe(false)
+  })
+
+  // ------------------------------------------------------------------
+  // Point-buy with real cost table
+  // ------------------------------------------------------------------
+
+  describe('point-buy with real costs', () => {
+    const mockRules = {
+      valid_classes: ['Fighter', 'Rogue', 'Mage', 'Cleric'],
+      standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
+      class_templates: {},
+      point_buy: {
+        costs: {
+          '8': 0,
+          '9': 1,
+          '10': 2,
+          '11': 3,
+          '12': 4,
+          '13': 5,
+          '14': 7,
+          '15': 9,
+        },
+        max_points: 27,
+        min_score: 8,
+        max_score: 15,
+      },
+      assisted_creation_questions: ['Q1?', 'Q2?', 'Q3?'],
+    }
+
+    beforeEach(() => {
+      useCharacterStore.getState().reset()
+      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().setAbilities({ STR: 8 })
+      useCharacterStore.getState().setRemainingPoints(27)
+    })
+
+    it('getCost returns correct cost from real cost table', () => {
+      expect(useCharacterStore.getState().getCost(8)).toBe(0)
+      expect(useCharacterStore.getState().getCost(13)).toBe(5)
+      expect(useCharacterStore.getState().getCost(15)).toBe(9)
+    })
+
+    it('getCost returns 0 for score not in cost table', () => {
+      expect(useCharacterStore.getState().getCost(3)).toBe(0)
+      expect(useCharacterStore.getState().getCost(20)).toBe(0)
+    })
+
+    it('increaseAbility deducts correct point cost', () => {
+      // 8 -> 9 costs 1 point
+      useCharacterStore.getState().increaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(9)
+      expect(useCharacterStore.getState().remainingPoints).toBe(26)
+
+      // 9 -> 10 costs 1 point (cost goes from 1 to 2)
+      useCharacterStore.getState().increaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(10)
+      expect(useCharacterStore.getState().remainingPoints).toBe(25)
+    })
+
+    it('decreaseAbility refunds correct point cost', () => {
+      useCharacterStore.getState().setAbilities({ STR: 15 })
+      useCharacterStore.getState().setRemainingPoints(9)
+
+      // 15 -> 14 refunds 2 points (cost drops from 9 to 7)
+      useCharacterStore.getState().decreaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(14)
+      expect(useCharacterStore.getState().remainingPoints).toBe(11)
+
+      // 14 -> 13 refunds 2 points (cost drops from 7 to 5)
+      useCharacterStore.getState().decreaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(13)
+      expect(useCharacterStore.getState().remainingPoints).toBe(13)
+    })
+
+    it('canIncrease returns false when insufficient remaining points', () => {
+      useCharacterStore.getState().setAbilities({ STR: 14 })
+      // 14 -> 15 costs 2 points (9 - 7 = 2)
+      useCharacterStore.getState().setRemainingPoints(1)
+      expect(useCharacterStore.getState().canIncrease('STR')).toBe(false)
+
+      // Exactly enough points should work
+      useCharacterStore.getState().setRemainingPoints(2)
+      expect(useCharacterStore.getState().canIncrease('STR')).toBe(true)
+    })
+
+    it('increaseAbility does nothing when canIncrease is false', () => {
+      // Already at max score (15), cannot increase
+      useCharacterStore.getState().setAbilities({ STR: 15 })
+      useCharacterStore.getState().setRemainingPoints(99)
+
+      useCharacterStore.getState().increaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(15)
+      expect(useCharacterStore.getState().remainingPoints).toBe(99)
+    })
+
+    it('decreaseAbility does nothing when canDecrease is false', () => {
+      // Already at min score (8), cannot decrease
+      useCharacterStore.getState().setAbilities({ STR: 8 })
+      useCharacterStore.getState().increaseAbility('STR') // go to 9, cost 1
+      expect(useCharacterStore.getState().abilities['STR']).toBe(9)
+
+      // Decrease back to 8
+      useCharacterStore.getState().decreaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(8)
+      // 8 is min, so cannot decrease further
+      useCharacterStore.getState().decreaseAbility('STR')
+      expect(useCharacterStore.getState().abilities['STR']).toBe(8)
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // initDefaults
+  // ------------------------------------------------------------------
+
+  describe('initDefaults', () => {
+    it('sets base scores to 8, picks first class, and calculates remaining points', () => {
+      const mockRules = {
+        valid_classes: ['Cleric', 'Fighter', 'Mage', 'Rogue'],
+        standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
+        class_templates: {
+          Cleric: {
+            abilities: { STR: 13, DEX: 8, CON: 14, INT: 10, WIS: 15, CHA: 12 },
+          },
+        },
+        point_buy: {
+          costs: {
+            '8': 0,
+            '9': 1,
+            '10': 2,
+            '11': 3,
+            '12': 4,
+            '13': 5,
+            '14': 7,
+            '15': 9,
+          },
+          max_points: 27,
+          min_score: 8,
+          max_score: 15,
+        },
+        assisted_creation_questions: ['Q1?', 'Q2?', 'Q3?'],
+      }
+
+      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().initDefaults()
+
+      const state = useCharacterStore.getState()
+      // Cleric template: STR=13(5), DEX=8(0), CON=14(7), INT=10(2), WIS=15(9), CHA=12(4)
+      // Total cost: 5+0+7+2+9+4 = 27, remaining = 0
+      expect(state.abilities).toEqual({
+        STR: 13,
+        DEX: 8,
+        CON: 14,
+        INT: 10,
+        WIS: 15,
+        CHA: 12,
+      })
+      expect(state.selectedClass).toBe('Cleric')
+      expect(state.remainingPoints).toBe(0)
+      expect(state.storyAnswers).toEqual(['', '', ''])
+      expect(state.currentQuestion).toBe(0)
+      expect(state.creationMode).toBe('campfire')
+      expect(state.generatedCharacter).toBeNull()
+      expect(state.isEditing).toBe(false)
+      expect(state.manualName).toBe('')
+      expect(state.manualAppearance).toBe('')
+      expect(state.manualBackstory).toBe('')
+    })
+
+    it('picks first valid class even without class_templates entry', () => {
+      const mockRules = {
+        valid_classes: ['Fighter'],
+        standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
+        class_templates: {
+          Cleric: {
+            abilities: { STR: 13, DEX: 8, CON: 14, INT: 10, WIS: 15, CHA: 12 },
+          },
+        },
+        point_buy: {
+          costs: { '8': 0 },
+          max_points: 27,
+          min_score: 8,
+          max_score: 15,
+        },
+        assisted_creation_questions: ['Q1?'],
+      }
+
+      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().initDefaults()
+
+      const state = useCharacterStore.getState()
+      // Fighter class has no template, so all base scores are 8
+      expect(state.selectedClass).toBe('Fighter')
+      expect(state.abilities).toEqual({
+        STR: 8,
+        DEX: 8,
+        CON: 8,
+        INT: 8,
+        WIS: 8,
+        CHA: 8,
+      })
+      expect(state.remainingPoints).toBe(27)
+      expect(state.storyAnswers).toEqual([''])
+    })
+
+    it('does nothing when rules are null', () => {
+      // rules should already be null from reset
+      useCharacterStore.getState().initDefaults()
+      const state = useCharacterStore.getState()
+      expect(state.abilities).toEqual({})
+      expect(state.selectedClass).toBe('')
+      expect(state.remainingPoints).toBe(27)
+      expect(state.storyAnswers).toEqual([])
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // applyClassDefaults
+  // ------------------------------------------------------------------
+
+  describe('applyClassDefaults', () => {
+    const mockRules = {
+      valid_classes: ['Fighter', 'Rogue', 'Mage', 'Cleric'],
+      standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
+      class_templates: {
+        Rogue: {
+          abilities: { STR: 8, DEX: 15, CON: 13, INT: 14, WIS: 12, CHA: 10 },
+        },
+      },
+      point_buy: {
+        costs: {
+          '8': 0,
+          '9': 1,
+          '10': 2,
+          '11': 3,
+          '12': 4,
+          '13': 5,
+          '14': 7,
+          '15': 9,
+        },
+        max_points: 27,
+        min_score: 8,
+        max_score: 15,
+      },
+      assisted_creation_questions: [],
+    }
+
+    beforeEach(() => {
+      useCharacterStore.getState().reset()
+      useCharacterStore.getState().setRules(mockRules as any)
+    })
+
+    it('applies selected class template and recalculates remaining points', () => {
+      useCharacterStore.getState().setSelectedClass('Rogue')
+      useCharacterStore.getState().applyClassDefaults()
+
+      const state = useCharacterStore.getState()
+      // Rogue: STR=8(0), DEX=15(9), CON=13(5), INT=14(7), WIS=12(4), CHA=10(2)
+      // Total: 0+9+5+7+4+2 = 27, remaining = 0
+      expect(state.abilities).toEqual({
+        STR: 8,
+        DEX: 15,
+        CON: 13,
+        INT: 14,
+        WIS: 12,
+        CHA: 10,
+      })
+      expect(state.remainingPoints).toBe(0)
+    })
+
+    it('does nothing when rules are null', () => {
+      useCharacterStore.getState().setRules(null as any)
+      useCharacterStore.getState().setSelectedClass('Rogue')
+      useCharacterStore.getState().applyClassDefaults()
+
+      const state = useCharacterStore.getState()
+      expect(state.abilities).toEqual({})
+      expect(state.remainingPoints).toBe(27)
+    })
+
+    it('does nothing when selectedClass is empty string', () => {
+      useCharacterStore.getState().setSelectedClass('')
+      useCharacterStore.getState().applyClassDefaults()
+
+      const state = useCharacterStore.getState()
+      expect(state.abilities).toEqual({})
+      expect(state.remainingPoints).toBe(27)
+    })
+
+    it('does nothing when selectedClass has no template', () => {
+      useCharacterStore.getState().setSelectedClass('Mage')
+      useCharacterStore.getState().applyClassDefaults()
+
+      const state = useCharacterStore.getState()
+      expect(state.abilities).toEqual({})
+      expect(state.remainingPoints).toBe(27)
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Campfire navigation edge cases
+  // ------------------------------------------------------------------
+
+  describe('campfire navigation edge cases', () => {
+    beforeEach(() => {
+      useCharacterStore.getState().reset()
+    })
+
+    it('saveCurrentAnswer overwrites existing answer at current index', () => {
+      useCharacterStore.getState().setStoryAnswers(['first', '', 'third'])
+      useCharacterStore.getState().setCurrentQuestion(0)
+      useCharacterStore.getState().saveCurrentAnswer('overwritten')
+      expect(useCharacterStore.getState().storyAnswers[0]).toBe('overwritten')
+      expect(useCharacterStore.getState().storyAnswers[1]).toBe('')
+      expect(useCharacterStore.getState().storyAnswers[2]).toBe('third')
+    })
+
+    it('saveCurrentAnswer saves to different index positions', () => {
+      useCharacterStore.getState().setStoryAnswers(['', '', ''])
+      useCharacterStore.getState().setCurrentQuestion(1)
+      useCharacterStore.getState().saveCurrentAnswer('middle answer')
+      expect(useCharacterStore.getState().storyAnswers[0]).toBe('')
+      expect(useCharacterStore.getState().storyAnswers[1]).toBe('middle answer')
+      expect(useCharacterStore.getState().storyAnswers[2]).toBe('')
+    })
+
+    it('nextQuestion does not advance past the last question', () => {
+      useCharacterStore.getState().setStoryAnswers(['a', 'b'])
+      useCharacterStore.getState().setCurrentQuestion(1)
+      useCharacterStore.getState().nextQuestion()
+      expect(useCharacterStore.getState().currentQuestion).toBe(1)
+    })
+
+    it('prevQuestion does not go below question 0', () => {
+      useCharacterStore.getState().setStoryAnswers(['a', 'b'])
+      useCharacterStore.getState().setCurrentQuestion(0)
+      useCharacterStore.getState().prevQuestion()
+      expect(useCharacterStore.getState().currentQuestion).toBe(0)
+    })
+
+    it('goToQuestion sets currentQuestion to any index', () => {
+      useCharacterStore.getState().setStoryAnswers(['a', 'b', 'c', 'd'])
+      useCharacterStore.getState().goToQuestion(3)
+      expect(useCharacterStore.getState().currentQuestion).toBe(3)
+    })
+
+    it('goToQuestion can set question beyond bounds', () => {
+      useCharacterStore.getState().setStoryAnswers(['a', 'b'])
+      // goToQuestion doesn't bound-check — it sets whatever index you pass
+      useCharacterStore.getState().goToQuestion(999)
+      expect(useCharacterStore.getState().currentQuestion).toBe(999)
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Additional setter coverage
+  // ------------------------------------------------------------------
+
+  it('sets selected class', () => {
+    useCharacterStore.getState().setSelectedClass('Mage')
+    expect(useCharacterStore.getState().selectedClass).toBe('Mage')
+  })
+
+  it('sets remaining points explicitly', () => {
+    useCharacterStore.getState().setRemainingPoints(15)
+    expect(useCharacterStore.getState().remainingPoints).toBe(15)
+  })
+
+  it('sets generated character to null and back', () => {
+    expect(useCharacterStore.getState().generatedCharacter).toBeNull()
+    const char = {
+      name: 'Generated Hero',
+      character_class: 'Mage',
+      level: 1,
+      abilities: { STR: 8, DEX: 14, CON: 13, INT: 15, WIS: 12, CHA: 10 },
+      hp: 8,
+      max_hp: 8,
+      ac: 12,
+      skills: ['Arcana'],
+      backstory: '',
+      appearance: '',
+      personality: '',
+      hooks: [],
+      inventory: ['Spellbook'],
+      gold: 20,
+      xp: 0,
+      created_at: '2024-01-01',
+    }
+    useCharacterStore.getState().setGeneratedCharacter(char)
+    expect(useCharacterStore.getState().generatedCharacter?.name).toBe('Generated Hero')
+    useCharacterStore.getState().setGeneratedCharacter(null)
+    expect(useCharacterStore.getState().generatedCharacter).toBeNull()
+  })
+
+  it('setStoryAnswers replaces entire array', () => {
+    useCharacterStore.getState().setStoryAnswers(['x', 'y', 'z'])
+    expect(useCharacterStore.getState().storyAnswers).toEqual(['x', 'y', 'z'])
+    useCharacterStore.getState().setStoryAnswers([])
+    expect(useCharacterStore.getState().storyAnswers).toEqual([])
+  })
+
+  // ------------------------------------------------------------------
+  // Comprehensive reset
+  // ------------------------------------------------------------------
+
+  it('reset restores ALL fields to initial values', () => {
+    const state = useCharacterStore.getState()
+
+    // Mutate every mutable field
+    state.setCurrentCharacter({
+      name: 'Mutated',
+      character_class: 'Rogue',
+      level: 5,
+      abilities: { STR: 14, DEX: 16, CON: 15, INT: 10, WIS: 8, CHA: 12 },
+      hp: 30,
+      max_hp: 30,
+      ac: 15,
+      skills: ['Stealth'],
+      backstory: 'test',
+      appearance: 'test',
+      personality: '',
+      hooks: [],
+      inventory: ['Dagger'],
+      gold: 50,
+      xp: 100,
+      created_at: '2024-06-01',
+    })
+    state.setSavedCharacters([
+      { id: 'c1', name: 'C1', class: 'Fighter', level: 1, timestamp: 't1' },
+    ])
+    state.setSavedGames([{ id: 's1', name: 'S1', timestamp: 't1' }])
+    state.setLoading(true)
+    state.setError('some error')
+    state.setRules({
+      valid_classes: [],
+      standard_abilities: [],
+      class_templates: {},
+      point_buy: { costs: {}, max_points: 27, min_score: 8, max_score: 15 },
+      assisted_creation_questions: [],
+    })
+    state.setRulesLoading(true)
+    state.setRulesError('rules error')
+    state.setAbilities({ STR: 15 })
+    state.setSelectedClass('Mage')
+    state.setRemainingPoints(10)
+    state.setCreationMode('manual')
+    state.setStoryAnswers(['answer'])
+    state.setCurrentQuestion(2)
+    state.setGeneratedCharacter({
+      name: 'Gen',
+      character_class: 'Fighter',
+      level: 1,
+      abilities: { STR: 15, DEX: 13, CON: 14, INT: 10, WIS: 12, CHA: 8 },
+      hp: 12,
+      max_hp: 12,
+      ac: 18,
+      skills: [],
+      backstory: '',
+      appearance: '',
+      personality: '',
+      hooks: [],
+      inventory: [],
+      gold: 0,
+      xp: 0,
+      created_at: '2024-01-01',
+    })
+    state.setIsEditing(true)
+    state.setManualName('Manual')
+    state.setManualAppearance('Tall')
+    state.setManualBackstory('Story')
+
+    state.reset()
+
+    const s = useCharacterStore.getState()
+    expect(s.currentCharacter).toBeNull()
+    expect(s.savedCharacters).toEqual([])
+    expect(s.savedGames).toEqual([])
+    expect(s.loading).toBe(false)
+    expect(s.error).toBeNull()
+    expect(s.rules).toBeNull()
+    expect(s.rulesLoading).toBe(false)
+    expect(s.rulesError).toBeNull()
+    expect(s.abilities).toEqual({})
+    expect(s.selectedClass).toBe('')
+    expect(s.remainingPoints).toBe(27)
+    expect(s.creationMode).toBe('campfire')
+    expect(s.storyAnswers).toEqual([])
+    expect(s.currentQuestion).toBe(0)
+    expect(s.generatedCharacter).toBeNull()
+    expect(s.isEditing).toBe(false)
+    expect(s.manualName).toBe('')
+    expect(s.manualAppearance).toBe('')
+    expect(s.manualBackstory).toBe('')
+  })
+
+  // ------------------------------------------------------------------
+  // Async API methods
+  // ------------------------------------------------------------------
+
+  describe('fetchCharacters', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      useCharacterStore.getState().reset()
+    })
+
+    it('fetches and sets saved characters list', async () => {
+      const mockList: CharacterListItem[] = [
+        {
+          id: 'c1',
+          name: 'Alice',
+          class: 'Fighter',
+          level: 3,
+          timestamp: '2024-01-01',
+        },
+        { id: 'c2', name: 'Bob', class: 'Mage', level: 2, timestamp: '2024-01-02' },
+      ]
+      vi.mocked(listCharacters).mockResolvedValue({
+        ok: true,
+        characters: mockList,
+      } as any)
+
+      await useCharacterStore.getState().fetchCharacters()
+
+      expect(useCharacterStore.getState().savedCharacters).toEqual(mockList)
+    })
+
+    it('does not update savedCharacters when API returns ok:false', async () => {
+      vi.mocked(listCharacters).mockResolvedValue({
+        ok: false,
+        characters: [],
+      } as any)
+
+      await useCharacterStore.getState().fetchCharacters()
+
+      expect(useCharacterStore.getState().savedCharacters).toEqual([])
+    })
+
+    it('does not update savedCharacters on network error', async () => {
+      vi.mocked(listCharacters).mockRejectedValue(new Error('Network error'))
+
+      await useCharacterStore.getState().fetchCharacters()
+
+      // Background fetch fails silently — savedCharacters stays empty
+      expect(useCharacterStore.getState().savedCharacters).toEqual([])
+    })
+  })
+
+  describe('loadCharacterById', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      useCharacterStore.getState().reset()
+    })
+
+    it('loads and sets currentCharacter on success', async () => {
+      const mockCharacter = {
+        name: 'Loaded Hero',
+        character_class: 'Fighter',
+        level: 1,
+        abilities: { STR: 15, DEX: 13, CON: 14, INT: 10, WIS: 12, CHA: 8 },
+        hp: 12,
+        max_hp: 12,
+        ac: 18,
+        skills: ['Athletics'],
+        backstory: '',
+        appearance: '',
+        personality: '',
+        hooks: [],
+        inventory: ['Sword'],
+        gold: 10,
+        xp: 0,
+        created_at: '2024-01-01',
+      }
+      vi.mocked(loadCharacterById).mockResolvedValue({
+        ok: true,
+        character: mockCharacter,
+      } as any)
+
+      await useCharacterStore.getState().loadCharacterById('test-id')
+
+      expect(useCharacterStore.getState().currentCharacter).toEqual(mockCharacter)
+      expect(useCharacterStore.getState().loading).toBe(false)
+      expect(useCharacterStore.getState().error).toBeNull()
+    })
+
+    it('sets error when API returns ok:false', async () => {
+      vi.mocked(loadCharacterById).mockResolvedValue({
+        ok: false,
+      } as any)
+
+      await useCharacterStore.getState().loadCharacterById('bad-id')
+
+      expect(useCharacterStore.getState().currentCharacter).toBeNull()
+      expect(useCharacterStore.getState().error).toBe('Failed to load character')
+      expect(useCharacterStore.getState().loading).toBe(false)
+    })
+
+    it('sets error message on network failure', async () => {
+      vi.mocked(loadCharacterById).mockRejectedValue(new Error('Network failure'))
+
+      await useCharacterStore.getState().loadCharacterById('fail-id')
+
+      expect(useCharacterStore.getState().currentCharacter).toBeNull()
+      expect(useCharacterStore.getState().error).toBe('Network failure')
+      expect(useCharacterStore.getState().loading).toBe(false)
+    })
+
+    it('handles non-Error thrown values gracefully', async () => {
+      vi.mocked(loadCharacterById).mockRejectedValue('raw string')
+
+      await useCharacterStore.getState().loadCharacterById('fail-id')
+
+      expect(useCharacterStore.getState().error).toBe('Failed to load character')
+      expect(useCharacterStore.getState().loading).toBe(false)
+    })
   })
 })
 

@@ -35,10 +35,10 @@ export interface AbilityScores {
 }
 
 export interface Character {
+  id?: string
   name: string
   character_class: string
   level: number
-  race: string
   abilities: AbilityScores
   hp: number
   max_hp: number
@@ -47,14 +47,11 @@ export interface Character {
   backstory: string
   appearance: string
   personality: string
-  ideals: string
-  bonds: string
-  flaws: string
+  hooks: string[]
   inventory: string[]
   gold: number
   xp: number
   created_at: string
-  id?: string
 }
 
 export interface CharacterResponse {
@@ -62,9 +59,18 @@ export interface CharacterResponse {
   character: Character
 }
 
+/** Item in the saved characters list (metadata only, not full character). */
+export interface CharacterListItem {
+  id: string
+  name: string
+  class: string
+  level: number
+  timestamp: string
+}
+
 export interface CharactersListResponse {
   ok: boolean
-  characters: Character[]
+  characters: CharacterListItem[]
 }
 
 export interface CharacterRulesResponse {
@@ -72,10 +78,19 @@ export interface CharacterRulesResponse {
   rules: CharacterRules
 }
 
+export interface ClassTemplate {
+  abilities: Record<string, number>
+  hp?: number
+  ac?: number
+  skills?: string[]
+  inventory?: string[]
+  gold?: number
+}
+
 export interface CharacterRules {
   valid_classes: string[]
   standard_abilities: string[]
-  class_templates: Record<string, Record<string, unknown>>
+  class_templates: Record<string, ClassTemplate>
   point_buy: {
     costs: Record<string, number>
     max_points: number
@@ -118,10 +133,11 @@ export interface SettingsResponse {
 // ---------------------------------------------------------------------------
 
 export interface SaveMeta {
-  slug: string
+  id: string
   name: string
   timestamp: string
   character_name?: string
+  turn_count?: number
 }
 
 export interface SaveResponse {
@@ -137,6 +153,7 @@ export interface SavesListResponse {
 export interface LoadResponse {
   ok: boolean
   state: Record<string, unknown>
+  character?: Record<string, unknown>
 }
 
 export interface StoryResponse {
