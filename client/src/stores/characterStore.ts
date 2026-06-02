@@ -137,8 +137,8 @@ export interface CharacterActions {
 
   // ---- Campfire navigation ----
 
-  /** Store the current question's answer. */
-  saveCurrentAnswer: (answer: string) => void
+  /** Store the answer at the given index (or currentQuestion if omitted). */
+  saveCurrentAnswer: (answer: string, index?: number) => void
   /** Move to the next story question. */
   nextQuestion: () => void
   /** Move to the previous story question. */
@@ -237,8 +237,9 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
 
   canIncrease: (abil) => {
     const { abilities, rules, remainingPoints } = get()
-    const score = abilities[abil]
-    // Guard against missing or invalid scores
+    // Treat missing scores as min_score (matches UI default in AbilityGrid)
+    const minScore = rules?.point_buy?.min_score ?? 8
+    const score = abilities[abil] ?? minScore
     if (typeof score !== 'number' || isNaN(score)) return false
     const maxScore = rules?.point_buy?.max_score ?? 15
     if (score >= maxScore) return false
@@ -252,10 +253,10 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
 
   canDecrease: (abil) => {
     const { abilities, rules } = get()
-    const score = abilities[abil]
-    // Guard against missing or invalid scores
-    if (typeof score !== 'number' || isNaN(score)) return false
+    // Treat missing scores as min_score (matches UI default in AbilityGrid)
     const minScore = rules?.point_buy?.min_score ?? 8
+    const score = abilities[abil] ?? minScore
+    if (typeof score !== 'number' || isNaN(score)) return false
     return score > minScore
   },
 
@@ -351,11 +352,16 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
 
   // ---- Campfire navigation ----
 
-  saveCurrentAnswer: (answer) => {
+  saveCurrentAnswer: (answer, index) => {
     const { currentQuestion, storyAnswers } = get()
-    if (currentQuestion < 0 || currentQuestion >= storyAnswers.length) return
+    const idx = index ?? currentQuestion
+    if (idx < 0) return
     const updated = [...storyAnswers]
-    updated[currentQuestion] = answer
+    // Grow the array if idx is beyond bounds (e.g. before initDefaults)
+    while (updated.length <= idx) {
+      updated.push('')
+    }
+    updated[idx] = answer
     set({ storyAnswers: updated })
   },
 

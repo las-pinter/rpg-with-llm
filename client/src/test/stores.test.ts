@@ -512,10 +512,12 @@ describe('characterStore', () => {
     expect(state.manualName).toBe('')
   })
 
-  it('point-buy canIncrease/canDecrease guards missing abilities', () => {
+  it('point-buy canIncrease/canDecrease treat missing abilities as min_score', () => {
     const state = useCharacterStore.getState()
-    // Without rules and empty abilities, guards return false
-    expect(state.canIncrease('STR')).toBe(false)
+    // Without rules, missing scores default to min_score (8).
+    // With empty cost table, increasing costs 0 points, so canIncrease is true.
+    expect(state.canIncrease('STR')).toBe(true)
+    // At min_score (8), cannot decrease further.
     expect(state.canDecrease('STR')).toBe(false)
   })
 
