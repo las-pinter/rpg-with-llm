@@ -39,6 +39,7 @@ export default function StoryQuestion({ question, questionIndex }: StoryQuestion
         onChange={handleChange}
         placeholder="Type your answer here..."
         aria-label={`Answer for question ${questionIndex + 1}: ${question}`}
+        autoFocus
       />
 
       <div className={styles.footer}>
