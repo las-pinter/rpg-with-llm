@@ -1,0 +1,371 @@
+/* ReviewSheet — character sheet display.
+   Parchment manuscript aesthetic with gold-ink accents and classic
+   tabletop character sheet layout. */
+
+/* ---- Outer wrapper ---- */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: relative;
+}
+
+/* ---- Empty state ---- */
+
+.emptyState {
+  font-family: var(--font-narrative);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 2rem 1rem;
+  font-style: italic;
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+}
+
+/* ---- Character Header ---- */
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.charName {
+  font-family: var(--font-narrative);
+  font-size: 1.4rem;
+  color: var(--accent-gold);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.charClass {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* ---- Accent divider ---- */
+
+.accentBar {
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-gold), transparent);
+  margin: 0.25rem 0;
+  border: none;
+}
+
+/* ---- Section titles ---- */
+
+.sectionTitle {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+/* ---- Ability Scores Grid ---- */
+
+.abilityGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.abilityCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.6rem 0.3rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.abilityLabel {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.abilityValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: var(--font-narrative);
+  color: var(--accent-gold);
+  line-height: 1.2;
+}
+
+/* ---- Stats Row ---- */
+
+.statsRow {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex: 1;
+  min-width: 80px;
+}
+
+.statLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.statValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-narrative);
+  color: var(--accent-gold);
+}
+
+.statMax {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ---- Skills ---- */
+
+.skillsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.skillBadge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+
+/* ---- Narrative text ---- */
+
+.narrativeText {
+  font-family: var(--font-narrative);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.emptyHint {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* ---- Edit textareas ---- */
+
+.editTextarea {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-narrative);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.editTextarea:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px var(--accent-border);
+}
+
+/* ---- Inventory ---- */
+
+.inventoryList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.inventoryItem {
+  font-family: var(--font-narrative);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  padding: 0.25rem 0.5rem;
+  border-left: 2px solid var(--border-light);
+  margin-left: 0.25rem;
+}
+
+/* ---- Action Buttons ---- */
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.actionBtn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.actionBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.actionBtn:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* ---- Cancel button ---- */
+
+.cancelBtn {
+  color: var(--text-muted);
+}
+
+.cancelBtn:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* ---- Regenerate button ---- */
+
+.regenerateBtn {
+  color: var(--text-muted);
+}
+
+.regenerateBtn:hover:not(:disabled) {
+  color: var(--accent-amber);
+  border-color: var(--accent-amber);
+}
+
+/* ---- Start Adventure button (primary) ---- */
+
+.startBtn {
+  background: linear-gradient(135deg, var(--accent-amber), var(--accent-gold));
+  color: var(--text-inverse);
+  font-weight: 600;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.startBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-amber));
+  box-shadow: 0 0 20px var(--accent-glow-strong);
+  color: var(--text-inverse);
+}
+
+/* ---- Spinner ---- */
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--accent-gold);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ---- Error banner ---- */
+
+.errorBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.errorIcon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  margin-top: 1px;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 600px) {
+  .abilityGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .statsRow {
+    flex-direction: column;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actionBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ---- Animations ---- */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
