@@ -1,0 +1,302 @@
+/* SaveGameModal — dark fantasy modal overlay with 4-state machine. */
+
+/* ------------------------------------------------------------------ */
+/* Overlay                                                              */
+/* ------------------------------------------------------------------ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 6, 16, 0.75);
+  backdrop-filter: blur(4px);
+  animation: overlayFadeIn 200ms ease forwards;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Modal card                                                           */
+/* ------------------------------------------------------------------ */
+
+.modal {
+  position: relative;
+  width: 400px;
+  max-width: 90vw;
+  padding: 2rem 1.5rem 1.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 30px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 250ms ease forwards;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Close button                                                         */
+/* ------------------------------------------------------------------ */
+
+.closeBtn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+  line-height: 1;
+}
+
+.closeBtn:hover:not(:disabled) {
+  color: var(--accent-gold);
+  background: rgba(212, 165, 71, 0.08);
+}
+
+.closeBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+/* ------------------------------------------------------------------ */
+/* Title                                                                */
+/* ------------------------------------------------------------------ */
+
+.title {
+  font-family: var(--font-narrative);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--accent-gold);
+  letter-spacing: 0.04em;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* Form / input phase                                                   */
+/* ------------------------------------------------------------------ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: var(--font-ui);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px var(--accent-border);
+}
+
+/* ------------------------------------------------------------------ */
+/* Button row                                                           */
+/* ------------------------------------------------------------------ */
+
+.buttonRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.saveBtn {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  background: var(--accent-amber);
+  color: var(--text-inverse);
+  border: 1px solid var(--accent-gold);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.saveBtn:hover {
+  background: var(--accent-gold);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.cancelBtn {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.cancelBtn:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Centered state (saving / success)                                    */
+/* ------------------------------------------------------------------ */
+
+.centeredState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.statusText {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-family: var(--font-narrative);
+  font-style: italic;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Spinner                                                              */
+/* ------------------------------------------------------------------ */
+
+.spinner {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-light);
+  border-top-color: var(--accent-gold);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Success checkmark                                                    */
+/* ------------------------------------------------------------------ */
+
+.checkmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--success-bg);
+  border: 2px solid var(--success);
+  color: var(--success);
+  font-size: 1.2rem;
+  font-weight: 700;
+  animation: checkPop 300ms ease forwards;
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Error state                                                          */
+/* ------------------------------------------------------------------ */
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.errorMessage {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  text-align: center;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion                                                       */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation: none;
+  }
+  .modal {
+    animation: none;
+  }
+  .spinner {
+    animation: none;
+  }
+  .checkmark {
+    animation: none;
+  }
+}
