@@ -1,0 +1,223 @@
+/* GameInputArea — bottom panel with player input, quick actions, and save/load controls.
+   Dark fantasy stone-and-parchment theme matching the game UI. */
+
+/* ---- Container ---- */
+
+.container {
+  width: 100%;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+/* Parchment accent line at top of the input area */
+.container::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 2rem;
+  right: 2rem;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--accent-gold) 20%,
+    var(--accent-gold) 80%,
+    transparent 100%
+  );
+  border-radius: 0 0 2px 2px;
+  opacity: 0.6;
+}
+
+/* ---- Input Row ---- */
+
+.inputRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.inputField {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: var(--font-narrative);
+  line-height: 1.5;
+  outline: none;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.inputField::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.inputField:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px var(--accent-border), 0 0 12px var(--accent-glow);
+}
+
+.inputField:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--bg-deep);
+}
+
+/* ---- Act Button ---- */
+
+.actBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.4rem;
+  background: linear-gradient(135deg, var(--accent-amber), var(--accent-gold));
+  color: var(--text-inverse);
+  border: 1px solid var(--accent-gold);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  min-width: 72px;
+  text-transform: uppercase;
+}
+
+.actBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold));
+  box-shadow: 0 0 16px var(--accent-glow-strong);
+  transform: translateY(-1px);
+}
+
+.actBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.actBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+.actBtn:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* ---- Quick Actions Row ---- */
+
+.quickActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.quickChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: 100px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.quickChip:hover:not(:disabled) {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  background: var(--accent-glow);
+}
+
+.quickChip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.quickChip:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* ---- Action Buttons Row ---- */
+
+.actionRow {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--bg-deep);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.72rem;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.actionBtn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-light);
+  background: var(--bg-elevated);
+}
+
+.actionBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.actionBtn:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.actionBtnIcon {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .container::before,
+  .inputField,
+  .actBtn,
+  .quickChip,
+  .actionBtn {
+    transition: none;
+  }
+
+  .actBtn:hover:not(:disabled) {
+    transform: none;
+  }
+}
