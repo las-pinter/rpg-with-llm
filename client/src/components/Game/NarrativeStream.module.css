@@ -1,0 +1,157 @@
+/* NarrativeStream — scrollable narrative with per-entry-type styling. */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ---- Scrollable inner area ---- */
+
+.scrollArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* ---- Empty state ---- */
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.emptyText {
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: var(--font-narrative);
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
+/* ---- Player entry — right-aligned speech bubble ---- */
+
+.playerEntry {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.playerBubble {
+  max-width: 80%;
+  padding: 0.6rem 1rem;
+  background: rgba(140, 90, 200, 0.12);
+  border: 1px solid rgba(140, 90, 200, 0.25);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm)
+    var(--radius-lg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ---- Narrative entry — DM prose in serif font ---- */
+
+.narrativeEntry {
+  font-family: var(--font-narrative);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+  max-width: 72ch;
+}
+
+.narrativeParagraph {
+  margin-bottom: 0.5rem;
+}
+
+.narrativeParagraph:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Tool result — gray italic annotation ---- */
+
+.toolResultEntry {
+  font-style: italic;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  padding: 0.15rem 0.5rem;
+}
+
+/* ---- Separator — centered decorative glyph ---- */
+
+.separatorEntry {
+  display: flex;
+  justify-content: center;
+  padding: 0.4rem 0;
+}
+
+.separatorIcon {
+  color: var(--accent-gold);
+  font-size: 0.9rem;
+  opacity: 0.6;
+  user-select: none;
+}
+
+/* ---- Error — red-tinted alert ---- */
+
+.errorEntry {
+  padding: 0.5rem 0.75rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+
+/* ---- Scroll-to-bottom floating button ---- */
+
+.scrollBtn {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.35rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+  font-family: var(--font-ui);
+  z-index: 10;
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollBtn {
+    transition: none;
+  }
+}
+
+.scrollBtn:hover {
+  background: var(--accent-amber);
+  color: var(--text-inverse);
+  border-color: var(--accent-gold);
+}
+
+.scrollBtn:focus-visible,
+.scrollBtn:focus {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
