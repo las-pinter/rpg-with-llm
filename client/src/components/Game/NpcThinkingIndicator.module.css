@@ -1,0 +1,34 @@
+/* NpcThinkingIndicator — subtle fade-in text. */
+
+.wrapper {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wrapper {
+    animation: fadeIn 1s ease forwards;
+  }
+}
+
+.label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-style: italic;
+  letter-spacing: 0.03em;
+  user-select: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
