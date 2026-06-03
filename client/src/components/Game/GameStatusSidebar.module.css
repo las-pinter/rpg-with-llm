@@ -1,0 +1,418 @@
+/* GameStatusSidebar — collapsible stats panel with dark fantasy tome styling. */
+
+/* ---- Container ---- */
+
+.sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  min-width: 280px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition:
+    width var(--transition-slow),
+    min-width var(--transition-slow);
+}
+
+.collapsed {
+  width: 60px;
+  min-width: 60px;
+}
+
+/* Decorative top-accent line */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-gold), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  z-index: 1;
+}
+
+/* ---- Scrollable body (expanded only) ---- */
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.body::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+}
+
+.body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: calc(var(--scrollbar-width) / 2);
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ---- Empty state ---- */
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 1.5rem;
+}
+
+.emptyText {
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: var(--font-narrative);
+  font-size: 0.95rem;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.emptySmall {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: var(--font-narrative);
+  margin: 0;
+}
+
+/* ---- Toggle button ---- */
+
+.toggleBtn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  padding: 0;
+  line-height: 1;
+}
+
+.toggleBtn:hover {
+  background: var(--accent-amber);
+  border-color: var(--accent-gold);
+  color: var(--text-inverse);
+}
+
+.toggleBtn:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.toggleBtnCollapsed {
+  top: 0.5rem;
+  right: 50%;
+  transform: translateX(50%);
+}
+
+/* ---- Collapsed view ---- */
+
+.collapsedBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 3rem;
+  gap: 0.25rem;
+  height: 100%;
+}
+
+.collapsedInitial {
+  font-family: var(--font-narrative);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  line-height: 1;
+}
+
+.collapsedLevel {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ---- Header (expanded) ---- */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 0.75rem 0 0.75rem;
+  min-height: 3rem;
+}
+
+.charInfo {
+  flex: 1;
+  min-width: 0;
+  padding-right: 1.8rem;
+}
+
+.charName {
+  display: block;
+  font-family: var(--font-narrative);
+  font-size: 1rem;
+  color: var(--accent-gold);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.charSub {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+/* ---- Section ---- */
+
+.section {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.7rem;
+}
+
+.sectionTitle {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  margin: 0 0 0.4rem 0;
+}
+
+/* ---- HP section ---- */
+
+.hpSection {
+  padding: 0 0.75rem;
+}
+
+.hpLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  margin-bottom: 0.25rem;
+}
+
+.hpBarBg {
+  width: 100%;
+  height: 10px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.hpBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease, background-color 0.5s ease;
+}
+
+.hpGreen {
+  background: var(--success);
+}
+
+.hpYellow {
+  background: var(--accent-amber);
+}
+
+.hpRed {
+  background: var(--danger);
+}
+
+.charMeta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+
+.charMetaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.charMetaValue {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* ---- Abilities Grid (read-only) ---- */
+
+.abilitiesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+.abilityCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.35rem 0.15rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.abilityLabel {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.abilityScore {
+  font-family: var(--font-narrative);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  line-height: 1.3;
+}
+
+/* ---- Info rows (gold, location) ---- */
+
+.infoRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.infoIcon {
+  color: var(--accent-gold);
+  font-size: 0.7rem;
+  width: 1rem;
+  text-align: center;
+}
+
+.infoLabel {
+  color: var(--text-muted);
+  min-width: 3.5rem;
+}
+
+/* ---- Inventory list ---- */
+
+.itemList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.itemEntry {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-family: var(--font-narrative);
+  padding-left: 0.6rem;
+  position: relative;
+}
+
+.itemEntry::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--accent-gold);
+}
+
+/* ---- NPC list ---- */
+
+.npcList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.npcEntry {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.npcName {
+  color: var(--text-primary);
+}
+
+.npcSeen {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-style: italic;
+}
+
+/* ---- Token usage ---- */
+
+.tokenSection {
+  padding: 0.35rem 0.75rem 0.6rem;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  border-top: 1px solid var(--border);
+  background: var(--bg-deep);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .hpBarFill {
+    transition: none;
+  }
+}
