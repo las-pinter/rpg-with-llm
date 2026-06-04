@@ -1,4 +1,4 @@
-"""Game loop API routes — SPA entry point and SSE stream endpoint."""
+"""Game loop API routes — SSE stream endpoint."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import time
 from collections.abc import Generator
 
 import flask as flask
-from flask import Response, current_app, jsonify, request, stream_with_context
+from flask import Response, jsonify, request, stream_with_context
 
 from app.agents.dm import DungeonMaster
 from app.character.model import Character
@@ -21,17 +21,6 @@ from app.world.model import WorldState
 logger = logging.getLogger(__name__)
 
 bp = flask.Blueprint("game", __name__)
-
-
-# ---------------------------------------------------------------------------
-# Static file serving (SPA frontend)
-# ---------------------------------------------------------------------------
-
-
-@bp.route("/")
-def index() -> tuple[flask.Response, int] | flask.Response:
-    """Serve the SPA entry point (index.html)."""
-    return current_app.send_static_file("index.html")
 
 
 # ---------------------------------------------------------------------------

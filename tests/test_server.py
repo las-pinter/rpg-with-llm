@@ -928,16 +928,11 @@ class TestStaticRoutes:
         assert resp.mimetype == "text/html"
         assert b"LLM-Powered RPG" in resp.data
 
-    def test_index_contains_view_containers(self, client):
-        """GET / contains the three SPA view containers."""
+    def test_index_contains_react_shell(self, client):
+        """GET / contains the React SPA shell (div#root)."""
         resp = client.get("/")
-        html = resp.get_data(as_text=True)
-        assert 'id="view-connection"' in html
-        assert 'id="view-character"' in html
-        assert 'id="view-game"' in html
-        assert 'id="narrative-pane"' in html
-        assert 'id="status-sidebar"' in html
-        assert 'id="input-area"' in html
+        assert resp.status_code == 200
+        assert b'<div id="root">' in resp.data
 
     def test_static_css_is_served(self, client):
         """GET /static/css/style.css returns CSS with 200."""
@@ -967,10 +962,13 @@ class TestStaticRoutes:
         resp = client.get("/static/js/nonexistent.js")
         assert resp.status_code == 404
 
-    def test_static_favicon_not_found_returns_404(self, client):
-        """GET /favicon.ico returns 404 (no crash on common browser request)."""
+    def test_static_favicon_returns_react_spa(self, client):
+        """GET /favicon.ico returns React SPA (catch-all for client-side
+        routing, since no file favicon.ico exists in the React build)."""
         resp = client.get("/favicon.ico")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/html"
+        assert b'<div id="root">' in resp.data
 
     # ------------------------------------------------------------------
     # Security — path traversal protection
@@ -986,10 +984,13 @@ class TestStaticRoutes:
         resp = client.get("/static/..%2Fserver.py")
         assert resp.status_code == 404
 
-    def test_static_directory_listing_blocked(self, client):
-        """GET /static/ does not list directory contents."""
+    def test_static_slash_returns_react_spa(self, client):
+        """GET /static/ returns React SPA (catch-all for client-side
+        routing, since /static/ has no matching static file)."""
         resp = client.get("/static/")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/html"
+        assert b'<div id="root">' in resp.data
 
     # ------------------------------------------------------------------
     # Static file content integrity
@@ -1014,83 +1015,49 @@ class TestStaticRoutes:
         assert "display: block" in css or "display: grid" in css
 
     def test_static_html_has_correct_structure(self, client):
-        """HTML has proper SPA shell structure."""
+        """HTML has proper React SPA shell structure."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
         assert "<!DOCTYPE html>" in html or "<!doctype html>" in html
-        assert '<script defer src="/static/js/app.js"></script>' in html
-        assert '<script defer src="/static/js/connection.js"></script>' in html
-        assert '<script defer src="/static/js/character.js"></script>' in html
-        assert '<script defer src="/static/js/game.js"></script>' in html
-        assert 'id="app"' in html
+        assert 'id="root"' in html
+        assert '<script type="module" crossorigin src=' in html
 
-    def test_static_html_has_all_view_containers(self, client):
-        """HTML contains all three view containers with correct IDs."""
+    def test_static_html_has_react_root(self, client):
+        """HTML contains the React root mount point."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
-        assert 'id="view-connection"' in html
-        assert 'id="view-character"' in html
-        assert 'id="view-game"' in html
-        # Game view sub-containers
-        assert 'id="narrative-pane"' in html
-        assert 'id="status-sidebar"' in html
-        assert 'id="input-area"' in html
-        assert 'id="narrative-content"' in html
-        assert 'id="thinking-indicator"' in html
+        assert 'id="root"' in html
+        assert '<div id="root">' in html
 
-    def test_static_html_has_connection_form_elements(self, client):
-        """HTML contains all connection view form elements."""
+    def test_static_html_has_vite_script(self, client):
+        """HTML contains a Vite module script entry point."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
-        assert 'id="provider-select"' in html
-        assert 'id="base-url"' in html
-        assert 'id="api-key"' in html
-        assert 'id="model-select"' in html
-        assert 'id="model-input"' in html
-        assert 'id="fetch-models"' in html
-        assert 'id="test-connection"' in html
-        assert 'id="connection-status"' in html
-        assert 'id="start-adventure"' in html
+        assert "/assets/index-" in html
+        assert ".js" in html
+        assert 'type="module"' in html
 
-    def test_static_html_has_character_form_elements(self, client):
-        """HTML contains all character creation form elements."""
+    def test_static_html_has_vite_css_link(self, client):
+        """HTML contains a Vite CSS link tag."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
-        assert 'id="char-name"' in html
-        assert 'id="char-class"' in html
-        assert 'id="char-appearance"' in html
-        assert 'id="char-backstory"' in html
-        assert 'id="manual-create-btn"' in html
-        assert 'id="char-validation"' in html
-        assert 'id="remaining-points"' in html
-        assert 'id="skills-display"' in html
-        assert 'id="character-list"' in html
-        assert 'id="campfire-tab"' in html
-        assert 'id="manual-tab"' in html
-        assert 'id="story-section"' in html
-        assert 'id="review-section"' in html
+        assert "/assets/index-" in html
+        assert ".css" in html
+        assert 'rel="stylesheet"' in html
 
-    def test_static_html_has_game_view_input_elements(self, client):
-        """HTML contains all game view input elements."""
+    def test_static_html_has_meta_viewport(self, client):
+        """HTML contains viewport meta tag for responsive design."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
-        assert 'id="player-input"' in html
-        assert 'id="submit-action"' in html
-        assert 'id="quick-actions"' in html
-        assert 'id="new-game-btn"' in html
-        assert 'id="sidebar-collapse"' in html
+        assert 'name="viewport"' in html
+        assert 'content="width=device-width, initial-scale=1.0"' in html
 
-    def test_static_html_has_game_view_sidebar_elements(self, client):
-        """HTML contains all game view sidebar elements."""
+    def test_static_html_has_vite_assets(self, client):
+        """HTML references Vite asset files."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
-        assert 'id="sidebar-name"' in html
-        assert 'id="sidebar-class-level"' in html
-        assert 'id="hp-fill"' in html
-        assert 'id="hp-text"' in html
-        assert 'id="stats-list"' in html
-        assert 'id="inventory-list"' in html
-        assert 'id="location-text"' in html
+        assert "/assets/" in html
+        assert "crossorigin" in html
 
     def test_static_connection_js_served(self, client):
         """GET /static/js/connection.js returns 200 with correct content type."""
@@ -1291,14 +1258,11 @@ class TestStaticRoutes:
         assert "onDone" in js
         assert "onError" in js
 
-    def test_static_html_has_sse_script_tag(self, client):
-        """HTML includes the sse.js script tag before game.js."""
+    def test_static_html_has_module_script(self, client):
+        """HTML includes a module script tag for the React bundle."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
-        assert '<script defer src="/static/js/sse.js"></script>' in html
-        sse_idx = html.index("/static/js/sse.js")
-        game_idx = html.index("/static/js/game.js")
-        assert sse_idx < game_idx, "sse.js must load before game.js"
+        assert '<script type="module" crossorigin src=' in html
 
     def test_game_js_references_sse_client(self, client):
         """game.js references SSEClient for SSE streaming."""

@@ -1,7 +1,8 @@
-"""React SPA route for the strangler fig migration.
+"""React SPA route — serves the production build at ``/``.
 
-Serves the React production build at ``/new/`` while the old SPA
-continues serving at ``/`` without disruption.
+Serves the React production build as the primary frontend at ``/``.
+Any path that doesn't match an API route falls through to React's
+``index.html`` for client-side routing.
 """
 
 from __future__ import annotations
@@ -19,17 +20,25 @@ bp = flask.Blueprint("react", __name__)
 _REACT_DIST = Path(__file__).resolve().parent.parent.parent / "client" / "dist"
 
 
-@bp.route("/new/")
-@bp.route("/new/<path:path>")
+@bp.route("/")
+@bp.route("/<path:path>")
 def serve_react(path: str = "") -> flask.Response:
     """Serve the React SPA production build.
 
     If a path is provided and the file exists in the build directory,
-    it's served directly.  Otherwise, ``index.html`` is returned to
-    support client-side routing.
+    it's served directly.  API routes are intentionally not caught
+    here — they're handled by their own blueprints and will 404
+    through to this handler only if no blueprint matches.
+    Otherwise, ``index.html`` is returned to support client-side
+    routing.
     """
+    # Don't catch API routes — let other blueprints handle them
+    if path and path.startswith("api/"):
+        return flask.abort(404)
+    # Try to serve the exact file (e.g., assets/index-abc.js)
     if path:
         target = _REACT_DIST / path
         if target.is_file():
             return send_from_directory(str(_REACT_DIST), path)
+    # Everything else gets index.html for client-side routing
     return send_from_directory(str(_REACT_DIST), "index.html")
