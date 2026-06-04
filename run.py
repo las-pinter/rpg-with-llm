@@ -14,9 +14,10 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from flask import Flask
+
 from app.routes import register_routes
 
-app = Flask(__name__, static_folder="app/static", static_url_path="/static")
+app = Flask(__name__)
 register_routes(app)
 
 
