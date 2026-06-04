@@ -70,3 +70,15 @@
     opacity: 1;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    animation: none;
+  }
+}
+
+/* Theme-matching text selection */
+.wrapper ::selection {
+  background: var(--accent-glow-strong);
+  color: var(--text-primary);
+}
