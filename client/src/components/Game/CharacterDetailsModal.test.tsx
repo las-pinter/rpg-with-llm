@@ -210,6 +210,34 @@ describe('CharacterDetailsModal', () => {
       ).toBeInTheDocument()
     })
 
+    it('shows "No skills" when skills array is empty', () => {
+      setCharacter({ ...mockCharacter, skills: [] })
+      renderModal()
+
+      expect(
+        screen.getByText('No skills'),
+      ).toBeInTheDocument()
+    })
+
+    it('renders abilities with dash for missing ability scores', () => {
+      setCharacter({
+        ...mockCharacter,
+        abilities: {},
+      })
+      renderModal()
+
+      // All ability labels should still appear
+      expect(screen.getByText('STR')).toBeInTheDocument()
+      expect(screen.getByText('DEX')).toBeInTheDocument()
+      expect(screen.getByText('CON')).toBeInTheDocument()
+      expect(screen.getByText('INT')).toBeInTheDocument()
+      expect(screen.getByText('WIS')).toBeInTheDocument()
+      expect(screen.getByText('CHA')).toBeInTheDocument()
+      // Each value should show dash (we expect 6 dashes, one per ability)
+      const dashes = screen.getAllByText('-')
+      expect(dashes.length).toBeGreaterThanOrEqual(6)
+    })
+
     it('shows plot hooks', () => {
       setCharacter(mockCharacter)
       renderModal()
@@ -287,6 +315,62 @@ describe('CharacterDetailsModal', () => {
 
       const fill = getHpFillElement()
       expect(fill).toBeInTheDocument()
+      expect(fill?.className).toContain('hpRed')
+    })
+
+    it('shows yellow HP bar at exactly 60% (boundary)', () => {
+      // ratio === 0.6 -> NOT > 0.6, so yellow
+      setCharacter({
+        ...mockCharacter,
+        hp: 18,
+        max_hp: 30,
+      })
+      renderModal()
+
+      const fill = getHpFillElement()
+      expect(fill?.className).toContain('hpYellow')
+    })
+
+    it('shows red HP bar at exactly 30% (boundary)', () => {
+      // ratio === 0.3 -> NOT > 0.3, so red
+      setCharacter({
+        ...mockCharacter,
+        hp: 9,
+        max_hp: 30,
+      })
+      renderModal()
+
+      const fill = getHpFillElement()
+      expect(fill?.className).toContain('hpRed')
+    })
+
+    it('handles negative HP by clamping to 0 and showing red', () => {
+      setCharacter({
+        ...mockCharacter,
+        hp: -5,
+        max_hp: 30,
+      })
+      renderModal()
+
+      const fill = getHpFillElement()
+      expect(fill).toBeInTheDocument()
+      // HP ratio should be 0 (clamped), so red
+      expect(fill?.className).toContain('hpRed')
+      // The aria-valuenow should still show the actual negative value
+      expect(fill).toHaveAttribute('aria-valuenow', '-5')
+    })
+
+    it('handles max_hp of 0 gracefully (ratio defaults to 0, shows red)', () => {
+      setCharacter({
+        ...mockCharacter,
+        hp: 10,
+        max_hp: 0,
+      })
+      renderModal()
+
+      const fill = getHpFillElement()
+      expect(fill).toBeInTheDocument()
+      // hpRatio = 0 (max_hp > 0 is false), hpPercent = 0
       expect(fill?.className).toContain('hpRed')
     })
   })
