@@ -121,6 +121,8 @@
   overflow-y: auto;
   max-height: 55vh;
   padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 /* Custom scrollbar */
@@ -387,6 +389,15 @@
   font-style: italic;
   color: var(--text-muted);
   margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Theme-matching text selection                                        */
+/* ------------------------------------------------------------------ */
+
+.modal ::selection {
+  background: var(--accent-glow-strong);
+  color: var(--text-primary);
 }
 
 /* ------------------------------------------------------------------ */

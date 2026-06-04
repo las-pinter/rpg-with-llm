@@ -206,6 +206,38 @@
   line-height: 1;
 }
 
+/* ---- Theme-matching text selection ---- */
+
+.container ::selection {
+  background: var(--accent-glow-strong);
+  color: var(--text-primary);
+}
+
+/* ---- Tiny screens ---- */
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0.6rem 0.65rem;
+  }
+  .inputField {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.65rem;
+  }
+  .actBtn {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.82rem;
+    min-width: 60px;
+  }
+  .actionBtn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.68rem;
+  }
+  .quickChip {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.7rem;
+  }
+}
+
 /* ---- Reduced motion ---- */
 
 @media (prefers-reduced-motion: reduce) {
