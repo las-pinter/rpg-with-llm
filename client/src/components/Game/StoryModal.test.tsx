@@ -234,6 +234,56 @@ describe('StoryModal', () => {
       expect(screen.getByText('First entry')).toBeInTheDocument()
       expect(screen.getByText('Third entry')).toBeInTheDocument()
     })
+
+    it('filters out non-string entries in story_summary (numbers, objects, booleans)', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: {
+            story_summary: [
+              'A real string entry.',
+              42,
+              { key: 'value' },
+              true,
+              'Another valid entry.',
+              null,
+              ['nested'],
+            ],
+          },
+        })
+      })
+      renderModal()
+
+      // Only string entries should render
+      expect(
+        screen.getByText('A real string entry.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Another valid entry.'),
+      ).toBeInTheDocument()
+      // Non-strings should be filtered out
+      expect(screen.queryByText('42')).not.toBeInTheDocument()
+      expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
+    })
+
+    it('shows empty state when story_summary has only non-string entries (no fallback)', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: {
+            story_summary: [42, true],
+            story_log: [
+              '[Turn 1] The story begins!',
+            ],
+          },
+        })
+      })
+      renderModal()
+
+      // story_summary exists (non-empty array) even though all entries are non-strings,
+      // so it blocks the story_log fallback. The result is empty state.
+      expect(
+        screen.getByText('No story entries yet. Begin your adventure!'),
+      ).toBeInTheDocument()
+    })
   })
 
   // ---------------------------------------------------------------
@@ -319,6 +369,34 @@ describe('StoryModal', () => {
       expect(
         screen.getByText('No story entries yet. Begin your adventure!'),
       ).toBeInTheDocument()
+    })
+
+    it('skips non-string entries in story_log gracefully', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: {
+            story_log: [
+              '[Turn 1] A valid log entry.',
+              42,
+              { some: 'object' },
+              null,
+              '[Turn 2] Another valid entry.',
+            ],
+          },
+        })
+      })
+      renderModal()
+
+      // String entries should render
+      expect(screen.getByText('Turn 1')).toBeInTheDocument()
+      expect(
+        screen.getByText('A valid log entry.'),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Turn 2')).toBeInTheDocument()
+      expect(
+        screen.getByText('Another valid entry.'),
+      ).toBeInTheDocument()
+      // Non-strings should be silently skipped
     })
   })
 

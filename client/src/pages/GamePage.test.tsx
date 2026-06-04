@@ -528,6 +528,138 @@ describe('GamePage — submit', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Double-submit guard
+// ---------------------------------------------------------------------------
+
+describe('GamePage — double-submit guard', () => {
+  beforeEach(() => {
+    useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    mockConnect.mockClear()
+  })
+
+  it('disables the Act button when processing is true (prevents double-submit)', async () => {
+    const user = userEvent.setup()
+    // isActive starts false, so auto-start fires connect() on mount
+    useGameStore.getState().setIsActive(false)
+    renderPage()
+
+    // Auto-start effect fires connect() with input: 'start'
+    await waitFor(() => {
+      expect(mockConnect).toHaveBeenCalledTimes(1)
+    })
+
+    // Now mark the game as active and set processing=true
+    useGameStore.getState().setIsActive(true)
+    useGameStore.getState().setProcessing(true)
+
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Second action')
+
+    // The submit button should be disabled while processing
+    expect(
+      screen.getByRole('button', { name: /submit action/i }),
+    ).toBeDisabled()
+
+    // mockConnect should still be 1 (from mount) — processing blocked the submit
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Error recovery
+// ---------------------------------------------------------------------------
+
+describe('GamePage — error recovery', () => {
+  beforeEach(() => {
+    useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    useGameStore.getState().setIsActive(true)
+    useGameStore.getState().setError('A terrible error occurred')
+    mockConnect.mockClear()
+  })
+
+  it('displays error banner and persists on new submit until SSE clears it', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    // Error banner should be visible (set before render)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /a terrible error occurred/i,
+    )
+
+    // Submit a new action — the error banner persists until the SSE stream
+    // returns a 'done' or 'error' event that clears it
+    const input = screen.getByPlaceholderText(/what do you do/i) as HTMLInputElement
+    await user.type(input, 'Try again')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
+
+    // The error banner should still be visible (cleared by SSE events, not by submit)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    // Connect was called with the new input
+    expect(mockConnect).toHaveBeenCalledWith(
+      expect.objectContaining({ input: 'Try again' }),
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Modal close edge cases
+// ---------------------------------------------------------------------------
+
+describe('GamePage — modal close edge cases', () => {
+  beforeEach(() => {
+    useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    useGameStore.getState().setIsActive(true)
+  })
+
+  it('closes Story modal via overlay click', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    // Open the Story modal
+    await user.click(
+      screen.getByRole('button', { name: /view adventure story/i }),
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: /adventure story/i }),
+      ).toBeInTheDocument()
+    })
+
+    // Close by pressing Escape
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog', { name: /adventure story/i }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it('closes Character Details modal via Escape', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    // Open the Character Details modal
+    await user.click(
+      screen.getByRole('button', { name: /view character details/i }),
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: /baldric the brave/i }),
+      ).toBeInTheDocument()
+    })
+
+    // Close by pressing Escape
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog', { name: /baldric the brave/i }),
+      ).not.toBeInTheDocument()
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
 // New Game Navigation
 // ---------------------------------------------------------------------------
 
