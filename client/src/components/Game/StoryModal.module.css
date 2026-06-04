@@ -1,0 +1,223 @@
+/* StoryModal — read-only modal for displaying the adventure story. */
+
+/* ------------------------------------------------------------------ */
+/* Overlay                                                              */
+/* ------------------------------------------------------------------ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 6, 16, 0.75);
+  backdrop-filter: blur(4px);
+  animation: overlayFadeIn 200ms ease forwards;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Modal card (wider than SaveGameModal for long story text)           */
+/* ------------------------------------------------------------------ */
+
+.modal {
+  position: relative;
+  width: 600px;
+  max-width: 92vw;
+  max-height: 80vh;
+  padding: 2rem 1.5rem 1.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 30px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 250ms ease forwards;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Close button                                                         */
+/* ------------------------------------------------------------------ */
+
+.closeBtn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+  line-height: 1;
+}
+
+.closeBtn:hover {
+  color: var(--accent-gold);
+  background: rgba(212, 165, 71, 0.08);
+}
+
+.closeBtn:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Title                                                                */
+/* ------------------------------------------------------------------ */
+
+.title {
+  font-family: var(--font-narrative);
+  font-size: 1.35rem;
+  font-weight: 400;
+  color: var(--accent-gold);
+  letter-spacing: 0.03em;
+  margin: 0 0 0.25rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.titleIcon {
+  font-size: 1.15rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Subtitle (character name)                                           */
+/* ------------------------------------------------------------------ */
+
+.subtitle {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0 0 1rem;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+/* ------------------------------------------------------------------ */
+/* Story content area (scrollable)                                     */
+/* ------------------------------------------------------------------ */
+
+.storyContent {
+  overflow-y: auto;
+  max-height: 55vh;
+  padding-right: 0.25rem;
+}
+
+/* Custom scrollbar for story content */
+.storyContent::-webkit-scrollbar {
+  width: var(--scrollbar-width, 6px);
+}
+
+.storyContent::-webkit-scrollbar-track {
+  background: var(--scrollbar-track, var(--bg-input));
+  border-radius: var(--radius-sm);
+}
+
+.storyContent::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, var(--border-light));
+  border-radius: var(--radius-sm);
+}
+
+.storyContent::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, var(--accent-amber));
+}
+
+/* ------------------------------------------------------------------ */
+/* Story entry (paragraph)                                             */
+/* ------------------------------------------------------------------ */
+
+.storyEntry {
+  font-family: var(--font-narrative);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.storyEntry:last-of-type {
+  border-bottom: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Turn header                                                         */
+/* ------------------------------------------------------------------ */
+
+.turnHeader {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-amber);
+  margin: 1rem 0 0.25rem;
+  padding: 0 0 0.25rem;
+  border-bottom: 1px solid var(--accent-border);
+}
+
+/* ------------------------------------------------------------------ */
+/* Empty state                                                          */
+/* ------------------------------------------------------------------ */
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.emptyText {
+  font-family: var(--font-narrative);
+  font-size: 1rem;
+  font-style: italic;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion                                                       */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation: none;
+  }
+  .modal {
+    animation: none;
+  }
+}
