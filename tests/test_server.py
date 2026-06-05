@@ -934,33 +934,23 @@ class TestStaticRoutes:
         assert resp.status_code == 200
         assert b'<div id="root">' in resp.data
 
-    def test_static_css_is_served(self, client):
-        """GET /static/css/style.css returns CSS with 200."""
-        resp = client.get("/static/css/style.css")
-        assert resp.status_code == 200
-        assert resp.mimetype == "text/css"
-        assert b"view" in resp.data
-
-    def test_static_js_is_served(self, client):
-        """GET /static/js/app.js returns JS with 200."""
-        resp = client.get("/static/js/app.js")
-        assert resp.status_code == 200
-        assert resp.mimetype in ("application/javascript", "text/javascript")
-        assert b"App" in resp.data
-
     # ------------------------------------------------------------------
     # Edge cases — missing / non-existent static files
     # ------------------------------------------------------------------
 
-    def test_static_css_not_found_returns_404(self, client):
-        """GET for non-existent CSS returns 404, not 500."""
+    def test_static_css_not_found_returns_react_spa(self, client):
+        """GET for non-existent CSS returns React SPA (catch-all), not 404."""
         resp = client.get("/static/css/nonexistent.css")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/html"
+        assert b'<div id="root">' in resp.data
 
-    def test_static_js_not_found_returns_404(self, client):
-        """GET for non-existent JS returns 404, not 500."""
+    def test_static_js_not_found_returns_react_spa(self, client):
+        """GET for non-existent JS returns React SPA (catch-all), not 404."""
         resp = client.get("/static/js/nonexistent.js")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/html"
+        assert b'<div id="root">' in resp.data
 
     def test_static_favicon_returns_react_spa(self, client):
         """GET /favicon.ico returns React SPA (catch-all for client-side
@@ -974,15 +964,18 @@ class TestStaticRoutes:
     # Security — path traversal protection
     # ------------------------------------------------------------------
 
-    def test_static_directory_traversal_blocked(self, client):
-        """Directory traversal via static path returns 404."""
+    def test_static_directory_traversal_returns_react_spa(self, client):
+        """Directory traversal via static path returns React SPA (catch-all)."""
         resp = client.get("/static/../server.py")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/html"
 
-    def test_static_directory_traversal_url_encoded_blocked(self, client):
-        """URL-encoded directory traversal via static path returns 404."""
+    def test_static_directory_traversal_url_encoded_returns_react_spa(self, client):
+        """URL-encoded directory traversal via static path returns React SPA
+        (catch-all)."""
         resp = client.get("/static/..%2Fserver.py")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/html"
 
     def test_static_slash_returns_react_spa(self, client):
         """GET /static/ returns React SPA (catch-all for client-side
@@ -993,26 +986,8 @@ class TestStaticRoutes:
         assert b'<div id="root">' in resp.data
 
     # ------------------------------------------------------------------
-    # Static file content integrity
+    # HTML structure
     # ------------------------------------------------------------------
-
-    def test_static_js_has_expected_public_api(self, client):
-        """JS file exposes App object with expected methods."""
-        resp = client.get("/static/js/app.js")
-        js = resp.get_data(as_text=True)
-        assert "const App =" in js or "var App =" in js or "let App =" in js
-        assert "init()" in js
-        assert "navigate(view)" in js or "navigate(" in js
-        assert "getCurrentView()" in js or "getCurrentView" in js
-
-    def test_static_css_contains_view_system(self, client):
-        """CSS contains view display classes for SPA routing."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert ".view" in css
-        assert ".view.active" in css
-        assert "display: none" in css
-        assert "display: block" in css or "display: grid" in css
 
     def test_static_html_has_correct_structure(self, client):
         """HTML has proper React SPA shell structure."""
@@ -1059,235 +1034,11 @@ class TestStaticRoutes:
         assert "/assets/" in html
         assert "crossorigin" in html
 
-    def test_static_connection_js_served(self, client):
-        """GET /static/js/connection.js returns 200 with correct content type."""
-        resp = client.get("/static/js/connection.js")
-        assert resp.status_code == 200
-        assert resp.mimetype in ("application/javascript", "text/javascript")
-
-    def test_static_character_js_served(self, client):
-        """GET /static/js/character.js returns 200 with correct content type."""
-        resp = client.get("/static/js/character.js")
-        assert resp.status_code == 200
-        assert resp.mimetype in ("application/javascript", "text/javascript")
-
-    def test_static_game_js_served(self, client):
-        """GET /static/js/game.js returns 200 with correct content type."""
-        resp = client.get("/static/js/game.js")
-        assert resp.status_code == 200
-        assert resp.mimetype in ("application/javascript", "text/javascript")
-
-    def test_connection_js_exposes_connection_view(self, client):
-        """connection.js defines ConnectionView with expected methods."""
-        resp = client.get("/static/js/connection.js")
-        js = resp.get_data(as_text=True)
-        assert "const ConnectionView =" in js or "var ConnectionView =" in js
-        assert "init()" in js
-        assert "_testConnection" in js
-        assert "_fetchModels" in js
-        assert "_onProviderChange" in js
-        assert "_startAdventure" in js
-        assert "_saveState" in js
-        assert "_restoreState" in js
-
-    def test_connection_js_uses_correct_health_endpoint(self, client):
-        """connection.js calls POST /api/health with correct payload shape."""
-        resp = client.get("/static/js/connection.js")
-        js = resp.get_data(as_text=True)
-        assert "/api/health" in js
-        assert "base_url" in js
-        assert "model" in js
-        assert "api_key" in js
-        assert "AbortSignal.timeout" in js
-
-    def test_character_js_exposes_character_view(self, client):
-        """character.js defines CharacterView with expected API-fetched rules."""
-        resp = client.get("/static/js/character.js")
-        js = resp.get_data(as_text=True)
-        assert "const CharacterView =" in js or "var CharacterView =" in js
-        assert "_rules" in js
-        assert "_fetchRules" in js
-        assert "_initDefaults" in js
-        assert "character-rules" in js
-        assert "init()" in js
-        assert "_createCharacter" in js
-        assert "_deleteCharacter" in js
-        assert "_renderLoadList" in js
-        assert "_loadCharacter" in js
-        assert "_esc" in js
-
-    def test_character_js_fetches_rules_from_api(self, client):
-        """character.js fetches game rules from the API instead of hardcoding them."""
-        resp = client.get("/static/js/character.js")
-        js = resp.get_data(as_text=True)
-        assert "class_templates" in js
-        assert "valid_classes" in js
-        assert "point_buy" in js
-        assert "_getCost" in js
-
-    def test_game_js_exposes_game_view(self, client):
-        """game.js defines GameView with expected methods."""
-        resp = client.get("/static/js/game.js")
-        js = resp.get_data(as_text=True)
-        assert "const GameView =" in js or "var GameView =" in js
-        assert "init()" in js
-        assert "_sendTurn" in js
-        assert "_submit" in js
-        assert "_addNarrative" in js
-        assert "_renderSidebar" in js
-        assert "_applyStateChanges" in js
-        assert "_setNested" in js
-        assert "_getNested" in js
-
-    def test_game_js_uses_sse_endpoint(self, client):
-        """game.js calls SSEClient.connect for streaming."""
-        resp = client.get("/static/js/game.js")
-        js = resp.get_data(as_text=True)
-        assert "SSEClient.connect" in js
-        assert "_sendTurnSSE" in js
-        assert "provider" in js
-        assert "character" in js
-        assert "state" in js
-
-    def test_game_js_uses_reset_endpoint(self, client):
-        """game.js calls POST /api/reset to initialise world state."""
-        resp = client.get("/static/js/game.js")
-        js = resp.get_data(as_text=True)
-        assert "/api/reset" in js
-
-    def test_game_js_has_error_handling(self, client):
-        """game.js handles fetch errors and timeouts gracefully."""
-        resp = client.get("/static/js/game.js")
-        js = resp.get_data(as_text=True)
-        assert "catch (" in js or ".catch(" in js
-        assert "TimeoutError" in js or "timeout" in js.lower()
-        assert "Failed to fetch" in js or "error" in js.lower()
-
-    def test_css_has_view_system(self, client):
-        """CSS contains view display classes for SPA routing."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert ".view" in css
-        assert ".view.active" in css
-        assert "display: none" in css
-        assert "display: block" in css or "display: grid" in css
-
-    def test_css_has_game_view_grid_layout(self, client):
-        """CSS defines grid layout for game view."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert "#view-game.active" in css
-        assert "grid-template-areas" in css
-        assert "narrative" in css
-        assert "sidebar" in css
-        assert "input" in css
-
-    def test_css_has_connection_view_styles(self, client):
-        """CSS defines styles for connection view."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert "#view-connection.active" in css
-        assert ".connection-container" in css
-        assert ".connection-brand" in css
-        assert "#start-adventure" in css
-
-    def test_css_has_character_view_styles(self, client):
-        """CSS defines styles for character view with point-buy."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert "#view-character.active" in css
-        assert ".abilities-grid" in css
-        assert ".ability-card" in css
-        assert ".abil-btn" in css
-        assert ".point-buy-remaining" in css
-
-    def test_css_has_responsive_styles(self, client):
-        """CSS includes responsive breakpoints for mobile."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert "@media (max-width: 768px)" in css
-        assert "@media (max-width: 480px)" in css
-
-    def test_css_has_thinking_indicator_animation(self, client):
-        """CSS includes thinking indicator animation styles."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert ".thinking-dot" in css
-        assert "@keyframes thinkBounce" in css
-
-    def test_css_has_hp_bar_styles(self, client):
-        """CSS defines HP bar with low/medium fill states."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert ".hp-bar" in css
-        assert ".hp-fill" in css
-        assert ".hp-fill.low" in css
-        assert ".hp-fill.medium" in css
-
-    def test_css_has_error_and_success_states(self, client):
-        """CSS defines styles for success and error status indicators."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert ".status-indicator.success" in css
-        assert ".status-indicator.error" in css
-        assert ".status-indicator.loading" in css
-        assert ".turn-error" in css
-        assert ".validation-msg.success" in css
-        assert ".validation-msg.error" in css
-
-    # ------------------------------------------------------------------
-    # SSE client
-    # ------------------------------------------------------------------
-
-    def test_static_sse_js_served(self, client):
-        """GET /static/js/sse.js returns 200 with correct content type."""
-        resp = client.get("/static/js/sse.js")
-        assert resp.status_code == 200
-        assert resp.mimetype in ("application/javascript", "text/javascript")
-
-    def test_static_sse_js_exposes_sse_client(self, client):
-        """sse.js defines SSEClient with expected methods."""
-        resp = client.get("/static/js/sse.js")
-        js = resp.get_data(as_text=True)
-        assert "const SSEClient =" in js or "var SSEClient =" in js
-        assert "connect(input" in js or "connect(" in js
-        assert "disconnect()" in js
-        assert "fetch(" in js or "AbortController" in js
-        assert "onToken" in js
-        assert "onNarrative" in js
-        assert "onDone" in js
-        assert "onError" in js
-
     def test_static_html_has_module_script(self, client):
         """HTML includes a module script tag for the React bundle."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
         assert '<script type="module" crossorigin src=' in html
-
-    def test_game_js_references_sse_client(self, client):
-        """game.js references SSEClient for SSE streaming."""
-        resp = client.get("/static/js/game.js")
-        js = resp.get_data(as_text=True)
-        assert "SSEClient" in js
-        assert "_sendTurnSSE" in js
-        assert "_sendTurn" in js
-
-    # ------------------------------------------------------------------
-    # CSS — Accessibility & motion preferences
-    # ------------------------------------------------------------------
-
-    def test_css_has_focus_visible_styles(self, client):
-        """CSS includes focus-visible styles for keyboard navigation."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert "focus-visible" in css
-
-    def test_css_has_prefers_reduced_motion(self, client):
-        """CSS includes prefers-reduced-motion media query."""
-        resp = client.get("/static/css/style.css")
-        css = resp.get_data(as_text=True)
-        assert "prefers-reduced-motion" in css
-        assert "animation-duration: 0.01ms" in css
 
 
 # ---------------------------------------------------------------------------

@@ -10,5 +10,5 @@ import flask as flask
 
 from app.routes import register_routes
 
-app = flask.Flask(__name__)
+app = flask.Flask(__name__, static_folder=None)
 register_routes(app)
