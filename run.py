@@ -17,7 +17,7 @@ from flask import Flask
 
 from app.routes import register_routes
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 register_routes(app)
 
 
