@@ -270,6 +270,7 @@ def create_provider(config: ProviderConfig) -> LLMProvider:
         "openrouter": OpenRouterProvider,
         "unsloth": UnslothProvider,
         "llamacpp": LlamacppProvider,
+        "llama.cpp": LlamacppProvider,
     }
 
     provider_class = provider_map.get(config.provider_type)

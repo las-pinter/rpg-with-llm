@@ -7,6 +7,8 @@ uncaught (404).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.server import app
@@ -64,7 +66,10 @@ class TestReactSpaRoutes:
 
     def test_existing_asset_returns_file(self, client):
         """GET /assets/index-*.js returns the actual JS asset file."""
-        resp = client.get("/assets/index-Bd5gkdAP.js")
+        assets_dir = Path("client/dist/assets")
+        js_files = list(assets_dir.glob("index-*.js"))
+        assert js_files, f"No index-*.js files found in {assets_dir.resolve()}"
+        resp = client.get(f"/assets/{js_files[0].name}")
         assert resp.status_code == 200
         assert resp.mimetype in (
             "application/javascript",
