@@ -139,6 +139,7 @@ export default function GamePage() {
   // ==================================================================
   const handleSubmit = useCallback(
     (input: string) => {
+      useGameStore.getState().addNarrativeEntry({ type: 'player', content: input })
       setProcessing(true)
       connect({
         input,
@@ -223,7 +224,7 @@ export default function GamePage() {
   // ==================================================================
   // Render: Connecting State
   // ==================================================================
-  if (isConnecting) {
+  if (isConnecting && !isActive) {
     return (
       <div className={styles.page}>
         <div className={styles.connectingState}>
