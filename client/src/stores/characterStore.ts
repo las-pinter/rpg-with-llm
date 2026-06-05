@@ -445,8 +445,24 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
         return
       }
 
-      // Populate game store with world state
+      // Clean slate and populate game store with world state
+      useGameStore.getState().resetGame()
       useGameStore.getState().setWorldState(response.state)
+
+      // Populate narrative entries from saved story log
+      const gameState = useGameStore.getState()
+      const storyLog = response.state.story_log as string[] | undefined
+      if (storyLog && Array.isArray(storyLog)) {
+        for (const entry of storyLog) {
+          gameState.addNarrativeEntry({ type: 'narrative', content: entry })
+        }
+      }
+      const storySummary = response.state.story_summary as string[] | undefined
+      if (storySummary && Array.isArray(storySummary)) {
+        for (const entry of storySummary) {
+          gameState.addNarrativeEntry({ type: 'narrative', content: entry })
+        }
+      }
 
       // Set character if save embeds one
       if (response.character) {
