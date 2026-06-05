@@ -114,9 +114,10 @@ export function useGameStream(): UseGameStreamReturn {
             break
           }
           case 'state_update': {
-            s.applyStateUpdate(
-              data as Parameters<typeof s.applyStateUpdate>[0],
-            )
+            const stateData = data as Record<string, unknown>
+            if (stateData.state && typeof stateData.state === 'object') {
+              s.setWorldState(stateData.state as Record<string, unknown>)
+            }
             break
           }
           case 'done': {

@@ -415,8 +415,8 @@ describe('useGameStream — SSE events', () => {
       {
         event: 'state_update',
         data: JSON.stringify({
-          hp: { action: 'set', value: 15 },
-          gold: { action: 'set', value: 100 },
+          state: { hp: 15, gold: 100 },
+          turn_count: 1,
         }),
       },
     ]

@@ -128,8 +128,8 @@ describe('store-hook integration — state_update event → store', () => {
       {
         event: 'state_update',
         data: JSON.stringify({
-          hp: { action: 'set', value: 30 },
-          gold: { action: 'add', value: 25 },
+          state: { hp: 30, gold: 125 },
+          turn_count: 1,
         }),
       },
     ]
@@ -158,8 +158,7 @@ describe('store-hook integration — state_update event → store', () => {
       {
         event: 'state_update',
         data: JSON.stringify({
-          location: { action: 'set', value: 'Dungeon' },
-          'stats.hp': { action: 'set', value: 100 },
+          state: { location: 'Dungeon', stats: { hp: 100 } },
         }),
       },
     ]
@@ -311,8 +310,7 @@ describe('store-hook integration — full lifecycle', () => {
       {
         event: 'state_update',
         data: JSON.stringify({
-          hp: { action: 'add', value: -5 },
-          turn: { action: 'set', value: 2 },
+          state: { hp: 15, turn: 2 },
         }),
       },
       { event: 'done', data: JSON.stringify({}) },
