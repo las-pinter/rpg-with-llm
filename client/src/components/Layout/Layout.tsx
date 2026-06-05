@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useGameStore } from '../../stores/gameStore'
 import styles from './Layout.module.css'
 
 const NAV_ITEMS = [
@@ -8,6 +9,21 @@ const NAV_ITEMS = [
 ] as const
 
 export default function Layout() {
+  const isActive = useGameStore((s) => s.isActive)
+
+  const handleNavClick = (e: React.MouseEvent, to: string) => {
+    if (!isActive) return
+    // Only block navigation away from game when a game is active
+    if (to === '/' || to === '/character') {
+      const leave = window.confirm(
+        'Are you sure you want to exit the current game? Your progress will be lost.',
+      )
+      if (!leave) {
+        e.preventDefault()
+      }
+    }
+  }
+
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
@@ -21,6 +37,7 @@ export default function Layout() {
               key={item.to}
               to={item.to}
               end={item.to === '/'}
+              onClick={(e) => handleNavClick(e, item.to)}
               className={({ isActive }) =>
                 `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
               }

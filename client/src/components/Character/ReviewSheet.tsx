@@ -46,6 +46,7 @@ export default function ReviewSheet() {
   // Store actions
   const setIsEditing = useCharacterStore((s) => s.setIsEditing)
   const setGeneratedCharacter = useCharacterStore((s) => s.setGeneratedCharacter)
+  const setCurrentCharacter = useCharacterStore((s) => s.setCurrentCharacter)
 
   // Connection store (for regenerate provider config)
   const connBaseUrl = useConnectionStore((s) => s.baseUrl)
@@ -158,8 +159,11 @@ export default function ReviewSheet() {
   // ------------------------------------------------------------------
 
   const handleStartAdventure = useCallback(() => {
+    if (character) {
+      setCurrentCharacter(character)
+    }
     navigate('/game')
-  }, [navigate])
+  }, [navigate, character, setCurrentCharacter])
 
   // ------------------------------------------------------------------
   // Empty state

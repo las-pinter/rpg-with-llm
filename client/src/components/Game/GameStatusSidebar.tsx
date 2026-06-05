@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../../stores/gameStore'
+import { useCharacterStore } from '../../stores/characterStore'
 import styles from './GameStatusSidebar.module.css'
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,7 @@ export default function GameStatusSidebar() {
   const worldState = useGameStore((s) => s.worldState)
   const tokenUsage = useGameStore((s) => s.tokenUsage)
   const showTokens = useGameStore((s) => s.showTokens)
+  const currentCharacter = useCharacterStore((s) => s.currentCharacter)
 
   const [collapsed, setCollapsed] = useState(false)
 
@@ -184,7 +186,11 @@ export default function GameStatusSidebar() {
     | undefined
 
   const name =
-    typeof character?.name === 'string' ? character.name : 'Unknown'
+    typeof character?.name === 'string'
+      ? character.name
+      : currentCharacter?.name
+        ? currentCharacter.name
+        : 'Unknown'
   const charClass =
     typeof character?.character_class === 'string'
       ? character.character_class
