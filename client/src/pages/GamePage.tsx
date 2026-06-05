@@ -184,7 +184,7 @@ export default function GamePage() {
 
       startedRef.current = true
       connect({
-        input: '',
+        input: 'start',
         state,
         character: (loadedCharacter as Record<string, unknown>) ?? undefined,
         provider: buildProvider(),
