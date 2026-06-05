@@ -2,19 +2,18 @@
 
 ## Setup commands
 - Install deps: `pip install -r requirements.txt`
-- Install frontend deps: `npm install`
-- Build frontend (TypeScript): `npm run build`
-- Watch frontend: `npm run watch`
+- Install frontend deps: `npm install` (in `client/`)
+- Build frontend: `npm run build` (in `client/`)
 - Run all tests: `python3 -m pytest tests/ -v`
 - Run tests with coverage: `python3 -m pytest tests/ --cov=app --cov-report=term`
 - Run lint check: `ruff check app/ tests/`
 - Run format check: `ruff format --check app/ tests/`
 - Run Python type check: `mypy app/ --ignore-missing-imports`
-- Run TypeScript type check: `npx tsc --noEmit`
-- Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && npx tsc --noEmit && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
+- Run TypeScript type check: `npx tsc --noEmit` (in `client/`)
+- Run frontend tests: `npx vitest run` (in `client/`)
+- Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
 - Run game: `python3 run.py` (starts Flask dev server on port 5000)
 - Run single module: `python3 -m pytest tests/test_dice.py -v`
-- Run game: `python3 run.py` (starts Flask dev server on port 5000)
 
 ## Project overview
 Python-based LLM-powered RPG game. Phases 1-8 complete (dice, rules, tables, LLM provider abstraction with health endpoint, world state persistence, character creation, single-agent DM loop with game endpoints, frontend SPA with SSE streaming, NPC subagents with parallel spawning, memory summarization). Phases 1-10 complete (dice, rules, tables, all LLM providers including Ollama/Groq/OpenRouter/Unsloth/llama.cpp with multi-provider per-agent config, world state persistence, character creation, single-agent DM loop with game endpoints, frontend SPA with SSE streaming, NPC subagents with parallel spawning, memory summarization, provider model list fetching, and cross-platform startup scripts). Flask server running at `http://localhost:5000`. CI pipeline enforces lint, format, type checking, and test coverage.
@@ -54,27 +53,28 @@ app/
 ├── llm/        — Provider abstraction (Ollama, Groq, OpenRouter)
 ├── character/  — Character model, creation & persistence
 ├── agents/     — DM agent, response parser, tool dispatcher, turn history
-└── static/     — Frontend SPA
-    ├── index.html       # SPA shell
-    ├── css/
-    │   └── style.css    # Dark fantasy theme
-    ├── ts/              # TypeScript source files
-    │   ├── app.ts       # SPA router
-    │   ├── connection.ts# Connection view
-    │   ├── character.ts # Character creation/load
-    │   ├── game.ts      # Game view
-    │   └── sse.ts       # SSE streaming client
-    └── js/              # Compiled output (from TypeScript)
-        ├── app.js       # SPA router
-        ├── connection.js# Connection view
-        ├── character.js # Character creation/load
-        ├── game.js      # Game view
-        └── sse.js       # SSE streaming client
+└── static/     — Static assets (CSS served by Flask)
+    └── css/
+        └── style.css    # Dark fantasy theme
+client/         — React SPA frontend
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+└── src/
+    ├── main.tsx              # React entry point
+    ├── App.tsx               # Router setup
+    ├── api/                  # Backend client
+    ├── stores/               # Zustand stores
+    ├── hooks/                # Custom hooks
+    ├── components/           # React components
+    ├── pages/                # Page components
+    ├── styles/               # CSS modules
+    └── test/                 # Test setup
 data/tables/    — Encounters, loot, weather, NPC traits
 tests/          — Test suite mirroring app structure
 ```
 
 ## Important constraints
-- Frontend uses TypeScript: run `npm run build` after changes to `app/static/ts/`
+- Frontend is a React SPA in `client/`: run `npm run build` (in `client/`) after changes
 - This is a proof of concept, not meant to replace human-led RPGs
 - License: MIT

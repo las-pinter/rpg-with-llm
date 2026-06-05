@@ -48,9 +48,11 @@ source .venv/bin/activate       # Linux/macOS
 # 3. Install Python dependencies
 pip install -r requirements.txt
 
-# 4. Install frontend dependencies and compile TypeScript
+# 4. Install frontend dependencies and build React SPA
+cd client
 npm install
 npm run build
+cd ..
 
 # 5. Start the server
 python run.py

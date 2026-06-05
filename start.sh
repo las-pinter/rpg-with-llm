@@ -149,21 +149,21 @@ fi
 success "✓ Found Node.js $(node --version) with npm $(npm --version)"
 
 # ---------------------------------------------------------------------------
-# Step 5: Install frontend dependencies and build TypeScript
+# Step 5: Install frontend dependencies and build React app
 # ---------------------------------------------------------------------------
-info "📦 Installing frontend dependencies (npm install)..."
-npm --prefix "$PROJECT_ROOT" install || {
-	error "npm install failed. Check your network and package.json."
+info "📦 Installing React frontend dependencies..."
+npm --prefix "${PROJECT_ROOT}/client" install || {
+	error "npm install failed in client/. Check your network and client/package.json."
 	exit 1
 }
-success "✓ Frontend dependencies installed."
+success "✓ React frontend dependencies installed."
 
-info "🔨 Compiling TypeScript frontend (npm run build)..."
-npm --prefix "$PROJECT_ROOT" run build || {
-	error "npm run build failed. Check your TypeScript source files for errors."
+info "🔨 Building React frontend..."
+npm --prefix "${PROJECT_ROOT}/client" run build || {
+	error "npm run build failed in client/. Check your TypeScript source files for errors."
 	exit 1
 }
-success "✓ TypeScript compilation complete."
+success "✓ React build complete."
 
 # ---------------------------------------------------------------------------
 # Step 6: Start the Flask server in the background
