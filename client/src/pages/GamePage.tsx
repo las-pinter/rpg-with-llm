@@ -173,8 +173,24 @@ export default function GamePage() {
   // ==================================================================
   const handleLoaded = useCallback(
     (state: Record<string, unknown>, loadedCharacter?: Record<string, unknown>) => {
-      // Update stores with loaded data
+      // Clean slate and populate stores with loaded data
+      useGameStore.getState().resetGame()
       useGameStore.getState().setWorldState(state)
+
+      // Populate narrative entries from saved story log
+      const storyLog = state.story_log as string[] | undefined
+      if (storyLog && Array.isArray(storyLog)) {
+        for (const entry of storyLog) {
+          useGameStore.getState().addNarrativeEntry({ type: 'narrative', content: entry })
+        }
+      }
+      const storySummary = state.story_summary as string[] | undefined
+      if (storySummary && Array.isArray(storySummary)) {
+        for (const entry of storySummary) {
+          useGameStore.getState().addNarrativeEntry({ type: 'narrative', content: entry })
+        }
+      }
+
       if (loadedCharacter) {
         // Loaded character comes from API response — cast through as any
         useCharacterStore
