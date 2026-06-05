@@ -90,6 +90,18 @@ export default function GamePage() {
   const { connect, disconnect, isConnecting, error: streamError } = useGameStream()
   const displayError = streamError ?? storeError
 
+  // ---- Browser-level beforeunload: warn on refresh/close when game is active ----
+  useEffect(() => {
+    if (!isActive) return
+
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isActive])
+
   // ---- Modal state ----
   const [openModal, setOpenModal] = useState<OpenModal>(null)
   const closeModal = useCallback(() => setOpenModal(null), [])
@@ -115,6 +127,7 @@ export default function GamePage() {
         character: character as unknown as Record<string, unknown>,
         provider: buildProvider(),
       })
+      setIsActive(true)
     }
     return () => {
       startedRef.current = false // allow StrictMode retry
@@ -150,8 +163,9 @@ export default function GamePage() {
   // ==================================================================
   const handleNewGame = useCallback(() => {
     disconnect()
+    setIsActive(false)
     navigate('/character')
-  }, [disconnect, navigate])
+  }, [disconnect, navigate, setIsActive])
 
   // ==================================================================
   // Load Game: called by LoadGameModal.onLoaded
