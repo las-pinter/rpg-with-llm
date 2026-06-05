@@ -604,15 +604,23 @@ class TestCreateProvider:
         provider = create_provider(config)
         assert isinstance(provider, UnslothProvider)
 
-    def test_create_llamacpp_provider(self):
-        """create_provider should create a LlamacppProvider."""
+    @pytest.mark.parametrize(
+        "provider_key",
+        [
+            pytest.param("llamacpp", id="alias_without_dot"),
+            pytest.param("llama.cpp", id="alias_with_dot"),
+        ],
+    )
+    def test_create_llamacpp_provider_aliases(self, provider_key):
+        """create_provider should create a LlamacppProvider for both
+        'llamacpp' and 'llama.cpp' keys."""
         from app.llm.config import create_provider
         from app.llm.llamacpp import LlamacppProvider
 
         config = ProviderConfig(
             base_url="http://localhost:8080",
             model="default",
-            provider_type="llamacpp",
+            provider_type=provider_key,
         )
         provider = create_provider(config)
         assert isinstance(provider, LlamacppProvider)
