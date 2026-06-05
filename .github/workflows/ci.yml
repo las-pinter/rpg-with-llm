@@ -77,12 +77,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
+        working-directory: client
 
-      - name: Build TypeScript frontend
+      - name: Build React frontend
         run: npm run build
+        working-directory: client
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+        working-directory: client
+
+      - name: Run frontend tests
+        run: npx vitest run
+        working-directory: client
 
       - name: Run tests with coverage
         run: python -m pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=60

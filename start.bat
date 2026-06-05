@@ -138,30 +138,40 @@ echo [OK] Found Node.js !NODE_VER! with npm !NPM_VER!
 echo.
 
 :: --------------------------------------------------
-:: 7. Install frontend dependencies and build TypeScript
+:: 7. Install frontend dependencies and build React app
 :: --------------------------------------------------
-echo [..] Installing frontend dependencies (npm install^)...
+echo [..] Installing React frontend dependencies...
+cd /d client
+if errorlevel 1 (
+    echo.
+    echo [ERROR] client/ directory not found.
+    echo.
+    pause
+    exit /b 1
+)
 call npm install
 if errorlevel 1 (
     echo.
-    echo [ERROR] npm install failed. Check your network connection and package.json.
+    echo [ERROR] npm install failed in client/. Check your network and client\package.json.
     echo.
     pause
     exit /b 1
 )
-echo [OK] Frontend dependencies installed.
+echo [OK] React frontend dependencies installed.
 echo.
 
-echo [..] Compiling TypeScript frontend (npm run build^)...
+echo [..] Building React frontend...
 call npm run build
 if errorlevel 1 (
     echo.
-    echo [ERROR] TypeScript build failed. Check for errors in app/static/ts/.
+    echo [ERROR] React build failed. Check your TypeScript source files for errors.
     echo.
     pause
     exit /b 1
 )
-echo [OK] TypeScript compilation complete.
+echo [OK] React build complete.
+
+cd ..
 echo.
 
 :: --------------------------------------------------
