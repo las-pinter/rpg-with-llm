@@ -143,6 +143,7 @@
 /* ---- Sidebar Column ---- */
 
 .sidebarArea {
+  height: 100%;
   overflow-y: auto;
   background: var(--bg-primary, #1a1a2e);
 }
