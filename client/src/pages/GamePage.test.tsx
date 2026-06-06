@@ -511,6 +511,19 @@ describe('GamePage — submit', () => {
     })
   })
 
+  it('sets isThinking to true when submitting', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Search for traps')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
+
+    await waitFor(() => {
+      expect(useGameStore.getState().isThinking).toBe(true)
+    })
+  })
+
   it('clears input after submission', async () => {
     const user = userEvent.setup()
     renderPage()
