@@ -67,6 +67,7 @@ export interface GameActions {
 
 interface ExpandedGameActions extends GameActions {
   addNarrativeEntry: (entry: Omit<NarrativeEntry, 'id' | 'timestamp'>) => void
+  setNarrativeEntries: (entries: NarrativeEntry[]) => void
   setStreamingText: (text: string) => void
   setIsThinking: (thinking: boolean) => void
   setNpcThinking: (npcId: string | null, hint?: string) => void
@@ -205,6 +206,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       ],
     }))
   },
+
+  // Bulk-set narrative entries (used when loading a saved game)
+  setNarrativeEntries: (entries) => set({ narrativeEntries: entries }),
 
   // Streaming and thinking state
   setStreamingText: (text) => set({ streamingText: text }),

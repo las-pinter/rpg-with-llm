@@ -192,6 +192,31 @@ export default function GamePage() {
         }
       }
 
+      // Restore player input entries from saved user_input_history
+      const userInputHistory = state.user_input_history as string[] | undefined
+      if (userInputHistory && Array.isArray(userInputHistory)) {
+        for (const input of userInputHistory) {
+          useGameStore.getState().addNarrativeEntry({ type: 'player', content: input })
+        }
+      }
+
+      // Restore full narrative entries (including tool results, separators, etc.)
+      // from the rich _narrative_entries payload if available
+      const narrativeEntries = state._narrative_entries as
+        | Array<{ type: string; content: string }>
+        | undefined
+      if (narrativeEntries && Array.isArray(narrativeEntries) && narrativeEntries.length > 0) {
+        // If we have rich entries, use them instead of the individual adds above
+        useGameStore.getState().setNarrativeEntries(
+          narrativeEntries.map((e) => ({
+            id: crypto.randomUUID(),
+            type: e.type as 'player' | 'narrative' | 'tool_result' | 'separator' | 'error',
+            content: e.content,
+            timestamp: Date.now(),
+          })),
+        )
+      }
+
       if (loadedCharacter) {
         // Loaded character comes from API response — cast through as any
         useCharacterStore

@@ -197,6 +197,11 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
         if character_id:
             _dm_cache[character_id] = dm
 
+    # Restore DM compressed summary from saved technical_summary
+    # so the DM's memory survives save/load cycles
+    if world_state.technical_summary:
+        dm.history.compressed_summary = world_state.technical_summary[-1]
+
     def generate() -> Generator[str, None, None]:
         try:
             for event in dm.process_turn_stream(player_input):

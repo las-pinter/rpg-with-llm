@@ -162,6 +162,12 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
         stateData.character_id = charData.id
       }
 
+      // Include narrative entries so the full conversation survives save/load
+      const narrativeEntries = useGameStore.getState().narrativeEntries
+      if (narrativeEntries.length > 0) {
+        stateData._narrative_entries = narrativeEntries
+      }
+
       const resp = await saveGame({
         state: stateData,
         name: trimmed,

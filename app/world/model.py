@@ -146,8 +146,16 @@ class WorldState:
     # Novel-like condensed story summaries, updated periodically by the summarizer
     story_summary: list[str] = field(default_factory=list)
 
+    # User input history — what the player typed each turn, in order
+    user_input_history: list[str] = field(default_factory=list)
+    # Technical summary — DM compressed memory summaries, generated
+    # alongside story summaries
+    technical_summary: list[str] = field(default_factory=list)
+
     # Embedded character data for single-file save (not part of game logic)
     _character: dict[str, Any] | None = field(default=None, repr=False)
+    # Embedded narrative entries for rich frontend restoration on load
+    _narrative_entries: list[dict[str, Any]] = field(default_factory=list, repr=False)
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -255,6 +263,20 @@ class WorldState:
         else:
             story_summary = []
 
+        # user_input_history — ensure it's a list of strings
+        raw_user_input = data.get("user_input_history", [])
+        if isinstance(raw_user_input, list):
+            user_input_history = [str(s) for s in raw_user_input if isinstance(s, str)]
+        else:
+            user_input_history = []
+
+        # technical_summary — ensure it's a list of strings
+        raw_tech = data.get("technical_summary", [])
+        if isinstance(raw_tech, list):
+            technical_summary = [str(s) for s in raw_tech if isinstance(s, str)]
+        else:
+            technical_summary = []
+
         return cls(
             version=version,
             character_id=data.get("character_id"),
@@ -271,5 +293,8 @@ class WorldState:
             established_facts=established_facts,
             story_log=story_log,
             story_summary=story_summary,
+            user_input_history=user_input_history,
+            technical_summary=technical_summary,
             _character=data.get("_character"),
+            _narrative_entries=data.get("_narrative_entries", []),
         )

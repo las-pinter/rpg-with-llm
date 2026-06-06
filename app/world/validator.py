@@ -121,6 +121,21 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "mutable",
         "description": "Novel-like condensed story summaries",
     },
+    "user_input_history": {
+        "type": list,
+        "mutability": "mutable",
+        "description": "Player input history — one entry per turn",
+    },
+    "technical_summary": {
+        "type": list,
+        "mutability": "mutable",
+        "description": "DM compressed memory summaries for save/load",
+    },
+    "_narrative_entries": {
+        "type": list,
+        "mutability": "mutable",
+        "description": "Embedded narrative entries for frontend restoration",
+    },
 }
 
 
