@@ -1192,6 +1192,10 @@ class DungeonMaster:
             # Accumulate for story summarization
             self._pending_story_entries.append(f"[Turn {self.turn_count}] {narrative}")
 
+        # Save player input to history for save/load persistence
+        if self.world_state is not None:
+            self.world_state.user_input_history.append(player_input)
+
         # Check if summarization should trigger
         try:
             self._maybe_summarize()
@@ -1409,6 +1413,9 @@ class DungeonMaster:
                 summary = summarize_turns(turns_text, self.summarizer_provider)
                 self.history.set_summary(summary)
                 self.history.clear_turns()
+                # Persist technical summary for save/load
+                if self.world_state is not None:
+                    self.world_state.technical_summary.append(summary)
                 logger.debug(
                     "_maybe_summarize: created compressed summary — "
                     "%d chars (was %d turns + existing summary)",
