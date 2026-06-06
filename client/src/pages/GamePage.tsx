@@ -141,6 +141,7 @@ export default function GamePage() {
     (input: string) => {
       useGameStore.getState().addNarrativeEntry({ type: 'player', content: input })
       setProcessing(true)
+      useGameStore.getState().setIsThinking(true)
       connect({
         input,
         character: character as unknown as Record<string, unknown>,
