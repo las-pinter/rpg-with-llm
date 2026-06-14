@@ -329,7 +329,7 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
                 onClick={() => handleConfirmDelete(save.id)}
                 disabled={isDeleting}
               >
-                {isDeleting ? 'Deleting...' : 'Yes, delete'}
+                {isDeleting ? 'Deleting…' : 'Yes, delete'}
               </button>
               <button
                 type="button"
@@ -347,7 +347,7 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
         {!isDeleted && isDeleting && (
           <div className={styles.deletingState}>
             <span className={styles.cardSpinner} aria-hidden="true" />
-            <span className={styles.deletingText}>Deleting...</span>
+            <span className={styles.deletingText}>Deleting…</span>
           </div>
         )}
 
@@ -396,7 +396,7 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
         {phase === 'loading' && (
           <div className={styles.centeredState}>
             <span className={styles.spinner} aria-hidden="true" />
-            <p className={styles.statusText}>Loading saves...</p>
+            <p className={styles.statusText}>Loading saves…</p>
           </div>
         )}
 

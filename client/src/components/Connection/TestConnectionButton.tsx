@@ -134,7 +134,7 @@ export default function TestConnectionButton() {
         onClick={handleTestConnection}
         disabled={checking}
       >
-        {checking ? 'Testing...' : 'Test Connection'}
+        {checking ? 'Testing…' : 'Test Connection'}
       </button>
       <ConnectionStatus />
     </div>

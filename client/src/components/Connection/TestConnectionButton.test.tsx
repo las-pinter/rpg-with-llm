@@ -204,7 +204,7 @@ describe('TestConnectionButton — validation: apiKey missing', () => {
 /* ------------------------------------------------------------------ */
 
 describe('TestConnectionButton — loading state', () => {
-  it('shows "Testing..." while health check is in progress', async () => {
+  it('shows "Testing…" while health check is in progress', async () => {
     const user = userEvent.setup()
     const mockCheckHealth = vi.mocked(checkHealth)
     // Return a promise that never resolves to keep loading state active
@@ -213,7 +213,7 @@ describe('TestConnectionButton — loading state', () => {
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
-    expect(screen.getByRole('button', { name: 'Testing...' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Testing…' })).toBeInTheDocument()
   })
 
   it('disables the button while checking', async () => {
@@ -224,10 +224,10 @@ describe('TestConnectionButton — loading state', () => {
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
-    expect(screen.getByRole('button', { name: 'Testing...' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Testing…' })).toBeDisabled()
   })
 
-  it('shows "Testing connection..." status while checking', async () => {
+  it('shows "Testing connection…" status while checking', async () => {
     const user = userEvent.setup()
     const mockCheckHealth = vi.mocked(checkHealth)
     mockCheckHealth.mockReturnValue(new Promise(() => {}))
@@ -235,7 +235,7 @@ describe('TestConnectionButton — loading state', () => {
 
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
-    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.getByText('Testing connection…')).toBeInTheDocument()
   })
 
   it('sets checking to true in the store', async () => {
@@ -789,8 +789,8 @@ describe('TestConnectionButton — double-click prevention', () => {
     // First click
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
-    // Button should now be disabled with "Testing..."
-    const button = screen.getByRole('button', { name: 'Testing...' })
+    // Button should now be disabled with "Testing…"
+    const button = screen.getByRole('button', { name: 'Testing…' })
     expect(button).toBeDisabled()
 
     // Try clicking the disabled button — second call should not happen

@@ -37,7 +37,7 @@ export default function StoryQuestion({ question, questionIndex }: StoryQuestion
         className={styles.textarea}
         value={currentValue}
         onChange={handleChange}
-        placeholder="Type your answer here..."
+        placeholder="Type your answer here…"
         aria-label={`Answer for question ${questionIndex + 1}: ${question}`}
         autoFocus
       />

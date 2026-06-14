@@ -80,7 +80,7 @@ export default function ModelSelector() {
           onClick={handleFetchModels}
           disabled={loading}
         >
-          {loading ? 'Fetching...' : 'Fetch Models'}
+          {loading ? 'Fetching…' : 'Fetch Models'}
         </button>
       </div>
 

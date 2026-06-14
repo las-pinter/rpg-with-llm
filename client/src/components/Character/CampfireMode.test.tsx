@@ -77,7 +77,7 @@ const sampleCharacter: Character = {
   max_hp: 12,
   ac: 18,
   skills: ['Athletics', 'Intimidation'],
-  backstory: 'Born in the shadow of the Iron Peaks...',
+  backstory: 'Born in the shadow of the Iron Peaks…',
   appearance: 'Tall with a scarred face.',
   personality: 'Determined and brooding.',
   hooks: ['Seeks the lost sword of his father.'],

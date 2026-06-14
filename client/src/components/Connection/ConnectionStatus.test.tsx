@@ -49,10 +49,10 @@ describe('ConnectionStatus — idle state', () => {
 /* ------------------------------------------------------------------ */
 
 describe('ConnectionStatus — loading state', () => {
-  it('renders "Testing connection..." when checking is true', () => {
+  it('renders "Testing connection…" when checking is true', () => {
     useConnectionStore.getState().setChecking(true)
     render(<ConnectionStatus />)
-    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.getByText('Testing connection…')).toBeInTheDocument()
   })
 
   it('renders the loading dot with the loading class', () => {
@@ -68,7 +68,7 @@ describe('ConnectionStatus — loading state', () => {
     // Then a new check starts
     useConnectionStore.getState().setChecking(true)
     render(<ConnectionStatus />)
-    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.getByText('Testing connection…')).toBeInTheDocument()
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()
   })
 })
@@ -169,7 +169,7 @@ describe('ConnectionStatus — priority: loading over error', () => {
     // …then a new check starts (e.g. retry button)
     useConnectionStore.getState().setChecking(true)
     render(<ConnectionStatus />)
-    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.getByText('Testing connection…')).toBeInTheDocument()
     expect(screen.queryByText('Server down')).not.toBeInTheDocument()
   })
 })
@@ -201,7 +201,7 @@ describe('ConnectionStatus — state transitions', () => {
     // Step 2: loading
     act(() => useConnectionStore.getState().setChecking(true))
     rerender(<ConnectionStatus />)
-    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.getByText('Testing connection…')).toBeInTheDocument()
 
     // Step 3: success with latency
     act(() => useConnectionStore.getState().setHealthResult(true, 33, null))
@@ -218,7 +218,7 @@ describe('ConnectionStatus — state transitions', () => {
     // Step 2: loading
     act(() => useConnectionStore.getState().setChecking(true))
     rerender(<ConnectionStatus />)
-    expect(screen.getByText('Testing connection...')).toBeInTheDocument()
+    expect(screen.getByText('Testing connection…')).toBeInTheDocument()
 
     // Step 3: error
     act(() => useConnectionStore.getState().setHealthResult(false, null, 'Timeout'))

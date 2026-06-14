@@ -301,7 +301,7 @@ describe('store-hook integration — full lifecycle', () => {
     const events = [
       {
         event: 'token',
-        data: JSON.stringify({ content: 'The DM ponders... ' }),
+        data: JSON.stringify({ content: 'The DM ponders… ' }),
       },
       {
         event: 'narrative',

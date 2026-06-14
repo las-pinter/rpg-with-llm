@@ -75,8 +75,8 @@ describe('gameStore', () => {
 
   describe('setNarrative', () => {
     it('sets narrative to a given string', () => {
-      useGameStore.getState().setNarrative('The adventure begins...')
-      expect(useGameStore.getState().narrative).toBe('The adventure begins...')
+      useGameStore.getState().setNarrative('The adventure begins…')
+      expect(useGameStore.getState().narrative).toBe('The adventure begins…')
     })
 
     it('sets narrative to an empty string', () => {
@@ -299,8 +299,8 @@ describe('gameStore', () => {
 
   describe('setStreamingText', () => {
     it('sets streamingText to a given string', () => {
-      useGameStore.getState().setStreamingText('The DM says...')
-      expect(useGameStore.getState().streamingText).toBe('The DM says...')
+      useGameStore.getState().setStreamingText('The DM says…')
+      expect(useGameStore.getState().streamingText).toBe('The DM says…')
     })
 
     it('sets streamingText to empty string', () => {

@@ -128,7 +128,7 @@ export default function NarrativeStream() {
     return (
       <div className={styles.container}>
         <div className={styles.emptyState}>
-          <span className={styles.emptyText}>The adventure awaits...</span>
+          <span className={styles.emptyText}>The adventure awaits…</span>
         </div>
       </div>
     )

@@ -187,7 +187,7 @@ describe('SaveGameModal', () => {
 
       fireEvent.click(screen.getByText('Save'))
       await waitFor(() => {
-        expect(screen.getByText('Saving...')).toBeInTheDocument()
+        expect(screen.getByText('Saving…')).toBeInTheDocument()
       })
 
       fireEvent.click(screen.getByRole('dialog'))
@@ -224,7 +224,7 @@ describe('SaveGameModal', () => {
 
       fireEvent.click(screen.getByText('Save'))
       await waitFor(() => {
-        expect(screen.getByText('Saving...')).toBeInTheDocument()
+        expect(screen.getByText('Saving…')).toBeInTheDocument()
       })
 
       fireEvent.keyDown(document, { key: 'Escape' })
@@ -272,7 +272,7 @@ describe('SaveGameModal', () => {
   // ---------------------------------------------------------------
 
   describe('saving phase', () => {
-    it('shows a spinner and "Saving..." text while saving', async () => {
+    it('shows a spinner and "Saving…" text while saving', async () => {
       vi.spyOn(endpoints, 'saveGame').mockImplementation(
         () => new Promise<never>(() => {}),
       )
@@ -281,7 +281,7 @@ describe('SaveGameModal', () => {
       fireEvent.click(screen.getByText('Save'))
 
       await waitFor(() => {
-        expect(screen.getByText('Saving...')).toBeInTheDocument()
+        expect(screen.getByText('Saving…')).toBeInTheDocument()
       })
       // The input and buttons should be gone
       expect(screen.queryByLabelText('Save Name')).not.toBeInTheDocument()

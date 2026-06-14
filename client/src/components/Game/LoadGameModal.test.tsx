@@ -166,13 +166,13 @@ describe('LoadGameModal', () => {
       expect(screen.getByText('Load Game')).toBeInTheDocument()
     })
 
-    it('shows a loading spinner and "Loading saves..." initially', () => {
+    it('shows a loading spinner and "Loading saves…" initially', () => {
       // Keep listSaves pending so the component stays in LOADING phase
       vi.spyOn(endpoints, 'listSaves').mockImplementation(
         () => new Promise<never>(() => {}),
       )
       renderModal()
-      expect(screen.getByText('Loading saves...')).toBeInTheDocument()
+      expect(screen.getByText('Loading saves…')).toBeInTheDocument()
     })
 
     it('calls listSaves() on open', async () => {
@@ -510,7 +510,7 @@ describe('LoadGameModal', () => {
       // Click Yes, delete — triggers async handleConfirmDelete
       fireEvent.click(screen.getByText('Yes, delete'))
       // Sync part of the handler flushes: we're now in deleting state
-      expect(screen.getByText('Deleting...')).toBeInTheDocument()
+      expect(screen.getByText('Deleting…')).toBeInTheDocument()
 
       // Resolve the delete promise
       await act(async () => {
@@ -619,7 +619,7 @@ describe('LoadGameModal', () => {
       fireEvent.click(screen.getByText('Try Again'))
 
       // Should show loading state again
-      expect(screen.getByText('Loading saves...')).toBeInTheDocument()
+      expect(screen.getByText('Loading saves…')).toBeInTheDocument()
 
       // Second call: succeed
       await act(async () => {
@@ -725,7 +725,7 @@ describe('LoadGameModal', () => {
       rerender(<LoadGameModal isOpen={true} onClose={onClose} onLoaded={onLoaded} />)
 
       // Should be loading again
-      expect(screen.getByText('Loading saves...')).toBeInTheDocument()
+      expect(screen.getByText('Loading saves…')).toBeInTheDocument()
 
       // Second fetch resolves with save-2
       await act(async () => {

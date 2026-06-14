@@ -71,7 +71,7 @@ const sampleCharacter: Character = {
   max_hp: 12,
   ac: 18,
   skills: ['Athletics', 'Intimidation'],
-  backstory: 'A dwarf from the Iron Peaks...',
+  backstory: 'A dwarf from the Iron Peaks…',
   appearance: 'Stocky with a braided beard.',
   personality: 'Stubborn and loyal.',
   hooks: ['Seeks lost dwarven halls.'],
@@ -195,8 +195,8 @@ describe('ManualMode — input updates', () => {
     render(<ManualMode />)
 
     const textarea = screen.getByLabelText('Backstory')
-    await user.type(textarea, 'Born in the Iron Peaks...')
-    expect(textarea).toHaveValue('Born in the Iron Peaks...')
+    await user.type(textarea, 'Born in the Iron Peaks…')
+    expect(textarea).toHaveValue('Born in the Iron Peaks…')
   })
 
   it('typing name updates the store value', async () => {
@@ -329,7 +329,7 @@ describe('ManualMode — API call', () => {
     // Pre-fill store with manual form data
     useCharacterStore.getState().setManualName('Thorn Ironvein')
     useCharacterStore.getState().setManualAppearance('Stocky with a braided beard.')
-    useCharacterStore.getState().setManualBackstory('A dwarf from the Iron Peaks...')
+    useCharacterStore.getState().setManualBackstory('A dwarf from the Iron Peaks…')
 
     render(<ManualMode />)
 
@@ -351,7 +351,7 @@ describe('ManualMode — API call', () => {
       CHA: 8,
     })
     expect(params.appearance).toBe('Stocky with a braided beard.')
-    expect(params.backstory).toBe('A dwarf from the Iron Peaks...')
+    expect(params.backstory).toBe('A dwarf from the Iron Peaks…')
   })
 
   it('omits appearance and backstory when empty', async () => {

@@ -241,7 +241,7 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
               className={styles.input}
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
-              placeholder="Enter a name for this save..."
+              placeholder="Enter a name for this save…"
               autoComplete="off"
             />
             <div className={styles.buttonRow}>
@@ -263,7 +263,7 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
         {phase === 'saving' && (
           <div className={styles.centeredState}>
             <span className={styles.spinner} aria-hidden="true" />
-            <p className={styles.statusText}>Saving...</p>
+            <p className={styles.statusText}>Saving…</p>
           </div>
         )}
 

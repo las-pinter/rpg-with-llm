@@ -15,8 +15,8 @@ export default function NpcThinkingIndicator() {
   if (!npcThinking) return null
 
   const label = npcThinking.hint
-    ? `${npcThinking.npcId} is pondering (${npcThinking.hint})...`
-    : `${npcThinking.npcId} is pondering...`
+    ? `${npcThinking.npcId} is pondering (${npcThinking.hint})…`
+    : `${npcThinking.npcId} is pondering…`
 
   return (
     <div className={styles.wrapper} role="status" aria-live="polite">

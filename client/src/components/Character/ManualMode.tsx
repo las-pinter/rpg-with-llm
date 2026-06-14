@@ -126,7 +126,7 @@ export default function ManualMode() {
           type="text"
           value={manualName}
           onChange={(e) => setManualName(e.target.value)}
-          placeholder="Enter your hero&rsquo;s name..."
+          placeholder="Enter your hero&rsquo;s name…"
           aria-required="true"
         />
       </div>
@@ -151,7 +151,7 @@ export default function ManualMode() {
           className={styles.fieldTextarea}
           value={manualAppearance}
           onChange={(e) => setManualAppearance(e.target.value)}
-          placeholder="Describe your character&rsquo;s appearance..."
+          placeholder="Describe your character&rsquo;s appearance…"
           rows={3}
         />
       </div>
@@ -166,7 +166,7 @@ export default function ManualMode() {
           className={styles.fieldTextarea}
           value={manualBackstory}
           onChange={(e) => setManualBackstory(e.target.value)}
-          placeholder="Write your character&rsquo;s backstory..."
+          placeholder="Write your character&rsquo;s backstory…"
           rows={4}
         />
       </div>

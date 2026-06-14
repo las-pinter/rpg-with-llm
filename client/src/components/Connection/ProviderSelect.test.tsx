@@ -313,12 +313,12 @@ describe('ProviderSelect — API key disabled for local providers', () => {
     )
   })
 
-  it('placeholder says "Enter API key..." for groq', () => {
+  it('placeholder says "Enter API key…" for groq', () => {
     useConnectionStore.getState().setProviderType('groq')
     render(<ProviderSelect />)
     expect(screen.getByLabelText('API Key')).toHaveAttribute(
       'placeholder',
-      'Enter API key...',
+      'Enter API key…',
     )
   })
 })
