@@ -17,6 +17,7 @@
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
   color: var(--accent-gold, #d4a547);
+  text-wrap: balance;
 }
 
 .subtitle {
@@ -94,7 +95,7 @@
   font-family: var(--font-ui, sans-serif);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   position: relative;
@@ -150,7 +151,7 @@
   font-family: var(--font-ui, sans-serif);
   font-size: 0.78rem;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   position: relative;
@@ -199,7 +200,7 @@
   font-size: 0.9rem;
   font-family: var(--font-ui, sans-serif);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
   text-decoration: none;
 }
 

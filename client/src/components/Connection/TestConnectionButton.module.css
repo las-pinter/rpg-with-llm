@@ -21,7 +21,7 @@
   font-family: var(--font-ui, sans-serif);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition, 150ms ease);
+  transition: background var(--transition, 150ms ease), color var(--transition, 150ms ease), border-color var(--transition, 150ms ease), box-shadow var(--transition, 150ms ease);
   white-space: nowrap;
 }
 

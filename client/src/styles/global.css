@@ -37,6 +37,7 @@ h5 {
   font-family: var(--font-narrative);
   font-weight: 400;
   letter-spacing: 0.02em;
+  text-wrap: balance;
 }
 
 h1 {
@@ -171,7 +172,11 @@ select {
   font-size: 0.9rem;
   font-family: var(--font-ui);
   cursor: pointer;
-  transition: all var(--transition);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition),
+    box-shadow var(--transition);
   white-space: nowrap;
 }
 
@@ -266,6 +271,21 @@ select {
   }
 }
 
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(-20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -284,4 +304,9 @@ select {
   html {
     scroll-behavior: auto;
   }
+}
+
+/* ----- Touch ----- */
+button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
 }

@@ -13,6 +13,7 @@
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
   color: var(--accent-gold, #d4a547);
+  text-wrap: balance;
 }
 
 .subtitle {
@@ -107,7 +108,7 @@
   font-size: 0.9rem;
   font-family: var(--font-ui, sans-serif);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
   text-decoration: none;
 }
 
@@ -130,7 +131,7 @@
   font-family: var(--font-ui, sans-serif);
   font-weight: 600;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: background 150ms ease, box-shadow 150ms ease;
 }
 
 .startButton:hover:not(:disabled) {

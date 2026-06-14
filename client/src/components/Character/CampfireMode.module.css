@@ -95,7 +95,7 @@
   font-family: var(--font-ui);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 
 .navBtn:hover:not(:disabled) {

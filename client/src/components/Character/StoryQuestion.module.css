@@ -28,6 +28,7 @@
   letter-spacing: 0.18em;
   color: var(--text-muted);
   margin-bottom: 0.75rem;
+  text-wrap: balance;
 }
 
 .question {
@@ -37,6 +38,7 @@
   line-height: 1.5;
   margin-bottom: 1rem;
   font-style: italic;
+  text-wrap: balance;
 }
 
 .textarea {

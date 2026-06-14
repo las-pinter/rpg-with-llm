@@ -13,12 +13,8 @@
   justify-content: center;
   background: rgba(6, 6, 16, 0.75);
   backdrop-filter: blur(4px);
+  overscroll-behavior: contain;
   animation: overlayFadeIn 200ms ease forwards;
-}
-
-@keyframes overlayFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 /* ------------------------------------------------------------------ */
@@ -40,17 +36,6 @@
   animation: modalSlideIn 250ms ease forwards;
   display: flex;
   flex-direction: column;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -98,6 +83,7 @@
   letter-spacing: 0.04em;
   margin-bottom: 1.25rem;
   text-align: center;
+  text-wrap: balance;
   flex-shrink: 0;
 }
 
@@ -177,7 +163,7 @@
   font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), box-shadow var(--transition);
 }
 
 .closeEmptyBtn:hover,
@@ -331,7 +317,7 @@
   font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), box-shadow var(--transition);
   white-space: nowrap;
 }
 
@@ -355,7 +341,7 @@
   font-family: var(--font-ui);
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition);
   white-space: nowrap;
 }
 
@@ -420,12 +406,12 @@
   font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), box-shadow var(--transition);
   white-space: nowrap;
 }
 
 .confirmYesBtn:hover:not(:disabled) {
-  background: #d04040;
+  background: var(--danger-hover);
   box-shadow: 0 0 8px rgba(184, 48, 48, 0.4);
 }
 
@@ -443,7 +429,7 @@
   font-size: 0.75rem;
   font-family: var(--font-ui);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition);
   white-space: nowrap;
 }
 
@@ -523,8 +509,8 @@
 /* ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
-  .overlay { animation: none; }
-  .modal { animation: none; }
+  .overlay { animation: none; backdrop-filter: none; }
+  .modal { animation: none; transition: none; }
   .spinner { animation: none; }
   .cardSpinner { animation: none; }
   .deletedText { animation: none; }
