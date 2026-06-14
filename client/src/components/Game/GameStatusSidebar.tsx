@@ -6,7 +6,7 @@
  * sidebar. Can collapse to a narrow strip for more game-space.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useGameStore } from '../../stores/gameStore'
 import { useCharacterStore } from '../../stores/characterStore'
 import styles from './GameStatusSidebar.module.css'
@@ -224,16 +224,22 @@ export default function GameStatusSidebar() {
   const hpRatio = maxHp > 0 ? Math.min(hp / maxHp, 1) : 0
   const hpPercent = Math.round(hpRatio * 100)
 
+  // Formatted location string (memoized — involves string split/map/join)
+  const formattedLocation = useMemo(() => {
+    return location ? formatLocation(location) : null
+  }, [location])
+
   // Resolve ability keys (handle both uppercase and lowercase)
-  const resolvedAbilities: Record<string, number> | null =
-    abilities && Object.keys(abilities).length > 0
-      ? Object.fromEntries(
-          Object.entries(abilities).map(([k, v]) => [
-            resolveAbilityKey(k),
-            v,
-          ]),
-        )
-      : null
+  const resolvedAbilities: Record<string, number> | null = useMemo(() => {
+    if (!abilities || Object.keys(abilities).length === 0) return null
+
+    return Object.fromEntries(
+      Object.entries(abilities).map(([k, v]) => [
+        resolveAbilityKey(k),
+        v,
+      ]),
+    )
+  }, [abilities])
 
   // -------------------------------------------------------------------
   // Render: Empty State
@@ -363,7 +369,7 @@ export default function GameStatusSidebar() {
             {location !== null && (
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Location:</span>
-                <span>{formatLocation(location)}</span>
+                <span>{formattedLocation}</span>
               </div>
             )}
             {gold === null && location === null && (
