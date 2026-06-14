@@ -38,8 +38,10 @@ export function useGameStream(): UseGameStreamReturn {
   const bufferRef = useRef('')
   const decoderRef = useRef(new TextDecoder())
   const cancelledRef = useRef(false)
-  const retryCountRef = useRef(0)
   const fetchedRef = useRef(false)
+  // Ref for disconnect so processStreamEvent always calls the latest version,
+  // avoiding stale closure issues if disconnect's deps ever change.
+  const disconnectRef = useRef<() => void>(() => {})
 
   const disconnect = useCallback(() => {
     cancelledRef.current = true
@@ -55,6 +57,9 @@ export function useGameStream(): UseGameStreamReturn {
       controllerRef.current = null
     }
   }, [])
+
+  // Keep ref in sync so inner closures always call the current disconnect
+  disconnectRef.current = disconnect
 
   // Cleanup on unmount — always disconnect
   useEffect(() => {
@@ -89,7 +94,7 @@ export function useGameStream(): UseGameStreamReturn {
       }
 
       /** Parse a single SSE block and dispatch to the game store. */
-      function dispatchEvent(type: string, data: unknown) {
+      const processStreamEvent = (type: string, data: unknown) => {
         const s = useGameStore.getState()
 
         switch (type) {
@@ -126,7 +131,7 @@ export function useGameStream(): UseGameStreamReturn {
             s.setIsThinking(false)
             s.setStreamingText('')
             s.addNarrativeEntry({ type: 'separator', content: '---' })
-            disconnect()
+            disconnectRef.current()
             break
           }
           case 'token_usage': {
@@ -137,101 +142,104 @@ export function useGameStream(): UseGameStreamReturn {
           case 'error': {
             const d = data as { message?: string }
             s.setError(d.message ?? 'Server error')
-            disconnect()
+            disconnectRef.current()
             break
           }
         }
       }
 
       async function attempt(): Promise<void> {
+        let retries = 0
         try {
-          const response = await fetch(STREAM_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal,
-          })
+          while (retries <= MAX_RETRIES) {
+            try {
+              const response = await fetch(STREAM_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+              })
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`)
-          }
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`)
+              }
 
-          if (cancelledRef.current) return
+              if (cancelledRef.current) return
 
-          if (!response.body) {
-            throw new Error('Response body is null or undefined')
-          }
-          const reader = response.body.getReader()
-          readerRef.current = reader
-          retryCountRef.current = 0
-          setIsConnecting(false)
+              if (!response.body) {
+                throw new Error('Response body is null or undefined')
+              }
+              const reader = response.body.getReader()
+              readerRef.current = reader
+              retries = 0
+              setIsConnecting(false)
 
-          // Read the SSE stream chunk by chunk
-          while (true) {
-            if (cancelledRef.current) {
-              reader.cancel()
+              // Read the SSE stream chunk by chunk
+              while (true) {
+                if (cancelledRef.current) {
+                  reader.cancel()
+                  return
+                }
+                const { done, value } = await reader.read()
+                if (done) break
+
+                // Accumulate raw bytes in a buffer, decoding as we go
+                bufferRef.current += decoderRef.current.decode(value, {
+                  stream: true,
+                })
+
+                // Process all complete SSE blocks (delimited by \n\n)
+                let lineBreak = bufferRef.current.indexOf('\n\n')
+                while (lineBreak !== -1) {
+                  const block = bufferRef.current.slice(0, lineBreak)
+                  bufferRef.current = bufferRef.current.slice(lineBreak + 2)
+
+                  let eventType = ''
+                  let eventData = ''
+                  const lines = block.split('\n')
+                  for (const line of lines) {
+                    if (line.startsWith('event: ')) {
+                      eventType = line.slice(7).trim()
+                    } else if (line.startsWith('data: ')) {
+                      // SSE spec: multiple data: lines joined with \n
+                      eventData += (eventData ? '\n' : '') + line.slice(6)
+                    }
+                  }
+
+                  if (eventType && eventData) {
+                    try {
+                      const parsed = JSON.parse(eventData)
+                      processStreamEvent(eventType, parsed)
+                    } catch {
+                      // Malformed JSON — skip
+                    }
+                  }
+
+                  lineBreak = bufferRef.current.indexOf('\n\n')
+                }
+              }
+              // Stream ended normally — success, exit attempt
               return
-            }
-            const { done, value } = await reader.read()
-            if (done) break
-
-            // Accumulate raw bytes in a buffer, decoding as we go
-            bufferRef.current += decoderRef.current.decode(value, {
-              stream: true,
-            })
-
-            // Process all complete SSE blocks (delimited by \n\n)
-            let lineBreak = bufferRef.current.indexOf('\n\n')
-            while (lineBreak !== -1) {
-              const block = bufferRef.current.slice(0, lineBreak)
-              bufferRef.current = bufferRef.current.slice(lineBreak + 2)
-
-              let eventType = ''
-              let eventData = ''
-              const lines = block.split('\n')
-              for (const line of lines) {
-                if (line.startsWith('event: ')) {
-                  eventType = line.slice(7).trim()
-                } else if (line.startsWith('data: ')) {
-                  // SSE spec: multiple data: lines joined with \n
-                  eventData += (eventData ? '\n' : '') + line.slice(6)
-                }
+            } catch (err) {
+              if (cancelledRef.current) return
+              if (err instanceof DOMException && err.name === 'AbortError') {
+                return
               }
 
-              if (eventType && eventData) {
-                try {
-                  const parsed = JSON.parse(eventData)
-                  dispatchEvent(eventType, parsed)
-                } catch {
-                  // Malformed JSON — skip
-                }
+              // Exponential backoff retry
+              if (retries < MAX_RETRIES) {
+                retries++
+                const delay = Math.pow(2, retries - 1) * 1000
+                await new Promise((r) => setTimeout(r, delay))
+                if (cancelledRef.current) return
+                // Loop again to retry
+              } else {
+                const message = err instanceof Error ? err.message : 'Connection failed'
+                setLocalError(message)
+                setIsConnecting(false)
+                return
               }
-
-              lineBreak = bufferRef.current.indexOf('\n\n')
             }
-          }
-        } catch (err) {
-          if (cancelledRef.current) return
-          if (
-            err instanceof DOMException &&
-            err.name === 'AbortError'
-          ) {
-            return
-          }
-
-          // Exponential backoff retry
-          if (retryCountRef.current < MAX_RETRIES) {
-            retryCountRef.current += 1
-            const delay = Math.pow(2, retryCountRef.current - 1) * 1000
-            await new Promise((r) => setTimeout(r, delay))
-            if (!cancelledRef.current) {
-              await attempt()
-            }
-          } else {
-            const message =
-              err instanceof Error ? err.message : 'Connection failed'
-            setLocalError(message)
-            setIsConnecting(false)
           }
         } finally {
           if (!cancelledRef.current) {
