@@ -116,6 +116,7 @@ export default function GameInputArea({
           className={styles.inputField}
           placeholder="What do you do?"
           aria-label="Player action input"
+          autoComplete="off"
           ref={inputRef}
           onKeyDown={onKeyDown}
           disabled={!isActive || processing}
