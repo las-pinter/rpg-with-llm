@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useGameStore } from '../../stores/gameStore'
 import styles from './Layout.module.css'
@@ -10,6 +11,20 @@ const NAV_ITEMS = [
 
 export default function Layout() {
   const isActive = useGameStore((s) => s.isActive)
+
+  useEffect(() => {
+    if (!isActive) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [isActive])
 
   const handleNavClick = (e: React.MouseEvent, to: string) => {
     if (!isActive) return
