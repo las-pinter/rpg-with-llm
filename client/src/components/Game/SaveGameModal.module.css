@@ -13,16 +13,8 @@
   justify-content: center;
   background: rgba(6, 6, 16, 0.75);
   backdrop-filter: blur(4px);
+  overscroll-behavior: contain;
   animation: overlayFadeIn 200ms ease forwards;
-}
-
-@keyframes overlayFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -41,17 +33,6 @@
     0 0 30px rgba(0, 0, 0, 0.6),
     0 0 60px rgba(0, 0, 0, 0.3);
   animation: modalSlideIn 250ms ease forwards;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -99,6 +80,7 @@
   letter-spacing: 0.04em;
   margin-bottom: 1.25rem;
   text-align: center;
+  text-wrap: balance;
 }
 
 /* ------------------------------------------------------------------ */
@@ -157,7 +139,7 @@
   font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), box-shadow var(--transition);
 }
 
 .saveBtn:hover {
@@ -175,7 +157,7 @@
   font-size: 0.9rem;
   font-family: var(--font-ui);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .cancelBtn:hover {
@@ -298,9 +280,11 @@
 @media (prefers-reduced-motion: reduce) {
   .overlay {
     animation: none;
+    backdrop-filter: none;
   }
   .modal {
     animation: none;
+    transition: none;
   }
   .spinner {
     animation: none;

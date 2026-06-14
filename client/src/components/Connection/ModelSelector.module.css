@@ -26,7 +26,7 @@
   font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), border-color var(--transition), box-shadow var(--transition);
   white-space: nowrap;
   width: 100%;
 }

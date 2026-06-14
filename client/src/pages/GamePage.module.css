@@ -43,6 +43,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  text-wrap: balance;
 }
 
 .headerActions {
@@ -62,7 +63,7 @@
   font-size: 0.8rem;
   font-family: var(--font-ui, sans-serif);
   cursor: pointer;
-  transition: all var(--transition, 150ms ease);
+  transition: background var(--transition, 150ms ease), border-color var(--transition, 150ms ease), color var(--transition, 150ms ease);
 }
 
 .headerBtn:hover {
@@ -182,6 +183,7 @@
   color: var(--accent-gold, #d4a547);
   margin: 0;
   font-family: var(--font-narrative, Georgia, serif);
+  text-wrap: balance;
 }
 
 .emptyText {
@@ -206,7 +208,7 @@
   font-family: var(--font-ui, sans-serif);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition, 150ms ease);
+  transition: background var(--transition, 150ms ease), box-shadow var(--transition, 150ms ease);
   margin-top: 0.5rem;
 }
 
@@ -244,6 +246,7 @@
   color: var(--accent-gold, #d4a547);
   margin: 0;
   font-family: var(--font-narrative, Georgia, serif);
+  text-wrap: balance;
 }
 
 .connectingText {

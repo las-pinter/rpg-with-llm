@@ -51,8 +51,8 @@
 .playerBubble {
   max-width: 80%;
   padding: 0.6rem 1rem;
-  background: rgba(140, 90, 200, 0.12);
-  border: 1px solid rgba(140, 90, 200, 0.25);
+  background: rgba(212, 165, 71, 0.12);
+  border: 1px solid rgba(212, 165, 71, 0.25);
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm)
     var(--radius-lg);
   color: var(--text-primary);

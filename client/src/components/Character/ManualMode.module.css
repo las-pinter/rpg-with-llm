@@ -136,7 +136,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), box-shadow var(--transition);
   box-shadow: 0 0 12px var(--accent-glow);
 }
 

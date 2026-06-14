@@ -2,6 +2,8 @@
    Ported from app/static/css/style.css for the React SPA. */
 
 :root {
+  color-scheme: dark;
+
   /* ---- Backgrounds ---- */
   --bg-deep: #0e0e1a;
   --bg-primary: #1a1a2e;
@@ -25,6 +27,7 @@
 
   /* ---- Status ---- */
   --danger: #b83030;
+  --danger-hover: #d04040;
   --danger-bg: rgba(184, 48, 48, 0.12);
   --danger-border: rgba(184, 48, 48, 0.3);
   --success: #3a8a4e;
@@ -39,9 +42,7 @@
   --font-narrative:
     Georgia, 'Palatino Linotype', 'Book Antiqua', Palatino, 'Times New Roman', Times,
     serif;
-  --font-ui:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    sans-serif;
+  --font-ui: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, 'Times New Roman', Times, serif;
   --font-mono: 'Courier New', Courier, monospace;
 
   /* ---- Radii ---- */

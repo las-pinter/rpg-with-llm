@@ -9,7 +9,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .wrapper {
-    animation: fadeIn 1s ease forwards;
+    animation: npcFadeIn 1s ease forwards;
   }
 }
 
@@ -22,7 +22,7 @@
   user-select: none;
 }
 
-@keyframes fadeIn {
+@keyframes npcFadeIn {
   from {
     opacity: 0;
     transform: translateY(4px);

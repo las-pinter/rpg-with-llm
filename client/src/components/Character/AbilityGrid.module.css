@@ -34,6 +34,7 @@
   font-size: 1rem;
   color: var(--accent-gold);
   margin: 0;
+  text-wrap: balance;
 }
 
 .remainingBadge {
@@ -128,7 +129,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
   line-height: 1;
   padding: 0;
 }

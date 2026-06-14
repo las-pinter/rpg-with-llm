@@ -110,7 +110,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
   padding: 0;
   line-height: 1;
 }
@@ -184,6 +184,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-wrap: balance;
 }
 
 .charSub {
@@ -213,6 +214,7 @@
   font-family: var(--font-ui);
   font-weight: 600;
   margin: 0 0 0.4rem 0;
+  text-wrap: balance;
 }
 
 /* ---- HP section ---- */
