@@ -16,7 +16,7 @@
  *   load-error   → inline error message on the card
  */
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 'react'
 import { listSaves, loadGame, deleteSave } from '../../api/endpoints'
 import type { SaveMeta } from '../../api/types'
 import styles from './LoadGameModal.module.css'
@@ -56,6 +56,138 @@ function formatTimestamp(ts: string): string {
     return ts
   }
 }
+
+// ---------------------------------------------------------------------------
+// SaveCard — individual save card with load/delete/confirm/deleted states
+// ---------------------------------------------------------------------------
+
+interface SaveCardProps {
+  save: SaveMeta
+  isLoading: boolean
+  isDeleting: boolean
+  isConfirming: boolean
+  isDeleted: boolean
+  showError: boolean
+  errorMessage?: string
+  disabled: boolean
+  onLoad: (slug: string) => void
+  onRequestDelete: (slug: string) => void
+  onConfirmDelete: (slug: string) => void
+  onCancelDelete: () => void
+}
+
+const SaveCard = memo(function SaveCard({
+  save,
+  isLoading,
+  isDeleting,
+  isConfirming,
+  isDeleted,
+  showError,
+  errorMessage,
+  disabled,
+  onLoad,
+  onRequestDelete,
+  onConfirmDelete,
+  onCancelDelete,
+}: SaveCardProps) {
+  return (
+    <div
+      className={`${styles.saveCard} ${isDeleted ? styles.saveCardDeleted : ''}`}
+      data-id={save.id}
+    >
+      {/* ---- Deleted feedback ---- */}
+      {isDeleted && (
+        <div className={styles.deletedOverlay}>
+          <span className={styles.deletedText}>Deleted!</span>
+        </div>
+      )}
+
+      {/* ---- Idle state ---- */}
+      {!isDeleted && !isDeleting && !isConfirming && (
+        <div className={styles.saveCardInner}>
+          <div className={styles.saveCardInfo}>
+            <span className={styles.saveName}>{save.name}</span>
+            {save.character_name && (
+              <span className={styles.saveCharacter}>{save.character_name}</span>
+            )}
+            <span className={styles.saveMeta}>
+              {save.turn_count != null && `Turn ${save.turn_count}`}
+              {save.turn_count != null && save.timestamp && ' · '}
+              {save.timestamp && formatTimestamp(save.timestamp)}
+            </span>
+          </div>
+
+          <div className={styles.saveCardActions}>
+            {isLoading ? (
+              <span className={styles.cardSpinner} aria-hidden="true" />
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={styles.loadBtn}
+                  onClick={() => onLoad(save.id)}
+                  disabled={disabled || isLoading}
+                >
+                  Load
+                </button>
+                <button
+                  type="button"
+                  className={styles.deleteBtn}
+                  onClick={() => onRequestDelete(save.id)}
+                  disabled={disabled || isLoading}
+                >
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ---- Delete confirm overlay ---- */}
+      {!isDeleted && isConfirming && (
+        <div className={styles.confirmOverlay}>
+          <span className={styles.confirmText}>
+            Delete &lsquo;{save.name}&rsquo;?
+          </span>
+          <div className={styles.confirmActions}>
+            <button
+              type="button"
+              className={styles.confirmYesBtn}
+              onClick={() => onConfirmDelete(save.id)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting…' : 'Yes, delete'}
+            </button>
+            <button
+              type="button"
+              className={styles.confirmNoBtn}
+              onClick={onCancelDelete}
+              disabled={isDeleting}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Deleting spinner ---- */}
+      {!isDeleted && isDeleting && (
+        <div className={styles.deletingState}>
+          <span className={styles.cardSpinner} aria-hidden="true" />
+          <span className={styles.deletingText}>Deleting…</span>
+        </div>
+      )}
+
+      {/* ---- Inline error ---- */}
+      {showError && (
+        <div className={styles.cardError}>
+          {errorMessage}
+        </div>
+      )}
+    </div>
+  )
+})
 
 // ---------------------------------------------------------------------------
 // Component
@@ -251,116 +383,6 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
     [],
   )
 
-  // ---------- Render helpers ----------
-
-  /** Render a single save card. */
-  function renderSaveCard(save: SaveMeta): React.ReactNode {
-    const isDeleted = deletedSlug === save.id
-    const isLoading = loadingSlug === save.id
-    const isDeleting = deletingSlug === save.id
-    const isConfirming = confirmDeleteSlug === save.id
-    const showError = loadError != null && !isLoading && !isDeleting && !isConfirming
-
-    return (
-      <div
-        key={save.id}
-        className={`${styles.saveCard} ${isDeleted ? styles.saveCardDeleted : ''}`}
-        data-id={save.id}
-      >
-        {/* ---- Deleted feedback ---- */}
-        {isDeleted && (
-          <div className={styles.deletedOverlay}>
-            <span className={styles.deletedText}>Deleted!</span>
-          </div>
-        )}
-
-        {/* ---- Idle state ---- */}
-        {!isDeleted && !isDeleting && !isConfirming && (
-          <div className={styles.saveCardInner}>
-            <div className={styles.saveCardInfo}>
-              <span className={styles.saveName}>{save.name}</span>
-              {save.character_name && (
-                <span className={styles.saveCharacter}>{save.character_name}</span>
-              )}
-              <span className={styles.saveMeta}>
-                {save.turn_count != null && `Turn ${save.turn_count}`}
-                {save.turn_count != null && save.timestamp && ' · '}
-                {save.timestamp && formatTimestamp(save.timestamp)}
-              </span>
-            </div>
-
-            <div className={styles.saveCardActions}>
-              {isLoading ? (
-                <span className={styles.cardSpinner} aria-hidden="true" />
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className={styles.loadBtn}
-                    onClick={() => handleLoad(save.id)}
-                    disabled={isLoading || isDeleting || loadingSlug != null || deletingSlug != null}
-                  >
-                    Load
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.deleteBtn}
-                    onClick={() => handleRequestDelete(save.id)}
-                    disabled={isLoading || isDeleting || loadingSlug != null || deletingSlug != null}
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ---- Delete confirm overlay ---- */}
-        {!isDeleted && isConfirming && (
-          <div className={styles.confirmOverlay}>
-            <span className={styles.confirmText}>
-              Delete &lsquo;{save.name}&rsquo;?
-            </span>
-            <div className={styles.confirmActions}>
-              <button
-                type="button"
-                className={styles.confirmYesBtn}
-                onClick={() => handleConfirmDelete(save.id)}
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Deleting…' : 'Yes, delete'}
-              </button>
-              <button
-                type="button"
-                className={styles.confirmNoBtn}
-                onClick={handleCancelDelete}
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ---- Deleting spinner ---- */}
-        {!isDeleted && isDeleting && (
-          <div className={styles.deletingState}>
-            <span className={styles.cardSpinner} aria-hidden="true" />
-            <span className={styles.deletingText}>Deleting…</span>
-          </div>
-        )}
-
-        {/* ---- Inline error ---- */}
-        {showError && loadError?.slug === save.id && (
-          <div className={styles.cardError}>
-            {loadError.message}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   // ---------- Don't render when closed ----------
   if (!isOpen) return null
 
@@ -427,7 +449,32 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
         {/* ---- LIST phase ---- */}
         {phase === 'list' && (
           <div className={styles.saveList}>
-            {saves.map(renderSaveCard)}
+            {saves.map((save) => {
+              const isDeleted = deletedSlug === save.id
+              const isLoading = loadingSlug === save.id
+              const isDeleting = deletingSlug === save.id
+              const isConfirming = confirmDeleteSlug === save.id
+              const showError = loadError != null && loadError.slug === save.id && !isLoading && !isDeleting && !isConfirming
+              const disabled = loadingSlug != null || deletingSlug != null
+
+              return (
+                <SaveCard
+                  key={save.id}
+                  save={save}
+                  isLoading={isLoading}
+                  isDeleting={isDeleting}
+                  isConfirming={isConfirming}
+                  isDeleted={isDeleted}
+                  showError={showError}
+                  errorMessage={showError ? loadError!.message : undefined}
+                  disabled={disabled}
+                  onLoad={handleLoad}
+                  onRequestDelete={handleRequestDelete}
+                  onConfirmDelete={handleConfirmDelete}
+                  onCancelDelete={handleCancelDelete}
+                />
+              )
+            })}
           </div>
         )}
       </div>
