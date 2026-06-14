@@ -94,7 +94,7 @@ export default function ProviderSelect() {
             value={apiKey ?? ''}
             onChange={handleApiKeyChange}
             placeholder={
-              apiKeyRequired ? 'Enter API key...' : 'Not required for this provider'
+              apiKeyRequired ? 'Enter API key…' : 'Not required for this provider'
             }
             disabled={!apiKeyRequired}
           />

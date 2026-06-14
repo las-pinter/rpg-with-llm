@@ -65,7 +65,7 @@ export default function CharacterPage() {
       {isLoading && (
         <div className={styles.loadingBanner} role="status">
           <span className={styles.spinner} aria-hidden="true" />
-          <span>Loading character rules...</span>
+          <span>Loading character rules…</span>
         </div>
       )}
 

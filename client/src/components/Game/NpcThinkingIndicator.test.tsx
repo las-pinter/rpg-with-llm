@@ -40,7 +40,7 @@ describe('NpcThinkingIndicator — visible state', () => {
     })
     render(<NpcThinkingIndicator />)
     expect(screen.getByText(/goblin/)).toBeInTheDocument()
-    // Should use fallback: "goblin is pondering..."
+    // Should use fallback: "goblin is pondering…"
     expect(
       screen.getByText(/goblin is pondering/),
     ).toBeInTheDocument()
@@ -116,13 +116,13 @@ describe('NpcThinkingIndicator — dynamic updates', () => {
     expect(screen.queryByText(/orc/)).not.toBeInTheDocument()
   })
 
-  it('displays correct text format with hint: "npcId is pondering (hint)..."', () => {
+  it('displays correct text format with hint: "npcId is pondering (hint)…"', () => {
     useGameStore.setState({
       npcThinking: { npcId: 'wizard', hint: 'casting' },
     })
     render(<NpcThinkingIndicator />)
     expect(
-      screen.getByText('wizard is pondering (casting)...'),
+      screen.getByText('wizard is pondering (casting)…'),
     ).toBeInTheDocument()
   })
 })

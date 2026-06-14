@@ -80,7 +80,7 @@ describe('StoryQuestion — initial render', () => {
 
   it('textarea has a placeholder', () => {
     render(<StoryQuestion question={QUESTION_TEXT} questionIndex={CHAPTER_INDEX} />)
-    expect(screen.getByPlaceholderText('Type your answer here...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Type your answer here…')).toBeInTheDocument()
   })
 
   it('textarea is empty when no answer is stored', () => {
@@ -132,13 +132,13 @@ describe('StoryQuestion — displays store value', () => {
 
   it('displays the answer for the second question index', () => {
     useCharacterStore.getState().setState({
-      storyAnswers: ['', '', 'I was born in the Shire...'],
+      storyAnswers: ['', '', 'I was born in the Shire…'],
     })
     render(
       <StoryQuestion question="Tell your backstory." questionIndex={2} />,
     )
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea).toHaveValue('I was born in the Shire...')
+    expect(textarea).toHaveValue('I was born in the Shire…')
   })
 })
 

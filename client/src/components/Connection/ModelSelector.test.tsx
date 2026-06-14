@@ -130,12 +130,12 @@ describe('ModelSelector — fetch validation', () => {
 /* ------------------------------------------------------------------ */
 
 describe('ModelSelector — loading state', () => {
-  it('shows "Fetching..." while loading', () => {
+  it('shows "Fetching…" while loading', () => {
     useConnectionStore.getState().setLoading(true)
     render(<ModelSelector />)
 
     expect(
-      screen.getByRole('button', { name: 'Fetching...' }),
+      screen.getByRole('button', { name: 'Fetching…' }),
     ).toBeInTheDocument()
   })
 
@@ -143,7 +143,7 @@ describe('ModelSelector — loading state', () => {
     useConnectionStore.getState().setLoading(true)
     render(<ModelSelector />)
 
-    expect(screen.getByRole('button', { name: 'Fetching...' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Fetching…' })).toBeDisabled()
   })
 })
 

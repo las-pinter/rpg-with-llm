@@ -44,7 +44,7 @@ const sampleCharacter: Character = {
   max_hp: 10,
   ac: 15,
   skills: ['Stealth', 'Sleight of Hand', 'Deception'],
-  backstory: 'Raised in the shadowy streets of Waterdeep...',
+  backstory: 'Raised in the shadowy streets of Waterdeep…',
   appearance: 'Slender with sharp green eyes.',
   personality: 'Cunning and quick-witted.',
   hooks: ['Seeks a lost artifact.'],
@@ -255,7 +255,7 @@ describe('ReviewSheet — edit mode', () => {
 
     expect(appearanceTextarea.value).toBe('Slender with sharp green eyes.')
     expect(backstoryTextarea.value).toBe(
-      'Raised in the shadowy streets of Waterdeep...',
+      'Raised in the shadowy streets of Waterdeep…',
     )
   })
 
@@ -325,14 +325,14 @@ describe('ReviewSheet — edit mode', () => {
     ) as HTMLTextAreaElement
 
     await user.clear(backstoryTextarea)
-    await user.type(backstoryTextarea, 'Partially typed...')
+    await user.type(backstoryTextarea, 'Partially typed…')
 
     await user.clear(appearanceTextarea)
-    await user.type(appearanceTextarea, 'Still editing...')
+    await user.type(appearanceTextarea, 'Still editing…')
 
     // Before save, the textareas should reflect what was typed
-    expect(backstoryTextarea.value).toBe('Partially typed...')
-    expect(appearanceTextarea.value).toBe('Still editing...')
+    expect(backstoryTextarea.value).toBe('Partially typed…')
+    expect(appearanceTextarea.value).toBe('Still editing…')
   })
 
   it('saves empty appearance and backstory on Save', async () => {
@@ -465,7 +465,7 @@ describe('ReviewSheet — regenerate', () => {
     const updatedCharacter: Character = {
       ...sampleCharacter,
       name: 'Elara Shadowmoon', // Changed name
-      backstory: 'A rewritten past...',
+      backstory: 'A rewritten past…',
     }
     mockGenerateCharacter.mockResolvedValueOnce({
       ok: true,

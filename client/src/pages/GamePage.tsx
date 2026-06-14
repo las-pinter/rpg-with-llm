@@ -273,9 +273,9 @@ export default function GamePage() {
           <div className={styles.coinFlip} aria-hidden="true">
             🪙
           </div>
-          <h2 className={styles.connectingTitle}>Entering the Realm...</h2>
+          <h2 className={styles.connectingTitle}>Entering the Realm…</h2>
           <p className={styles.connectingText}>
-            The Dungeon Master is weaving your tale...
+            The Dungeon Master is weaving your tale…
           </p>
         </div>
       </div>

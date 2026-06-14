@@ -45,9 +45,9 @@ afterEach(() => {
 /* ------------------------------------------------------------------ */
 
 describe('NarrativeStream — empty state', () => {
-  it('renders "The adventure awaits..." when no entries exist', () => {
+  it('renders "The adventure awaits…" when no entries exist', () => {
     render(<NarrativeStream />)
-    expect(screen.getByText('The adventure awaits...')).toBeInTheDocument()
+    expect(screen.getByText('The adventure awaits…')).toBeInTheDocument()
   })
 })
 
@@ -428,7 +428,7 @@ describe('NarrativeStream — long content', () => {
 
   it('renders very long player content without breaking', () => {
     const longPlayerText =
-      'I carefully inspect every inch of the ancient tome, examining each rune... '.repeat(
+      'I carefully inspect every inch of the ancient tome, examining each rune… '.repeat(
         30,
       )
     addEntries([

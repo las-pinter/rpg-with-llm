@@ -30,7 +30,7 @@ const DOT_CLASS: Record<StatusState, string> = {
 
 const STATUS_LABEL: Record<StatusState, string> = {
   idle: 'Not tested',
-  loading: 'Testing connection...',
+  loading: 'Testing connection…',
   success: 'Connected',
   error: '', // filled from healthError below
 }

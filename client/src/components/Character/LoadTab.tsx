@@ -183,7 +183,7 @@ export default function LoadTab() {
                 disabled={isDeleting}
                 aria-label={`Confirm delete ${c.name}`}
               >
-                {isDeleting ? 'Deleting...' : 'Confirm'}
+                {isDeleting ? 'Deleting…' : 'Confirm'}
               </button>
               <button
                 type="button"
@@ -244,7 +244,7 @@ export default function LoadTab() {
                 disabled={isDeleting}
                 aria-label={`Confirm delete save ${displayName}`}
               >
-                {isDeleting ? 'Deleting...' : 'Confirm'}
+                {isDeleting ? 'Deleting…' : 'Confirm'}
               </button>
               <button
                 type="button"
@@ -299,7 +299,7 @@ export default function LoadTab() {
         {charLoading ? (
           <div className={styles.statusRow} role="status">
             <span className={styles.spinner} aria-hidden="true" />
-            <span>Loading characters...</span>
+            <span>Loading characters…</span>
           </div>
         ) : savedCharacters.length === 0 ? (
           <p className={styles.emptyState}>
@@ -327,7 +327,7 @@ export default function LoadTab() {
         {savesLoading ? (
           <div className={styles.statusRow} role="status">
             <span className={styles.spinner} aria-hidden="true" />
-            <span>Loading saved games...</span>
+            <span>Loading saved games…</span>
           </div>
         ) : savedGames.length === 0 ? (
           <p className={styles.emptyState}>

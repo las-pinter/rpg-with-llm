@@ -487,7 +487,7 @@ describe('StoryModal', () => {
     it('renders many story entries correctly', () => {
       const entries = Array.from(
         { length: 20 },
-        (_, i) => `Entry number ${i + 1}: the story continues...`,
+        (_, i) => `Entry number ${i + 1}: the story continues…`,
       )
       act(() => {
         useGameStore.setState({
@@ -498,7 +498,7 @@ describe('StoryModal', () => {
 
       for (let i = 0; i < 20; i += 1) {
         expect(
-          screen.getByText(`Entry number ${i + 1}: the story continues...`),
+          screen.getByText(`Entry number ${i + 1}: the story continues…`),
         ).toBeInTheDocument()
       }
     })
