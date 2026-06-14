@@ -57,7 +57,7 @@ export default function Layout() {
                 `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
               }
             >
-              <span className={styles.navIcon}>{item.icon}</span>
+              <span className={styles.navIcon} aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
             </NavLink>
           ))}
