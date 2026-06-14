@@ -29,7 +29,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useGameStore } from '../stores/gameStore'
+import { useGameStore, type NarrativeEntry } from '../stores/gameStore'
 import { useCharacterStore } from '../stores/characterStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useGameStream } from '../hooks/useGameStream'
@@ -178,44 +178,65 @@ export default function GamePage() {
       useGameStore.getState().resetGame()
       useGameStore.getState().setWorldState(state)
 
-      // Populate narrative entries from saved story log
-      const storyLog = state.story_log as string[] | undefined
-      if (storyLog && Array.isArray(storyLog)) {
-        for (const entry of storyLog) {
-          useGameStore.getState().addNarrativeEntry({ type: 'narrative', content: entry })
-        }
-      }
-      const storySummary = state.story_summary as string[] | undefined
-      if (storySummary && Array.isArray(storySummary)) {
-        for (const entry of storySummary) {
-          useGameStore.getState().addNarrativeEntry({ type: 'narrative', content: entry })
-        }
-      }
-
-      // Restore player input entries from saved user_input_history
-      const userInputHistory = state.user_input_history as string[] | undefined
-      if (userInputHistory && Array.isArray(userInputHistory)) {
-        for (const input of userInputHistory) {
-          useGameStore.getState().addNarrativeEntry({ type: 'player', content: input })
-        }
-      }
-
-      // Restore full narrative entries (including tool results, separators, etc.)
-      // from the rich _narrative_entries payload if available
-      const narrativeEntries = state._narrative_entries as
+      // Build the COMPLETE narrative array in ONE pass.
+      // Priority: rich _narrative_entries > story_log + story_summary + user_input_history
+      const richEntries = state._narrative_entries as
         | Array<{ type: string; content: string }>
         | undefined
-      if (narrativeEntries && Array.isArray(narrativeEntries) && narrativeEntries.length > 0) {
-        // If we have rich entries, use them instead of the individual adds above
-        useGameStore.getState().setNarrativeEntries(
-          narrativeEntries.map((e) => ({
-            id: crypto.randomUUID(),
-            type: e.type as 'player' | 'narrative' | 'tool_result' | 'separator' | 'error',
-            content: e.content,
-            timestamp: Date.now(),
-          })),
-        )
+
+      let entries: NarrativeEntry[]
+
+      if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
+        // Rich entries available — use them, skip the simpler logs entirely
+        entries = richEntries.map((e) => ({
+          id: crypto.randomUUID(),
+          type: e.type as 'player' | 'narrative' | 'tool_result' | 'separator' | 'error',
+          content: e.content,
+          timestamp: Date.now(),
+        }))
+      } else {
+        // No rich entries — merge story_log, story_summary, and user_input_history
+        entries = []
+
+        const storyLog = state.story_log as string[] | undefined
+        if (storyLog && Array.isArray(storyLog)) {
+          for (const entry of storyLog) {
+            entries.push({
+              id: crypto.randomUUID(),
+              type: 'narrative' as const,
+              content: entry,
+              timestamp: Date.now(),
+            })
+          }
+        }
+
+        const storySummary = state.story_summary as string[] | undefined
+        if (storySummary && Array.isArray(storySummary)) {
+          for (const entry of storySummary) {
+            entries.push({
+              id: crypto.randomUUID(),
+              type: 'narrative' as const,
+              content: entry,
+              timestamp: Date.now(),
+            })
+          }
+        }
+
+        const userInputHistory = state.user_input_history as string[] | undefined
+        if (userInputHistory && Array.isArray(userInputHistory)) {
+          for (const input of userInputHistory) {
+            entries.push({
+              id: crypto.randomUUID(),
+              type: 'player' as const,
+              content: input,
+              timestamp: Date.now(),
+            })
+          }
+        }
       }
+
+      // Single bulk state update — exactly ONE call to setNarrativeEntries
+      useGameStore.getState().setNarrativeEntries(entries)
 
       if (loadedCharacter) {
         // Loaded character comes from API response — cast through as any
