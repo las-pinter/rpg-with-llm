@@ -138,8 +138,6 @@ export default function GameInputArea({
             key={action}
             type="button"
             className={styles.quickChip}
-            role="button"
-            tabIndex={0}
             onClick={() => handleQuickAction(action)}
             disabled={processing || !isActive}
             aria-label={`Quick action: ${action}`}

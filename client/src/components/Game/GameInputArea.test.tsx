@@ -383,11 +383,11 @@ describe('GameInputArea — accessibility', () => {
     ).toBeInTheDocument()
   })
 
-  it('quick action chips have role button and aria-labels', () => {
+  it('quick action chips are buttons with aria-labels', () => {
     render(<GameInputArea />)
     const lookAround = screen.getByLabelText('Quick action: Look around')
-    expect(lookAround).toHaveAttribute('role', 'button')
-    expect(lookAround).toHaveAttribute('tabindex', '0')
+    expect(lookAround.tagName).toBe('BUTTON')
+    expect(lookAround).toBeEnabled()
   })
 
   it('action buttons have aria-labels', () => {
