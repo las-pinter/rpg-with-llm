@@ -10,7 +10,7 @@
  *  3. Clear the input field.
  */
 
-import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react'
+import { useRef, useCallback, type FormEvent, type KeyboardEvent } from 'react'
 import { useGameStore } from '../../stores/gameStore'
 import styles from './GameInputArea.module.css'
 
@@ -58,11 +58,12 @@ export default function GameInputArea({
   const setPlayerInput = useGameStore((s) => s.setPlayerInput)
   const setProcessing = useGameStore((s) => s.setProcessing)
 
-  const [localInput, setLocalInput] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   /** Handle form submission — Enter key or Act button click. */
   const handleSubmit = useCallback(() => {
-    const trimmed = localInput.trim()
+    const value = inputRef.current?.value ?? ''
+    const trimmed = value.trim()
     if (!trimmed || processing) return
 
     if (onSubmit) {
@@ -72,8 +73,10 @@ export default function GameInputArea({
       setProcessing(true)
     }
 
-    setLocalInput('')
-  }, [localInput, processing, onSubmit, setPlayerInput, setProcessing])
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
+  }, [processing, onSubmit, setPlayerInput, setProcessing])
 
   /** Handle form submit event (button click). */
   const onFormSubmit = useCallback(
@@ -97,7 +100,9 @@ export default function GameInputArea({
 
   /** Fill the input field with a quick action suggestion. */
   const handleQuickAction = useCallback((action: string) => {
-    setLocalInput(action)
+    if (inputRef.current) {
+      inputRef.current.value = action
+    }
   }, [])
 
   const isDisabled = processing || !isActive
@@ -111,8 +116,7 @@ export default function GameInputArea({
           className={styles.inputField}
           placeholder="What do you do?"
           aria-label="Player action input"
-          value={localInput}
-          onChange={(e) => setLocalInput(e.target.value)}
+          ref={inputRef}
           onKeyDown={onKeyDown}
           disabled={!isActive || processing}
         />
@@ -120,7 +124,7 @@ export default function GameInputArea({
           type="submit"
           className={styles.actBtn}
           aria-label="Submit action"
-          disabled={isDisabled || !localInput.trim()}
+          disabled={isDisabled}
         >
           Act
         </button>

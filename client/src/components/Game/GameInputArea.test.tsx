@@ -102,10 +102,10 @@ describe('GameInputArea — input behaviour', () => {
     expect(input).toHaveValue('Attack the dragon')
   })
 
-  it('Act button is disabled when input is empty', () => {
+  it('Act button is enabled even when input is empty (validation on submit)', () => {
     render(<GameInputArea />)
     const btn = screen.getByRole('button', { name: /submit action/i })
-    expect(btn).toBeDisabled()
+    expect(btn).not.toBeDisabled()
   })
 
   it('Act button is enabled when input has text', () => {
