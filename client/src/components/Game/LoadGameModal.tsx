@@ -371,7 +371,7 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
       onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
-      aria-label="Load saved game"
+      aria-labelledby="load-game-title"
     >
       <div
         className={styles.modal}
@@ -390,7 +390,7 @@ export default function LoadGameModal({ isOpen, onClose, onLoaded }: LoadGameMod
         </button>
 
         {/* ---- Title ---- */}
-        <h2 className={styles.title}>Load Game</h2>
+        <h2 id="load-game-title" className={styles.title}>Load Game</h2>
 
         {/* ---- LOADING phase ---- */}
         {phase === 'loading' && (
