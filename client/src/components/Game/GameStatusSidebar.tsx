@@ -356,7 +356,7 @@ export default function GameStatusSidebar() {
           <div className={styles.infoRows}>
             {gold !== null && (
               <div className={styles.infoRow}>
-                <span className={styles.infoIcon}>◆</span>
+                <span className={styles.infoIcon} aria-hidden="true">◆</span>
                 <span>{gold} gold</span>
               </div>
             )}
