@@ -386,7 +386,7 @@ describe('GamePage — load modal', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('dialog', { name: /load saved game/i }),
+        screen.getByRole('dialog', { name: /load game/i }),
       ).toBeInTheDocument()
     })
   })
@@ -398,7 +398,7 @@ describe('GamePage — load modal', () => {
     await user.click(screen.getByRole('button', { name: /load game/i }))
     await waitFor(() => {
       expect(
-        screen.getByRole('dialog', { name: /load saved game/i }),
+        screen.getByRole('dialog', { name: /load game/i }),
       ).toBeInTheDocument()
     })
 
@@ -407,7 +407,7 @@ describe('GamePage — load modal', () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByRole('dialog', { name: /load saved game/i }),
+        screen.queryByRole('dialog', { name: /load game/i }),
       ).not.toBeInTheDocument()
     })
   })

@@ -211,7 +211,7 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
       onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
-      aria-label="Save game"
+      aria-labelledby="save-game-title"
     >
       <div className={styles.modal} onClick={(e) => e.stopPropagation()} ref={modalRef}>
         {/* ---- Close button ---- */}
@@ -226,7 +226,7 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
         </button>
 
         {/* ---- Title ---- */}
-        <h2 className={styles.title}>Save Game</h2>
+        <h2 id="save-game-title" className={styles.title}>Save Game</h2>
 
         {/* ---- INPUT phase ---- */}
         {phase === 'input' && (
