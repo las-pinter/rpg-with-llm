@@ -131,13 +131,13 @@ export default function ManualMode() {
         />
       </div>
 
-      {/* ---- Ability Scores ---- */}
-      <AbilityGrid />
-
       {/* ---- Class Selector ---- */}
       <div className={styles.section}>
         <ClassSelector />
       </div>
+
+      {/* ---- Ability Scores ---- */}
+      <AbilityGrid />
 
       {/* ---- Appearance ---- */}
       <div className={styles.fieldRow}>
