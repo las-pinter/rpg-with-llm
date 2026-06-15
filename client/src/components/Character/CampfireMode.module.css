@@ -226,6 +226,27 @@
   margin: 0.25rem 0;
 }
 
+/* ---- Section card ---- */
+
+.section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  position: relative;
+}
+
+.section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-gold), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
 /* ---- Build section (abilities + class) ---- */
 
 .buildSection {

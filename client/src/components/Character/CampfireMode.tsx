@@ -208,6 +208,11 @@ export default function CampfireMode() {
       {/* ---- Story Progress ---- */}
       <StoryProgress />
 
+      {/* ---- Answers filled indicator ---- */}
+      <p className={styles.filledIndicator}>
+        {filledCount} of {totalQuestions} questions answered
+      </p>
+
       {/* ---- Character Name ---- */}
       <div className={styles.nameRow}>
         <label className={styles.nameLabel} htmlFor="campfire-name">
@@ -274,11 +279,6 @@ export default function CampfireMode() {
         )}
       </nav>
 
-      {/* ---- Answers filled indicator ---- */}
-      <p className={styles.filledIndicator}>
-        {filledCount} of {totalQuestions} questions answered
-      </p>
-
       {/* ---- Error ---- */}
       {error && (
         <div className={styles.errorBanner} role="alert">
@@ -302,12 +302,12 @@ export default function CampfireMode() {
       {/* ---- Divider ---- */}
       <hr className={styles.divider} />
 
-      {/* ---- Ability Scores & Class ---- */}
+      {/* ---- Class & Ability Scores ---- */}
       <div className={styles.buildSection}>
-        <AbilityGrid />
-        <div className={styles.classSection}>
+        <div className={`${styles.section} ${styles.classSection}`}>
           <ClassSelector />
         </div>
+        <AbilityGrid />
       </div>
     </div>
   )
