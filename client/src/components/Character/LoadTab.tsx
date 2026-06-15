@@ -51,6 +51,8 @@ export default function LoadTab() {
   const deleteCharacterById = useCharacterStore((s) => s.deleteCharacterById)
   const loadSaveGame = useCharacterStore((s) => s.loadSaveGame)
   const deleteSaveGame = useCharacterStore((s) => s.deleteSaveGame)
+  const loadCharacterIntoForm = useCharacterStore((s) => s.loadCharacterIntoForm)
+  const setActiveTab = useCharacterStore((s) => s.setActiveTab)
 
   // ---- Local state ----
   const [charLoading, setCharLoading] = useState(true)
@@ -110,10 +112,17 @@ export default function LoadTab() {
 
   const handleLoadCharacter = useCallback(
     async (id: string) => {
+      setCharError(null)
       await loadCharacterById(id)
-      navigate('/game')
+      const char = useCharacterStore.getState().currentCharacter
+      if (!char) {
+        setCharError('Failed to load character.')
+        return
+      }
+      loadCharacterIntoForm(char)
+      setActiveTab('create')
     },
-    [loadCharacterById, navigate],
+    [loadCharacterById, loadCharacterIntoForm, setActiveTab],
   )
 
   const handleDeleteCharacter = useCallback(

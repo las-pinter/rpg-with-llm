@@ -165,6 +165,8 @@ export interface CharacterActions {
   loadSaveGame: (slug: string) => Promise<void>
   /** Delete a saved game and refresh the list. */
   deleteSaveGame: (slug: string) => Promise<void>
+  /** Load a character into the manual creation form for review/editing. */
+  loadCharacterIntoForm: (character: Character) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -490,4 +492,16 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       // Silently fail
     }
   },
+
+  loadCharacterIntoForm: (character) => set({
+    manualName: character.name || '',
+    manualAppearance: character.appearance || '',
+    manualBackstory: character.backstory || '',
+    abilities: { ...character.abilities },
+    selectedClass: character.character_class,
+    remainingPoints: 0,
+    creationMode: 'manual',
+    generatedCharacter: null,
+    isEditing: false,
+  }),
 }))
