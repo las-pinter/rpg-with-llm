@@ -965,17 +965,15 @@ class TestStaticRoutes:
     # ------------------------------------------------------------------
 
     def test_static_directory_traversal_returns_react_spa(self, client):
-        """Directory traversal via static path returns React SPA (catch-all)."""
+        """Directory traversal via static path is rejected (security)."""
         resp = client.get("/static/../server.py")
-        assert resp.status_code == 200
-        assert resp.mimetype == "text/html"
+        assert resp.status_code == 404
 
     def test_static_directory_traversal_url_encoded_returns_react_spa(self, client):
-        """URL-encoded directory traversal via static path returns React SPA
-        (catch-all)."""
+        """URL-encoded directory traversal via static path is rejected
+        (security)."""
         resp = client.get("/static/..%2Fserver.py")
-        assert resp.status_code == 200
-        assert resp.mimetype == "text/html"
+        assert resp.status_code == 404
 
     def test_static_slash_returns_react_spa(self, client):
         """GET /static/ returns React SPA (catch-all for client-side
