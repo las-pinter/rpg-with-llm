@@ -162,10 +162,14 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
         stateData.character_id = charData.id
       }
 
-      // Include narrative entries so the full conversation survives save/load
+      // Include narrative entries so the full conversation survives save/load.
+      // Filter out separators (they're re-generated on load) and strip
+      // to just {type, content} — id/timestamp are recreated on load.
       const narrativeEntries = useGameStore.getState().narrativeEntries
       if (narrativeEntries.length > 0) {
         stateData._narrative_entries = narrativeEntries
+          .filter(e => e.type !== 'separator')
+          .map(({ type, content }) => ({ type, content }))
       }
 
       const resp = await saveGame({

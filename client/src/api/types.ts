@@ -158,7 +158,7 @@ export interface LoadResponse {
 
 export interface StoryResponse {
   ok: boolean
-  story: string
+  story: Array<{type: string; content: string}>
 }
 
 export interface ResetResponse {

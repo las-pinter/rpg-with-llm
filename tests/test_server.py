@@ -1588,13 +1588,13 @@ class TestStoryEndpoint:
     """Tests for GET /api/story/<name>."""
 
     def test_get_story_endpoint_returns_story(self, client):
-        """Save a game with story_log, then GET /api/story/<slug>
-        returns the story_log."""
+        """Save a game with _narrative_entries, then GET /api/story/<slug>
+        returns the narrative entries."""
         state = {
             "version": "1.0",
-            "story_log": [
-                "[Turn 1] You enter the dark forest.",
-                "[Turn 2] A goblin appears!",
+            "_narrative_entries": [
+                {"type": "narrative", "content": "You enter the dark forest."},
+                {"type": "narrative", "content": "A goblin appears!"},
             ],
         }
         resp = client.post(
@@ -1609,8 +1609,8 @@ class TestStoryEndpoint:
         data = resp.get_json()
         assert data["ok"] is True
         assert data["story"] == [
-            "[Turn 1] You enter the dark forest.",
-            "[Turn 2] A goblin appears!",
+            {"type": "narrative", "content": "You enter the dark forest."},
+            {"type": "narrative", "content": "A goblin appears!"},
         ]
 
     def test_get_story_endpoint_404(self, client):

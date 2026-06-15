@@ -133,6 +133,10 @@
   gap: 0.15rem;
 }
 
+.inputWrapper {
+  flex-shrink: 0;
+}
+
 /* ---- Theme-matching text selection ---- */
 
 .gameLayout ::selection,

@@ -609,9 +609,6 @@ class DungeonMaster:
             # Bookkeeping: record history, sync NPCs, summarise
             self.history.add_turn(player_input, impossibility_narrative)
             if impossibility_narrative and self.world_state is not None:
-                self.world_state.story_log.append(
-                    f"[Turn {self.turn_count}] {impossibility_narrative}"
-                )
                 self._pending_story_entries.append(
                     f"[Turn {self.turn_count}] {impossibility_narrative}"
                 )
@@ -1185,11 +1182,9 @@ class DungeonMaster:
         # Update conversation history
         self.history.add_turn(player_input, narrative)
 
-        # Append to story log if narrative is non-empty and
-        # world state exists
+        # Accumulate for story summarization if narrative is non-empty
+        # and world state exists
         if narrative and self.world_state is not None:
-            self.world_state.story_log.append(f"[Turn {self.turn_count}] {narrative}")
-            # Accumulate for story summarization
             self._pending_story_entries.append(f"[Turn {self.turn_count}] {narrative}")
 
         # Save player input to history for save/load persistence
@@ -1426,7 +1421,7 @@ class DungeonMaster:
             logger.exception("Summarization failed after turn")
 
     def _maybe_summarize_story(self) -> None:
-        """Batch recent story_log entries into a condensed novel-like summary."""
+        """Batch recent pending story entries into a condensed novel-like summary."""
         if not self._pending_story_entries or self.world_state is None:
             return
 
