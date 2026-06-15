@@ -38,19 +38,20 @@ def serve_react(path: str = "") -> flask.Response:
 
     safe_path = ""
     if path:
-        requested = Path(path)
-        if requested.is_absolute() or any(part == ".." for part in requested.parts):
+        requested = Path(path).as_posix().lstrip("/")
+        requested_path = Path(requested)
+        if not requested or requested_path.is_absolute() or any(part == ".." for part in requested_path.parts):
             return flask.abort(404)
-        safe_path = requested.as_posix().lstrip("/")
+        safe_path = requested
 
     # Try to serve the exact file (e.g., assets/index-abc.js)
     if safe_path:
-        candidate = (_REACT_DIST / safe_path).resolve()
+        candidate = (_REACT_DIST / safe_path).resolve(strict=False)
         try:
-            candidate.relative_to(_REACT_DIST)
+            rel_candidate = candidate.relative_to(_REACT_DIST)
         except ValueError:
-            candidate = None
-        if candidate is not None and candidate.is_file():
-            return send_from_directory(str(_REACT_DIST), safe_path)
+            rel_candidate = None
+        if rel_candidate is not None and candidate.is_file():
+            return send_from_directory(str(_REACT_DIST), str(rel_candidate))
     # Everything else gets index.html for client-side routing
     return send_from_directory(str(_REACT_DIST), "index.html")
