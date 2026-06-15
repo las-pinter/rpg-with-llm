@@ -1433,10 +1433,11 @@ class DungeonMaster:
             summary = summarize_story(turns_text, self.summarizer_provider)
             if summary:
                 self.world_state.story_summary.append(summary)
-                logger.debug(
-                    "Story summary appended (entry %d, %d chars)",
+                logger.info(
+                    "Story summary #%d (%d chars): %s",
                     len(self.world_state.story_summary),
                     len(summary),
+                    summary,
                 )
                 # Clear pending entries after successful summarization
                 self._pending_story_entries = []
