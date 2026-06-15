@@ -174,6 +174,12 @@ export function useGameStream(): UseGameStreamReturn {
               retries = 0
               setIsConnecting(false)
 
+              // Stream connected — activate game UI and show thinking indicator
+              const gs = useGameStore.getState()
+              gs.setIsActive(true)
+              gs.setIsThinking(true)
+              gs.setProcessing(true)
+
               // Read the SSE stream chunk by chunk
               while (true) {
                 if (cancelledRef.current) {

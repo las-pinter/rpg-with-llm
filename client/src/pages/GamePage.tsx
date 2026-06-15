@@ -127,7 +127,6 @@ export default function GamePage() {
         character: character as unknown as Record<string, unknown>,
         provider: buildProvider(),
       })
-      setIsActive(true)
     }
     return () => {
       startedRef.current = false // allow StrictMode retry
