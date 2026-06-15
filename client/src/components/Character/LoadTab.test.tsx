@@ -200,7 +200,66 @@ describe('LoadTab — character cards', () => {
 })
 
 describe('LoadTab — character load action', () => {
-  it('calls loadCharacterById and navigates to /game on Load click', async () => {
+  it('calls loadCharacterById and populates the creation form on Load click', async () => {
+    const user = userEvent.setup()
+    setStoreCharacters(sampleCharacters)
+
+    const loadCharacterById = vi.spyOn(
+      useCharacterStore.getState(),
+      'loadCharacterById',
+    ).mockImplementation(async (id: string) => {
+      useCharacterStore.getState().setCurrentCharacter({
+        id,
+        name: 'Kaelen Shadowmere',
+        character_class: 'Fighter',
+        level: 1,
+        abilities: { STR: 15, DEX: 12, CON: 14, INT: 8, WIS: 10, CHA: 10 },
+        hp: 12,
+        max_hp: 12,
+        ac: 16,
+        skills: ['Athletics'],
+        backstory: 'A fighter from the north.',
+        appearance: 'Tall and sturdy.',
+        personality: 'Brave',
+        hooks: ['lost brother'],
+        inventory: ['sword'],
+        gold: 10,
+        xp: 0,
+        created_at: '2026-05-15T10:30:00Z',
+      })
+    })
+
+    renderLoadTab()
+
+    await waitFor(() => {
+      expect(screen.getByText('Kaelen Shadowmere')).toBeInTheDocument()
+    })
+
+    const loadBtn = screen.getByRole('button', { name: /load kaelen/i })
+    await user.click(loadBtn)
+
+    expect(loadCharacterById).toHaveBeenCalledWith('char-1')
+    expect(loadCharacterById).toHaveBeenCalledOnce()
+
+    // Should NOT show error banner
+    expect(screen.queryByText(/failed to load character/i)).not.toBeInTheDocument()
+
+    // Should populate form fields and switch to Create tab
+    await waitFor(() => {
+      const state = useCharacterStore.getState()
+      expect(state.manualName).toBe('Kaelen Shadowmere')
+      expect(state.manualAppearance).toBe('Tall and sturdy.')
+      expect(state.manualBackstory).toBe('A fighter from the north.')
+      expect(state.abilities).toEqual({ STR: 15, DEX: 12, CON: 14, INT: 8, WIS: 10, CHA: 10 })
+      expect(state.selectedClass).toBe('Fighter')
+      expect(state.creationMode).toBe('manual')
+      expect(state.activeTab).toBe('create')
+    })
+
+    loadCharacterById.mockRestore()
+  })
+
+  it('shows error banner when loadCharacterById fails to load', async () => {
     const user = userEvent.setup()
     setStoreCharacters(sampleCharacters)
 
@@ -219,8 +278,9 @@ describe('LoadTab — character load action', () => {
     await user.click(loadBtn)
 
     expect(loadCharacterById).toHaveBeenCalledWith('char-1')
+
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/game')
+      expect(screen.getByText('Failed to load character.')).toBeInTheDocument()
     })
 
     loadCharacterById.mockRestore()
