@@ -82,5 +82,18 @@ jobs:
       - name: Install test tools
         run: pip install pytest pytest-cov
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install frontend dependencies
+        working-directory: ./client
+        run: npm install
+
+      - name: Build TypeScript frontend
+        working-directory: ./client
+        run: npm run build
+
       - name: Run tests with coverage
         run: python -m pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=60
