@@ -50,7 +50,8 @@ def serve_react(path: str = "") -> flask.Response:
             return flask.abort(404)
         safe_path = requested
 
-    # Allowlist files present under the React dist root, then serve only allowlisted paths.
+    # Allowlist files present under the React dist root,
+    # then serve only allowlisted paths.
     allowed_files = {
         p.relative_to(_REACT_DIST).as_posix()
         for p in _REACT_DIST.rglob("*")
