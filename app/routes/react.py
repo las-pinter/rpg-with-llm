@@ -44,14 +44,16 @@ def serve_react(path: str = "") -> flask.Response:
             return flask.abort(404)
         safe_path = requested
 
+    # Allowlist files present under the React dist root, then serve only allowlisted paths.
+    allowed_files = {
+        p.relative_to(_REACT_DIST).as_posix()
+        for p in _REACT_DIST.rglob("*")
+        if p.is_file()
+    }
+
     # Try to serve the exact file (e.g., assets/index-abc.js)
-    if safe_path:
-        candidate = (_REACT_DIST / safe_path).resolve(strict=False)
-        try:
-            rel_candidate = candidate.relative_to(_REACT_DIST)
-        except ValueError:
-            rel_candidate = None
-        if rel_candidate is not None and candidate.is_file():
-            return send_from_directory(str(_REACT_DIST), str(rel_candidate))
+    if safe_path and safe_path in allowed_files:
+        return send_from_directory(str(_REACT_DIST), safe_path)
+
     # Everything else gets index.html for client-side routing
     return send_from_directory(str(_REACT_DIST), "index.html")
