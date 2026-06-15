@@ -208,11 +208,6 @@ export default function CampfireMode() {
       {/* ---- Story Progress ---- */}
       <StoryProgress />
 
-      {/* ---- Answers filled indicator ---- */}
-      <p className={styles.filledIndicator}>
-        {filledCount} of {totalQuestions} questions answered
-      </p>
-
       {/* ---- Character Name ---- */}
       <div className={styles.nameRow}>
         <label className={styles.nameLabel} htmlFor="campfire-name">
@@ -228,56 +223,13 @@ export default function CampfireMode() {
         />
       </div>
 
-      {/* ---- Current Story Question ---- */}
-      <div className={styles.questionArea}>
-        <StoryQuestion
-          key={currentQuestion}
-          question={currentQuestionText}
-          questionIndex={currentQuestion}
-        />
+      {/* ---- Class & Ability Scores ---- */}
+      <div className={styles.buildSection}>
+        <div className={`${styles.section} ${styles.classSection}`}>
+          <ClassSelector />
+        </div>
+        <AbilityGrid />
       </div>
-
-      {/* ---- Navigation ---- */}
-      <nav className={styles.nav} aria-label="Story question navigation">
-        <button
-          type="button"
-          className={styles.navBtn}
-          onClick={handlePrev}
-          disabled={currentQuestion === 0 || generating}
-          aria-label="Previous question"
-        >
-          &larr; Previous
-        </button>
-
-        {isLastQuestion ? (
-          <button
-            type="button"
-            className={`${styles.navBtn} ${styles.generateBtn}`}
-            onClick={handleGenerate}
-            disabled={generating}
-            aria-label="Generate character from story"
-          >
-            {generating ? (
-              <>
-                <span className={styles.spinner} aria-hidden="true" />
-                Weaving&hellip;
-              </>
-            ) : (
-              <>&#x2728; Weave My Story</>
-            )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={styles.navBtn}
-            onClick={handleNext}
-            disabled={generating}
-            aria-label="Next question"
-          >
-            Next &rarr;
-          </button>
-        )}
-      </nav>
 
       {/* ---- Error ---- */}
       {error && (
@@ -302,12 +254,59 @@ export default function CampfireMode() {
       {/* ---- Divider ---- */}
       <hr className={styles.divider} />
 
-      {/* ---- Class & Ability Scores ---- */}
-      <div className={styles.buildSection}>
-        <div className={`${styles.section} ${styles.classSection}`}>
-          <ClassSelector />
-        </div>
-        <AbilityGrid />
+      {/* ---- Story Questions ---- */}
+      <div className={styles.questionArea}>
+        <StoryQuestion
+          key={currentQuestion}
+          question={currentQuestionText}
+          questionIndex={currentQuestion}
+        />
+
+        <p className={styles.filledIndicator}>
+          {filledCount} of {totalQuestions} questions answered
+        </p>
+
+        {/* ---- Navigation ---- */}
+        <nav className={styles.nav} aria-label="Story question navigation">
+          <button
+            type="button"
+            className={styles.navBtn}
+            onClick={handlePrev}
+            disabled={currentQuestion === 0 || generating}
+            aria-label="Previous question"
+          >
+            &larr; Previous
+          </button>
+
+          {isLastQuestion ? (
+            <button
+              type="button"
+              className={`${styles.navBtn} ${styles.generateBtn}`}
+              onClick={handleGenerate}
+              disabled={generating}
+              aria-label="Generate character from story"
+            >
+              {generating ? (
+                <>
+                  <span className={styles.spinner} aria-hidden="true" />
+                  Weaving&hellip;
+                </>
+              ) : (
+                <>&#x2728; Weave My Story</>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.navBtn}
+              onClick={handleNext}
+              disabled={generating}
+              aria-label="Next question"
+            >
+              Next &rarr;
+            </button>
+          )}
+        </nav>
       </div>
     </div>
   )
