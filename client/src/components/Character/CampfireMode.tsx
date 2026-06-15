@@ -205,9 +205,6 @@ export default function CampfireMode() {
 
   return (
     <div className={styles.wrapper}>
-      {/* ---- Story Progress ---- */}
-      <StoryProgress />
-
       {/* ---- Character Name ---- */}
       <div className={styles.nameRow}>
         <label className={styles.nameLabel} htmlFor="campfire-name">
@@ -225,7 +222,7 @@ export default function CampfireMode() {
 
       {/* ---- Class & Ability Scores ---- */}
       <div className={styles.buildSection}>
-        <div className={`${styles.section} ${styles.classSection}`}>
+        <div className={styles.section}>
           <ClassSelector />
         </div>
         <AbilityGrid />
@@ -256,6 +253,8 @@ export default function CampfireMode() {
 
       {/* ---- Story Questions ---- */}
       <div className={styles.questionArea}>
+        <StoryProgress />
+
         <StoryQuestion
           key={currentQuestion}
           question={currentQuestionText}
