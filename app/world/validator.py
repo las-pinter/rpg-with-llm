@@ -111,11 +111,6 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "mutable",
         "description": "Established narrative facts for DM consistency",
     },
-    "story_log": {
-        "type": list,
-        "mutability": "mutable",
-        "description": "Turn-by-turn narrative log for the adventure story",
-    },
     "story_summary": {
         "type": list,
         "mutability": "mutable",

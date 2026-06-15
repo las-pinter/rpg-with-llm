@@ -142,7 +142,6 @@ class WorldState:
     dm_notes: DMNotes = field(default_factory=DMNotes)
     turn_count: int = 0
     established_facts: list[str] = field(default_factory=list)
-    story_log: list[str] = field(default_factory=list)
     # Novel-like condensed story summaries, updated periodically by the summarizer
     story_summary: list[str] = field(default_factory=list)
 
@@ -249,13 +248,6 @@ class WorldState:
         else:
             established_facts = []
 
-        # story_log — ensure it's a list of strings
-        raw_story = data.get("story_log", [])
-        if isinstance(raw_story, list):
-            story_log = [str(s) for s in raw_story if isinstance(s, str)]
-        else:
-            story_log = []
-
         # story_summary — ensure it's a list of strings
         raw_story_summary = data.get("story_summary", [])
         if isinstance(raw_story_summary, list):
@@ -291,7 +283,6 @@ class WorldState:
             dm_notes=dm_notes,
             turn_count=turn_count,
             established_facts=established_facts,
-            story_log=story_log,
             story_summary=story_summary,
             user_input_history=user_input_history,
             technical_summary=technical_summary,

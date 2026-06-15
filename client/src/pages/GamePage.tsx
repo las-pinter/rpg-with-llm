@@ -235,8 +235,23 @@ export default function GamePage() {
         }
       }
 
+      // Insert separator entries between turns — a separator appears before
+      // each `player` entry except the very first one.
+      const entriesWithSeparators: NarrativeEntry[] = []
+      for (const entry of entries) {
+        if (entry.type === 'player' && entriesWithSeparators.length > 0) {
+          entriesWithSeparators.push({
+            id: crypto.randomUUID(),
+            type: 'separator',
+            content: '',
+            timestamp: Date.now(),
+          })
+        }
+        entriesWithSeparators.push(entry)
+      }
+
       // Single bulk state update — exactly ONE call to setNarrativeEntries
-      useGameStore.getState().setNarrativeEntries(entries)
+      useGameStore.getState().setNarrativeEntries(entriesWithSeparators)
 
       if (loadedCharacter) {
         // Loaded character comes from API response — cast through as any
@@ -356,12 +371,14 @@ export default function GamePage() {
         </div>
 
         {/* Input area */}
-        <GameInputArea
-          onSave={openSaveModal}
-          onLoad={openLoadModal}
-          onNewGame={handleNewGame}
-          onSubmit={handleSubmit}
-        />
+        <div className={styles.inputWrapper}>
+          <GameInputArea
+            onSave={openSaveModal}
+            onLoad={openLoadModal}
+            onNewGame={handleNewGame}
+            onSubmit={handleSubmit}
+          />
+        </div>
       </div>
 
       {/* ====== Sidebar Column ====== */}

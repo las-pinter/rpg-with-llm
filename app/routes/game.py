@@ -180,6 +180,14 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
     )
     character = Character.from_dict(character_data) if character_data else None
 
+    # If starting a new game (no prior state was provided), seed the world
+    # state inventory and gold from the character's starting equipment.
+    if character is not None and not body.get("state"):
+        if not world_state.inventory and character.inventory:
+            world_state.inventory = list(character.inventory)
+        if not world_state.gold and character.gold:
+            world_state.gold = character.gold
+
     # Create or retrieve persistent DungeonMaster for this character.
     character_id = character.id if character else None
     if character_id and character_id in _dm_cache:

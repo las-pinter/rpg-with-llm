@@ -124,75 +124,57 @@ describe('StoryModal', () => {
   // ---------------------------------------------------------------
 
   describe('empty state', () => {
-    it('shows empty state when worldState is null', () => {
+    it('shows empty state when narrativeEntries is empty', () => {
       renderModal()
       expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
+        screen.getByText('No story entries available.'),
       ).toBeInTheDocument()
     })
 
-    it('shows empty state when worldState is empty object', () => {
-      act(() => {
-        useGameStore.setState({ worldState: {} })
-      })
-      renderModal()
-      expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
-      ).toBeInTheDocument()
-    })
-
-    it('shows empty state when story_summary is empty array', () => {
+    it('shows empty state when narrativeEntries contains only separators', () => {
       act(() => {
         useGameStore.setState({
-          worldState: { story_summary: [] },
+          narrativeEntries: [
+            { id: 's1', type: 'separator', content: '', timestamp: 1 },
+            { id: 's2', type: 'separator', content: '', timestamp: 2 },
+          ],
         })
       })
       renderModal()
       expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
+        screen.getByText('No story entries available.'),
       ).toBeInTheDocument()
     })
 
-    it('shows empty state when story_summary is not an array', () => {
+    it('shows empty state when narrativeEntries contains only empty-content entries', () => {
       act(() => {
         useGameStore.setState({
-          worldState: { story_summary: 'not-an-array' },
+          narrativeEntries: [
+            { id: 'e1', type: 'narrative', content: '', timestamp: 1 },
+            { id: 'e2', type: 'player', content: '', timestamp: 2 },
+          ],
         })
       })
       renderModal()
       expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
-      ).toBeInTheDocument()
-    })
-
-    it('shows empty state when story_summary contains only empty strings', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: { story_summary: ['', '', ''] },
-        })
-      })
-      renderModal()
-      expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
+        screen.getByText('No story entries available.'),
       ).toBeInTheDocument()
     })
   })
 
   // ---------------------------------------------------------------
-  // Story summary rendering
+  // Narrative entries rendering
   // ---------------------------------------------------------------
 
-  describe('story_summary rendering', () => {
-    it('renders story_summary entries as paragraphs', () => {
+  describe('narrative entries rendering', () => {
+    it('renders narrative entries as paragraphs', () => {
       act(() => {
         useGameStore.setState({
-          worldState: {
-            story_summary: [
-              'You enter the dark forest.',
-              'A goblin approaches you with a rusty dagger.',
-              'You defeat the goblin and find 5 gold pieces.',
-            ],
-          },
+          narrativeEntries: [
+            { id: 'n1', type: 'narrative', content: 'You enter the dark forest.', timestamp: 1 },
+            { id: 'n2', type: 'narrative', content: 'A goblin approaches you with a rusty dagger.', timestamp: 2 },
+            { id: 'n3', type: 'narrative', content: 'You defeat the goblin and find 5 gold pieces.', timestamp: 3 },
+          ],
         })
       })
       renderModal()
@@ -206,12 +188,42 @@ describe('StoryModal', () => {
       ).toBeInTheDocument()
     })
 
+    it('renders player entries as paragraphs', () => {
+      act(() => {
+        useGameStore.setState({
+          narrativeEntries: [
+            { id: 'p1', type: 'player', content: 'I search the room.', timestamp: 1 },
+          ],
+        })
+      })
+      renderModal()
+
+      expect(
+        screen.getByText('I search the room.'),
+      ).toBeInTheDocument()
+    })
+
+    it('renders tool_result entries as paragraphs', () => {
+      act(() => {
+        useGameStore.setState({
+          narrativeEntries: [
+            { id: 'tr1', type: 'tool_result', content: 'Rolled 18 — success!', timestamp: 1 },
+          ],
+        })
+      })
+      renderModal()
+
+      expect(
+        screen.getByText('Rolled 18 — success!'),
+      ).toBeInTheDocument()
+    })
+
     it('renders a single story entry', () => {
       act(() => {
         useGameStore.setState({
-          worldState: {
-            story_summary: ['Your adventure begins at the crossroads.'],
-          },
+          narrativeEntries: [
+            { id: 'e1', type: 'narrative', content: 'Your adventure begins at the crossroads.', timestamp: 1 },
+          ],
         })
       })
       renderModal()
@@ -221,182 +233,36 @@ describe('StoryModal', () => {
       ).toBeInTheDocument()
     })
 
-    it('does not render empty strings in story_summary', () => {
+    it('skips separator entries', () => {
       act(() => {
         useGameStore.setState({
-          worldState: {
-            story_summary: ['First entry', '', 'Third entry'],
-          },
+          narrativeEntries: [
+            { id: 'n1', type: 'narrative', content: 'First entry.', timestamp: 1 },
+            { id: 's1', type: 'separator', content: '', timestamp: 2 },
+            { id: 'n2', type: 'narrative', content: 'After separator.', timestamp: 3 },
+          ],
+        })
+      })
+      renderModal()
+
+      expect(screen.getByText('First entry.')).toBeInTheDocument()
+      expect(screen.getByText('After separator.')).toBeInTheDocument()
+    })
+
+    it('does not render empty-content entries', () => {
+      act(() => {
+        useGameStore.setState({
+          narrativeEntries: [
+            { id: 'e1', type: 'narrative', content: 'First entry', timestamp: 1 },
+            { id: 'e2', type: 'narrative', content: '', timestamp: 2 },
+            { id: 'e3', type: 'narrative', content: 'Third entry', timestamp: 3 },
+          ],
         })
       })
       renderModal()
 
       expect(screen.getByText('First entry')).toBeInTheDocument()
       expect(screen.getByText('Third entry')).toBeInTheDocument()
-    })
-
-    it('filters out non-string entries in story_summary (numbers, objects, booleans)', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_summary: [
-              'A real string entry.',
-              42,
-              { key: 'value' },
-              true,
-              'Another valid entry.',
-              null,
-              ['nested'],
-            ],
-          },
-        })
-      })
-      renderModal()
-
-      // Only string entries should render
-      expect(
-        screen.getByText('A real string entry.'),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByText('Another valid entry.'),
-      ).toBeInTheDocument()
-      // Non-strings should be filtered out
-      expect(screen.queryByText('42')).not.toBeInTheDocument()
-      expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
-    })
-
-    it('shows empty state when story_summary has only non-string entries (no fallback)', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_summary: [42, true],
-            story_log: [
-              '[Turn 1] The story begins!',
-            ],
-          },
-        })
-      })
-      renderModal()
-
-      // story_summary exists (non-empty array) even though all entries are non-strings,
-      // so it blocks the story_log fallback. The result is empty state.
-      expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
-      ).toBeInTheDocument()
-    })
-  })
-
-  // ---------------------------------------------------------------
-  // Story log fallback
-  // ---------------------------------------------------------------
-
-  describe('story_log fallback', () => {
-    it('falls back to story_log when story_summary is empty', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_summary: [],
-            story_log: [
-              '[Turn 1] You wake up in a damp cave.',
-              '[Turn 2] A rat scurries past your feet.',
-            ],
-          },
-        })
-      })
-      renderModal()
-
-      expect(screen.getByText('Turn 1')).toBeInTheDocument()
-      expect(
-        screen.getByText('You wake up in a damp cave.'),
-      ).toBeInTheDocument()
-      expect(screen.getByText('Turn 2')).toBeInTheDocument()
-      expect(
-        screen.getByText('A rat scurries past your feet.'),
-      ).toBeInTheDocument()
-    })
-
-    it('falls back to story_log when story_summary is absent', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_log: [
-              '[Turn 1] The adventure begins!',
-            ],
-          },
-        })
-      })
-      renderModal()
-
-      expect(screen.getByText('Turn 1')).toBeInTheDocument()
-      expect(
-        screen.getByText('The adventure begins!'),
-      ).toBeInTheDocument()
-    })
-
-    it('parses story_log entries without [Turn N] format as plain paragraphs', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_log: [
-              'A mysterious figure appears before you.',
-              '[Turn 3] He offers you a choice.',
-            ],
-          },
-        })
-      })
-      renderModal()
-
-      expect(
-        screen.getByText('A mysterious figure appears before you.'),
-      ).toBeInTheDocument()
-      expect(screen.getByText('Turn 3')).toBeInTheDocument()
-      expect(
-        screen.getByText('He offers you a choice.'),
-      ).toBeInTheDocument()
-    })
-
-    it('shows empty state when both story_summary and story_log are empty', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_summary: [],
-            story_log: [],
-          },
-        })
-      })
-      renderModal()
-
-      expect(
-        screen.getByText('No story entries yet. Begin your adventure!'),
-      ).toBeInTheDocument()
-    })
-
-    it('skips non-string entries in story_log gracefully', () => {
-      act(() => {
-        useGameStore.setState({
-          worldState: {
-            story_log: [
-              '[Turn 1] A valid log entry.',
-              42,
-              { some: 'object' },
-              null,
-              '[Turn 2] Another valid entry.',
-            ],
-          },
-        })
-      })
-      renderModal()
-
-      // String entries should render
-      expect(screen.getByText('Turn 1')).toBeInTheDocument()
-      expect(
-        screen.getByText('A valid log entry.'),
-      ).toBeInTheDocument()
-      expect(screen.getByText('Turn 2')).toBeInTheDocument()
-      expect(
-        screen.getByText('Another valid entry.'),
-      ).toBeInTheDocument()
-      // Non-strings should be silently skipped
     })
   })
 
@@ -485,13 +351,18 @@ describe('StoryModal', () => {
 
   describe('multiple entries', () => {
     it('renders many story entries correctly', () => {
-      const entries = Array.from(
+      const textEntries = Array.from(
         { length: 20 },
         (_, i) => `Entry number ${i + 1}: the story continues…`,
       )
       act(() => {
         useGameStore.setState({
-          worldState: { story_summary: entries },
+          narrativeEntries: textEntries.map((text, i) => ({
+            id: `e${i}`,
+            type: 'narrative' as const,
+            content: text,
+            timestamp: i,
+          })),
         })
       })
       renderModal()
@@ -556,7 +427,9 @@ describe('StoryModal', () => {
       const longText = 'A'.repeat(5000)
       act(() => {
         useGameStore.setState({
-          worldState: { story_summary: [longText] },
+          narrativeEntries: [
+            { id: 'e1', type: 'narrative', content: longText, timestamp: 1 },
+          ],
         })
       })
       renderModal()
@@ -568,13 +441,18 @@ describe('StoryModal', () => {
     })
 
     it('renders multiple long entries without crashing', () => {
-      const entries = Array.from(
+      const textEntries = Array.from(
         { length: 5 },
         (_, i) => `Long entry ${i + 1}: ` + 'B'.repeat(2000),
       )
       act(() => {
         useGameStore.setState({
-          worldState: { story_summary: entries },
+          narrativeEntries: textEntries.map((text, i) => ({
+            id: `e${i}`,
+            type: 'narrative' as const,
+            content: text,
+            timestamp: i,
+          })),
         })
       })
       renderModal()

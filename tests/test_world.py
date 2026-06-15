@@ -198,41 +198,11 @@ class TestWorldState:
         )
         assert ws.established_facts == ["valid fact", "also valid"]
 
-    # ------------------------------------------------------------------
-    # story_log field
-    # ------------------------------------------------------------------
-
-    def test_story_log_field_exists(self) -> None:
-        """WorldState has story_log field defaulting to []."""
-        ws = WorldState()
-        assert ws.story_log == []
-
-    def test_story_log_to_dict_roundtrip(self) -> None:
-        """to_dict() includes story_log and from_dict() loads it back."""
-        ws = WorldState(
-            story_log=[
-                "[Turn 1] You enter the dark forest.",
-                "[Turn 2] A goblin appears!",
-            ]
-        )
-        data = ws.to_dict()
-        assert "story_log" in data
-        assert len(data["story_log"]) == 2
-        restored = WorldState.from_dict(data)
-        assert restored.story_log == [
-            "[Turn 1] You enter the dark forest.",
-            "[Turn 2] A goblin appears!",
-        ]
-
     def test_story_log_backward_compat(self) -> None:
-        """Old save data without story_log key loads fine with default []."""
-        ws = WorldState.from_dict({"version": "1.0"})
-        assert ws.story_log == []
-
-    def test_story_log_non_list_fallback(self) -> None:
-        """Non-list story_log data falls back to empty list."""
-        ws = WorldState.from_dict({"version": "1.0", "story_log": "not a list"})
-        assert ws.story_log == []
+        """Old save data with story_log key loads without crashing."""
+        ws = WorldState.from_dict({"version": "1.0", "story_log": ["old entry"]})
+        assert ws.version == "1.0"
+        assert ws.turn_count == 0
 
     def test_with_custom_locations_and_quests(self) -> None:
         tavern = Location(

@@ -1,8 +1,9 @@
 /**
  * StoryModal — read-only modal that displays the adventure story so far.
  *
- * Reads `story_summary` (preferred) or `story_log` (fallback) from the
- * world state in the game store.  Simple content-only display with no
+ * Reads narrative entries from the game store — the structured array of
+ * {type, content, id, timestamp} objects that replaces the old story_log /
+ * story_summary approach.  Simple content-only display with no
  * loading/saving/success/error phases.
  */
 
@@ -26,71 +27,28 @@ export interface StoryModalProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Regex for "[Turn N] text" story log format. */
-const TURN_HEADER_RE = /^\[Turn\s+(\d+)\]\s*(.*)$/
-
 interface ParsedEntry {
-  type: 'paragraph' | 'turnHeader'
+  type: 'paragraph'
   text: string
-  turnNumber?: number
 }
 
 /**
- * Parse story_log entries into displayable blocks.
- * Entries matching "[Turn N] text" get a turn header followed by the text;
- * everything else renders as a plain paragraph.
- */
-function parseStoryLog(entries: unknown[]): ParsedEntry[] {
-  const result: ParsedEntry[] = []
-
-  for (const raw of entries) {
-    if (typeof raw !== 'string' || raw.length === 0) continue
-
-    const match = raw.match(TURN_HEADER_RE)
-    if (match) {
-      const turnNumber = Number(match[1])
-      const text = (match[2] ?? '').trim()
-      result.push({ type: 'turnHeader', text: `Turn ${turnNumber}`, turnNumber })
-      if (text.length > 0) {
-        result.push({ type: 'paragraph', text })
-      }
-    } else {
-      result.push({ type: 'paragraph', text: raw })
-    }
-  }
-
-  return result
-}
-
-/**
- * Safely extract story data from worldState.
- * Returns an array of prepared ParsedEntry items or null (meaning empty).
+ * Convert narrative entries into displayable paragraphs.
+ * Separator entries are skipped; all others render as plain text.
  */
 function extractStoryData(
-  worldState: Record<string, unknown> | null,
+  entries: { type: string; content: string }[],
 ): ParsedEntry[] | null {
-  if (worldState == null) return null
+  if (entries.length === 0) return null
 
-  // Prefer story_summary
-  const summary = worldState.story_summary
-  if (Array.isArray(summary) && summary.length > 0) {
-    const entries: ParsedEntry[] = []
-    for (const item of summary) {
-      if (typeof item === 'string' && item.length > 0) {
-        entries.push({ type: 'paragraph', text: item })
-      }
-    }
-    return entries.length > 0 ? entries : null
+  const result: ParsedEntry[] = []
+  for (const entry of entries) {
+    if (entry.type === 'separator') continue
+    if (entry.content.length === 0) continue
+    result.push({ type: 'paragraph', text: entry.content })
   }
 
-  // Fallback to story_log
-  const log = worldState.story_log
-  if (Array.isArray(log) && log.length > 0) {
-    const entries = parseStoryLog(log)
-    return entries.length > 0 ? entries : null
-  }
-
-  return null
+  return result.length > 0 ? result : null
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +56,7 @@ function extractStoryData(
 // ---------------------------------------------------------------------------
 
 export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
-  const worldState = useGameStore((s) => s.worldState)
+  const narrativeEntries = useGameStore((s) => s.narrativeEntries)
   const characterName = useCharacterStore(
     (s) => s.currentCharacter?.name ?? null,
   )
@@ -107,8 +65,8 @@ export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
-  // Derive story entries from the world state
-  const parsedEntries: ParsedEntry[] | null = extractStoryData(worldState)
+  // Derive story entries from the narrative entries store
+  const parsedEntries: ParsedEntry[] | null = extractStoryData(narrativeEntries)
   const isEmpty = parsedEntries == null
 
   // ---------- Focus first focusable element on modal open ----------
@@ -213,7 +171,7 @@ export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
         {isEmpty && (
           <div className={styles.emptyState}>
             <p className={styles.emptyText}>
-              No story entries yet. Begin your adventure!
+              No story entries available.
             </p>
           </div>
         )}
@@ -221,23 +179,14 @@ export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
         {/* ---- Content ---- */}
         {!isEmpty && (
           <div className={styles.storyContent} data-testid="story-content">
-            {parsedEntries.map((entry, idx) =>
-              entry.type === 'turnHeader' ? (
-                <h3
-                  key={`h-${entry.turnNumber ?? idx}-${idx}`}
-                  className={styles.turnHeader}
-                >
-                  {entry.text}
-                </h3>
-              ) : (
-                <p
-                  key={`p-${idx}`}
-                  className={styles.storyEntry}
-                >
-                  {entry.text}
-                </p>
-              ),
-            )}
+            {parsedEntries.map((entry, idx) => (
+              <p
+                key={`p-${idx}`}
+                className={styles.storyEntry}
+              >
+                {entry.text}
+              </p>
+            ))}
           </div>
         )}
       </div>

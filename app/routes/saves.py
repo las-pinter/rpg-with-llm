@@ -243,7 +243,7 @@ def get_story(slug: str) -> tuple[flask.Response, int] | flask.Response:
     """
     try:
         world_state = _storage.load(slug)
-        return jsonify({"ok": True, "story": world_state.story_log})
+        return jsonify({"ok": True, "story": world_state._narrative_entries})
     except FileNotFoundError:
         return jsonify({"ok": False, "error": "Save not found"}), 404
 

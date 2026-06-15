@@ -17,7 +17,7 @@ import {
   loadGame,
   deleteSave,
 } from '../api/endpoints'
-import { useGameStore } from './gameStore'
+import { useGameStore, type NarrativeEntry } from './gameStore'
 
 // ---------------------------------------------------------------------------
 // State
@@ -449,18 +449,22 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       useGameStore.getState().resetGame()
       useGameStore.getState().setWorldState(response.state)
 
-      // Populate narrative entries from saved story log
+      // Populate narrative entries from save data
       const gameState = useGameStore.getState()
-      const storyLog = response.state.story_log as string[] | undefined
-      if (storyLog && Array.isArray(storyLog)) {
-        for (const entry of storyLog) {
-          gameState.addNarrativeEntry({ type: 'narrative', content: entry })
+      const richEntries = response.state._narrative_entries as
+        | Array<{ type: string; content: string }>
+        | undefined
+      if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
+        for (const e of richEntries) {
+          gameState.addNarrativeEntry({ type: (e.type || 'narrative') as NarrativeEntry['type'], content: e.content })
         }
-      }
-      const storySummary = response.state.story_summary as string[] | undefined
-      if (storySummary && Array.isArray(storySummary)) {
-        for (const entry of storySummary) {
-          gameState.addNarrativeEntry({ type: 'narrative', content: entry })
+      } else {
+        // Legacy fallback: story_summary (for old saves without _narrative_entries)
+        const storySummary = response.state.story_summary as string[] | undefined
+        if (storySummary && Array.isArray(storySummary)) {
+          for (const entry of storySummary) {
+            gameState.addNarrativeEntry({ type: 'narrative', content: entry })
+          }
         }
       }
 
