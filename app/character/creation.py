@@ -458,7 +458,11 @@ class AssistedCreation:
         hp = data.get("hp")
         max_hp = data.get("max_hp")
         ac = data.get("ac")
-        if not all(isinstance(v, int) for v in (hp, max_hp, ac)):
+        if (
+            not isinstance(hp, int)
+            or not isinstance(max_hp, int)
+            or not isinstance(ac, int)
+        ):
             logger.debug(
                 "_validate_and_build: non-int field — hp=%s, max_hp=%s, ac=%s",
                 type(hp).__name__,

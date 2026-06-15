@@ -411,7 +411,7 @@ def apply_changes(state: WorldState, changes: list[dict[str, Any]]) -> WorldStat
         elif action == "remove":
             # dm_notes is a dataclass, handle specially to preserve type
             if field_name == "dm_notes":
-                current_dm: DMNotes = current
+                current_dm = current
                 merged = {
                     "plot_threads": list(current_dm.plot_threads),
                     "secrets": list(current_dm.secrets),
