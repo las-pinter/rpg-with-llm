@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 bp = flask.Blueprint("react", __name__)
 
-_REACT_DIST = Path(__file__).resolve().parent.parent.parent / "client" / "dist"
+_REACT_DIST = (Path(__file__).resolve().parent.parent.parent / "client" / "dist").resolve()
 
 
 @bp.route("/")
@@ -37,8 +37,12 @@ def serve_react(path: str = "") -> flask.Response:
         return flask.abort(404)
     # Try to serve the exact file (e.g., assets/index-abc.js)
     if path:
-        target = _REACT_DIST / path
-        if target.is_file():
+        candidate = (_REACT_DIST / path).resolve()
+        try:
+            candidate.relative_to(_REACT_DIST)
+        except ValueError:
+            candidate = None
+        if candidate is not None and candidate.is_file():
             return send_from_directory(str(_REACT_DIST), path)
     # Everything else gets index.html for client-side routing
     return send_from_directory(str(_REACT_DIST), "index.html")
