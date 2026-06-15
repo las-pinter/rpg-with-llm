@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 bp = flask.Blueprint("react", __name__)
 
-_REACT_DIST = (Path(__file__).resolve().parent.parent.parent / "client" / "dist").resolve()
+_REACT_DIST = (
+    Path(__file__).resolve().parent.parent.parent / "client" / "dist"
+).resolve()
 
 
 @bp.route("/")
@@ -40,7 +42,11 @@ def serve_react(path: str = "") -> flask.Response:
     if path:
         requested = Path(path).as_posix().lstrip("/")
         requested_path = Path(requested)
-        if not requested or requested_path.is_absolute() or any(part == ".." for part in requested_path.parts):
+        if (
+            not requested
+            or requested_path.is_absolute()
+            or any(part == ".." for part in requested_path.parts)
+        ):
             return flask.abort(404)
         safe_path = requested
 
