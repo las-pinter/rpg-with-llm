@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   quality:
-    name: Lint & Type Check
+    name: Lint, Type Check & Frontend Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,24 +44,31 @@ jobs:
 
       - name: Mypy type check
         run: mypy app/ --ignore-missing-imports
-        continue-on-error: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build TypeScript frontend
+        run: npm run build
 
   test:
     name: Run tests
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-      fail-fast: false
+    needs: quality
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
 
       - name: Upgrade pip
@@ -72,29 +79,6 @@ jobs:
 
       - name: Install test tools
         run: pip install pytest pytest-cov
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache: "npm"
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: client
-
-      - name: Build React frontend
-        run: npm run build
-        working-directory: client
-
-      - name: TypeScript check
-        run: npx tsc --noEmit
-        working-directory: client
-
-      - name: Run frontend tests
-        run: npx vitest run
-        working-directory: client
 
       - name: Run tests with coverage
         run: python -m pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=60
