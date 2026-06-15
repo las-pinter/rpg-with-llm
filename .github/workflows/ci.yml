@@ -51,9 +51,11 @@ jobs:
           node-version: "18"
 
       - name: Install frontend dependencies
+        working-directory: ./client
         run: npm install
 
       - name: Build TypeScript frontend
+        working-directory: ./client
         run: npm run build
 
   test:
