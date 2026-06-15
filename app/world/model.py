@@ -145,8 +145,6 @@ class WorldState:
     # Novel-like condensed story summaries, updated periodically by the summarizer
     story_summary: list[str] = field(default_factory=list)
 
-    # User input history — what the player typed each turn, in order
-    user_input_history: list[str] = field(default_factory=list)
     # Technical summary — DM compressed memory summaries, generated
     # alongside story summaries
     technical_summary: list[str] = field(default_factory=list)
@@ -255,13 +253,6 @@ class WorldState:
         else:
             story_summary = []
 
-        # user_input_history — ensure it's a list of strings
-        raw_user_input = data.get("user_input_history", [])
-        if isinstance(raw_user_input, list):
-            user_input_history = [str(s) for s in raw_user_input if isinstance(s, str)]
-        else:
-            user_input_history = []
-
         # technical_summary — ensure it's a list of strings
         raw_tech = data.get("technical_summary", [])
         if isinstance(raw_tech, list):
@@ -284,7 +275,6 @@ class WorldState:
             turn_count=turn_count,
             established_facts=established_facts,
             story_summary=story_summary,
-            user_input_history=user_input_history,
             technical_summary=technical_summary,
             _character=data.get("_character"),
             _narrative_entries=data.get("_narrative_entries", []),

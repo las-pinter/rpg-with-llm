@@ -116,11 +116,6 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "mutable",
         "description": "Novel-like condensed story summaries",
     },
-    "user_input_history": {
-        "type": list,
-        "mutability": "mutable",
-        "description": "Player input history — one entry per turn",
-    },
     "technical_summary": {
         "type": list,
         "mutability": "mutable",
