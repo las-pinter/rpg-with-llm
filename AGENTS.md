@@ -11,7 +11,7 @@
 - Run Python type check: `mypy app/ --ignore-missing-imports`
 - Run TypeScript type check: `npx tsc --noEmit` (in `client/`)
 - Run frontend tests: `npx vitest run` (in `client/`)
-- Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
+- Run full pre-commit check: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m mypy app/ --ignore-missing-imports && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
 - Run game: `python3 run.py` (starts Flask dev server on port 5000)
 - Run single module: `python3 -m pytest tests/test_dice.py -v`
 
@@ -41,7 +41,7 @@ Python-based LLM-powered RPG game. Phases 1-8 complete (dice, rules, tables, LLM
 - Every module has a `tests/test_<module>.py` file
 - Tests use `pytest` framework with `pytest.raises` for error cases
 - New code MUST include tests; never drop coverage below existing levels
-- Run full suite before committing: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
+- Run full suite before committing: `ruff check app/ tests/ && ruff format --check app/ tests/ && python3 -m mypy app/ --ignore-missing-imports && python3 -m pytest tests/ --cov=app --cov-fail-under=60`
 - Minimum coverage threshold: 60%
 
 ## Project structure
