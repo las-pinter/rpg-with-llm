@@ -1,10 +1,9 @@
 /**
  * StoryModal — read-only modal that displays the adventure story so far.
  *
- * Reads narrative entries from the game store — the structured array of
- * {type, content, id, timestamp} objects that replaces the old story_log /
- * story_summary approach.  Simple content-only display with no
- * loading/saving/success/error phases.
+ * Reads from the condensed story_summary (on the world state) when available,
+ * falling back to narrative-type entries from the structured narrative log
+ * when summaries haven't been generated yet.
  */
 
 import { useEffect, useCallback, useRef } from 'react'
@@ -34,7 +33,7 @@ interface ParsedEntry {
 
 /**
  * Convert narrative entries into displayable paragraphs.
- * Separator entries are skipped; all others render as plain text.
+ * Separator and empty entries are skipped.
  */
 function extractStoryData(
   entries: { type: string; content: string }[],
@@ -56,6 +55,7 @@ function extractStoryData(
 // ---------------------------------------------------------------------------
 
 export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
+  const worldState = useGameStore((s) => s.worldState)
   const narrativeEntries = useGameStore((s) => s.narrativeEntries)
   const characterName = useCharacterStore(
     (s) => s.currentCharacter?.name ?? null,
@@ -65,9 +65,27 @@ export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
-  // Derive story entries from the narrative entries store
-  const parsedEntries: ParsedEntry[] | null = extractStoryData(narrativeEntries)
-  const isEmpty = parsedEntries == null
+  // Derive story entries — prefer condensed story_summary, fallback to
+  // narrative-type entries from the structured log.
+  const storySummary = worldState?.story_summary as string[] | undefined
+
+  let parsedEntries: ParsedEntry[] | null = null
+  let isEmpty = true
+
+  if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
+    const filtered = storySummary.filter((s) => s.trim().length > 0)
+    if (filtered.length > 0) {
+      parsedEntries = filtered.map((s) => ({ type: 'paragraph', text: s }))
+      isEmpty = false
+    }
+  } else {
+    // Fallback: only narrative-type entries (DM narration — no player inputs
+    // or tool results)
+    parsedEntries = extractStoryData(
+      narrativeEntries.filter((e) => e.type === 'narrative'),
+    )
+    isEmpty = parsedEntries == null
+  }
 
   // ---------- Focus first focusable element on modal open ----------
   useEffect(() => {
@@ -179,7 +197,7 @@ export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
         {/* ---- Content ---- */}
         {!isEmpty && (
           <div className={styles.storyContent} data-testid="story-content">
-            {parsedEntries.map((entry, idx) => (
+            {parsedEntries!.map((entry, idx) => (
               <p
                 key={`p-${idx}`}
                 className={styles.storyEntry}

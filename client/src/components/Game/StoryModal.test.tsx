@@ -2,6 +2,7 @@
  * StoryModal tests — Grubnik ensures the story-reader works proper.
  *
  * Covers: open/close, empty/fallback states, story_summary rendering,
+ * narrative-only fallback rendering, player/tool_result exclusion,
  * Escape key, overlay click, modal content click guard, focus trap,
  * multiple entries, and long text scrolling.
  */
@@ -163,11 +164,100 @@ describe('StoryModal', () => {
   })
 
   // ---------------------------------------------------------------
-  // Narrative entries rendering
+  // Story summary rendering (primary source)
   // ---------------------------------------------------------------
 
-  describe('narrative entries rendering', () => {
-    it('renders narrative entries as paragraphs', () => {
+  describe('story summary rendering', () => {
+    it('renders story_summary entries when worldState has them', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: {
+            story_summary: [
+              'The party entered the dark forest, where shadowy figures lurked between the trees.',
+              'After a tense negotiation with the goblin chief, they secured safe passage.',
+              'Deep in the woods, they discovered an ancient shrine guarded by a spectral owl.',
+            ],
+          },
+          narrativeEntries: [],
+        })
+      })
+      renderModal()
+
+      expect(
+        screen.getByText(
+          'The party entered the dark forest, where shadowy figures lurked between the trees.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'After a tense negotiation with the goblin chief, they secured safe passage.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Deep in the woods, they discovered an ancient shrine guarded by a spectral owl.',
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it('prefers story_summary over narrativeEntries when both exist', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: {
+            story_summary: [
+              'Condensed summary of the adventure so far.',
+            ],
+          },
+          narrativeEntries: [
+            { id: 'n1', type: 'narrative', content: 'Raw game log entry that should not appear.', timestamp: 1 },
+          ],
+        })
+      })
+      renderModal()
+
+      expect(
+        screen.getByText('Condensed summary of the adventure so far.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Raw game log entry that should not appear.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows empty state when story_summary is an empty array', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: { story_summary: [] },
+          narrativeEntries: [],
+        })
+      })
+      renderModal()
+
+      expect(
+        screen.getByText('No story entries available.'),
+      ).toBeInTheDocument()
+    })
+
+    it('skips empty strings in story_summary', () => {
+      act(() => {
+        useGameStore.setState({
+          worldState: {
+            story_summary: ['First entry.', '', '  ', 'Second entry.'],
+          },
+        })
+      })
+      renderModal()
+
+      expect(screen.getByText('First entry.')).toBeInTheDocument()
+      expect(screen.getByText('Second entry.')).toBeInTheDocument()
+    })
+  })
+
+  // ---------------------------------------------------------------
+  // Fallback narrative entries rendering (when story_summary is absent)
+  // ---------------------------------------------------------------
+
+  describe('fallback narrative entries rendering', () => {
+    it('renders narrative-type entries as paragraphs', () => {
       act(() => {
         useGameStore.setState({
           narrativeEntries: [
@@ -188,7 +278,7 @@ describe('StoryModal', () => {
       ).toBeInTheDocument()
     })
 
-    it('renders player entries as paragraphs', () => {
+    it('does NOT render player-type entries in fallback', () => {
       act(() => {
         useGameStore.setState({
           narrativeEntries: [
@@ -199,11 +289,14 @@ describe('StoryModal', () => {
       renderModal()
 
       expect(
-        screen.getByText('I search the room.'),
+        screen.queryByText('I search the room.'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByText('No story entries available.'),
       ).toBeInTheDocument()
     })
 
-    it('renders tool_result entries as paragraphs', () => {
+    it('does NOT render tool_result entries in fallback', () => {
       act(() => {
         useGameStore.setState({
           narrativeEntries: [
@@ -214,11 +307,14 @@ describe('StoryModal', () => {
       renderModal()
 
       expect(
-        screen.getByText('Rolled 18 — success!'),
+        screen.queryByText('Rolled 18 — success!'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByText('No story entries available.'),
       ).toBeInTheDocument()
     })
 
-    it('renders a single story entry', () => {
+    it('renders a single narrative entry', () => {
       act(() => {
         useGameStore.setState({
           narrativeEntries: [
@@ -233,7 +329,7 @@ describe('StoryModal', () => {
       ).toBeInTheDocument()
     })
 
-    it('skips separator entries', () => {
+    it('skips separator entries in fallback', () => {
       act(() => {
         useGameStore.setState({
           narrativeEntries: [
@@ -249,7 +345,7 @@ describe('StoryModal', () => {
       expect(screen.getByText('After separator.')).toBeInTheDocument()
     })
 
-    it('does not render empty-content entries', () => {
+    it('does not render empty-content entries in fallback', () => {
       act(() => {
         useGameStore.setState({
           narrativeEntries: [
