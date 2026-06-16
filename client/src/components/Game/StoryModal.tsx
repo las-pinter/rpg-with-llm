@@ -181,7 +181,7 @@ export default function StoryModal({ isOpen, onClose }: StoryModalProps) {
 
         {characterName && (
           <p className={styles.subtitle}>
-            Adventure Log for {characterName}
+            Story Summary for {characterName}
           </p>
         )}
 
