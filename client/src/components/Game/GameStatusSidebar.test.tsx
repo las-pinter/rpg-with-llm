@@ -21,10 +21,16 @@ function setWorldState(state: Record<string, unknown> | null): void {
   })
 }
 
-function setTokenUsage(accumulated: number, latest: number): void {
+function setTokenUsage(
+  totalTotal: number,
+  latestTotal: number,
+): void {
   act(() => {
     useGameStore.setState({
-      tokenUsage: { accumulated, latest },
+      tokenUsage: {
+        total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: totalTotal },
+        latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: latestTotal },
+      },
       showTokens: true,
     })
   })
@@ -321,20 +327,21 @@ describe('GameStatusSidebar — collapse toggle', () => {
 /* ------------------------------------------------------------------ */
 
 describe('GameStatusSidebar — token usage', () => {
-  it('shows token usage when showTokens is true', () => {
+  it('shows token total and latest when showTokens is true', () => {
     setWorldState(mockWorldState)
     setTokenUsage(1500, 234)
     render(<GameStatusSidebar />)
-    expect(screen.getByText(/Token Usage/)).toBeInTheDocument()
-    expect(screen.getByText(/1500/)).toBeInTheDocument()
-    expect(screen.getByText(/234/)).toBeInTheDocument()
+    expect(screen.getByText('1,500')).toBeInTheDocument()
+    expect(screen.getByText('+234 this turn')).toBeInTheDocument()
   })
 
-  it('does not show token usage when showTokens is false', () => {
+  it('does not show token section when showTokens is false', () => {
     setWorldState(mockWorldState)
     hideTokens()
     render(<GameStatusSidebar />)
-    expect(screen.queryByText(/Token Usage/)).not.toBeInTheDocument()
+    // The token section renders ⚡ which has aria-hidden, so check
+    // that the total token number is not present
+    expect(screen.queryByText('+234 this turn')).not.toBeInTheDocument()
   })
 })
 

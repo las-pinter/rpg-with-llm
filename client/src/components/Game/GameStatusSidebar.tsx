@@ -153,7 +153,10 @@ function NpcList({
 
 export default function GameStatusSidebar() {
   const worldState = useGameStore((s) => s.worldState)
-  const tokenUsage = useGameStore((s) => s.tokenUsage)
+  const tokenTotal = useGameStore((s) => s.tokenUsage.total.total_tokens)
+  const tokenLatest = useGameStore((s) => s.tokenUsage.latest.total_tokens)
+  const totalPrompt = useGameStore((s) => s.tokenUsage.total.prompt_tokens)
+  const totalCompletion = useGameStore((s) => s.tokenUsage.total.completion_tokens)
   const showTokens = useGameStore((s) => s.showTokens)
   const currentCharacter = useCharacterStore((s) => s.currentCharacter)
 
@@ -393,9 +396,19 @@ export default function GameStatusSidebar() {
 
       {/* Token Usage (only when showTokens is true) */}
       {showTokens && (
-        <div className={styles.tokenSection}>
-          Token Usage: {tokenUsage.accumulated} (latest:{' '}
-          {tokenUsage.latest})
+        <div
+          className={styles.tokenSection}
+          title={`Prompt: ${totalPrompt.toLocaleString()} | Completion: ${totalCompletion.toLocaleString()}`}
+        >
+          <span className={styles.tokenIcon} aria-hidden="true">⚡</span>
+          <span className={styles.tokenTotal}>
+            {tokenTotal.toLocaleString()}
+          </span>
+          <span className={styles.tokenBreakdown}>
+            {tokenLatest > 0 && (
+              <>+{tokenLatest.toLocaleString()} this turn</>
+            )}
+          </span>
         </div>
       )}
     </aside>

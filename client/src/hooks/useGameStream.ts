@@ -95,6 +95,7 @@ export function useGameStream(): UseGameStreamReturn {
 
       /** Parse a single SSE block and dispatch to the game store. */
       const processStreamEvent = (type: string, data: unknown) => {
+        if (data === null || typeof data !== 'object') return
         const s = useGameStore.getState()
 
         switch (type) {
@@ -135,8 +136,17 @@ export function useGameStream(): UseGameStreamReturn {
             break
           }
           case 'token_usage': {
-            const d = data as { accumulated?: number; latest?: number }
-            s.setTokenUsage(d)
+            const d = data as {
+              usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+              latest?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+            }
+            const update: {
+              total?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+              latest?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+            } = {}
+            if (d.usage) update.total = d.usage
+            if (d.latest) update.latest = d.latest
+            s.setTokenUsage(update)
             break
           }
           case 'error': {
