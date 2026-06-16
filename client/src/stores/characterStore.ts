@@ -496,6 +496,11 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
         set({ currentCharacter: response.character as unknown as Character })
       }
 
+      // Activate the game — resetGame above sets isActive=false, so
+      // re-activate here to prevent the "Entering the Realm…" overlay
+      // from showing when the user submits their first prompt.
+      useGameStore.getState().setIsActive(true)
+
       set({ loading: false })
     } catch (err: unknown) {
       set({
