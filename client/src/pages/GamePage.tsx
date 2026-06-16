@@ -21,8 +21,8 @@
  * Game Start Flow:
  *  1. On mount, check for currentCharacter in the character store.
  *  2. If no character → "Create a character first" with link to /character.
- *  3. If character exists but !isActive → auto-connect with "start" input.
- *  4. If loading a saved game → LoadGameModal's onLoaded sets state (no auto-connect — player submits next action manually).
+ *  3. New game: User's first submit sends input without state → backend creates new world.
+ *  4. Loaded game: LoadGameModal's onLoaded restores state + narrative, waits for player input.
  *
  * Cleanup: disconnect() is handled internally by useGameStream on unmount.
  */
@@ -115,23 +115,7 @@ export default function GamePage() {
     worldStateRef.current = worldState
   }, [worldState])
 
-  // ==================================================================
-  // Game Start: auto-connect if character exists but game not active
-  // ==================================================================
-  useEffect(() => {
-    if (character && !isActive && !startedRef.current) {
-      startedRef.current = true
 
-      connect({
-        input: 'start',
-        character: character as unknown as Record<string, unknown>,
-        provider: buildProvider(),
-      })
-    }
-    return () => {
-      startedRef.current = false // allow StrictMode retry
-    }
-  }, [character, isActive, connect])
 
   // ==================================================================
   // Submit: user sends a turn
