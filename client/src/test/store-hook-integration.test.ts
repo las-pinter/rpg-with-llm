@@ -218,11 +218,14 @@ describe('store-hook integration — done event → store', () => {
 })
 
 describe('store-hook integration — token_usage event → store', () => {
-  it('sets accumulated and latest token counts', async () => {
+  it('sets total and latest token counts', async () => {
     const events = [
       {
         event: 'token_usage',
-        data: JSON.stringify({ accumulated: 150, latest: 50 }),
+        data: JSON.stringify({
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+          latest: { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 },
+        }),
       },
     ]
     global.fetch = vi.fn().mockResolvedValue(
@@ -237,18 +240,23 @@ describe('store-hook integration — token_usage event → store', () => {
 
     await waitFor(() => {
       const state = useGameStore.getState()
-      expect(state.tokenUsage.accumulated).toBe(150)
-      expect(state.tokenUsage.latest).toBe(50)
+      expect(state.tokenUsage.total.total_tokens).toBe(150)
+      expect(state.tokenUsage.latest.total_tokens).toBe(50)
     })
   })
 
-  it('partially updates token tracking when only accumulated is provided', async () => {
-    useGameStore.getState().setTokenUsage({ accumulated: 50, latest: 10 })
+  it('updates only total when only usage is provided in event', async () => {
+    useGameStore.getState().setTokenUsage({
+      total: { prompt_tokens: 50, completion_tokens: 30, total_tokens: 80 },
+      latest: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    })
 
     const events = [
       {
         event: 'token_usage',
-        data: JSON.stringify({ accumulated: 100 }),
+        data: JSON.stringify({
+          usage: { prompt_tokens: 200, completion_tokens: 100, total_tokens: 300 },
+        }),
       },
     ]
     global.fetch = vi.fn().mockResolvedValue(
@@ -263,8 +271,8 @@ describe('store-hook integration — token_usage event → store', () => {
 
     await waitFor(() => {
       const state = useGameStore.getState()
-      expect(state.tokenUsage.accumulated).toBe(100)
-      expect(state.tokenUsage.latest).toBe(10) // preserved from previous
+      expect(state.tokenUsage.total.total_tokens).toBe(300)
+      expect(state.tokenUsage.latest.total_tokens).toBe(15) // preserved from previous
     })
   })
 })

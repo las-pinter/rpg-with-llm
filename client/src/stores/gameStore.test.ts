@@ -16,9 +16,12 @@ function resetStore(): void {
     isThinking: false,
     npcThinking: null,
     turnCount: 0,
-    tokenUsage: { accumulated: 0, latest: 0 },
+    tokenUsage: {
+      total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    },
     autoScroll: true,
-    showTokens: false,
+    showTokens: true,
   })
 }
 
@@ -43,9 +46,12 @@ describe('gameStore', () => {
       expect(s.isThinking).toBe(false)
       expect(s.npcThinking).toBeNull()
       expect(s.turnCount).toBe(0)
-      expect(s.tokenUsage).toEqual({ accumulated: 0, latest: 0 })
+      expect(s.tokenUsage).toEqual({
+        total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      })
       expect(s.autoScroll).toBe(true)
-      expect(s.showTokens).toBe(false)
+      expect(s.showTokens).toBe(true)
     })
   })
 
@@ -211,20 +217,26 @@ describe('gameStore', () => {
       expect(s.npcThinking).toBeNull()
       expect(s.turnCount).toBe(0)
       expect(s.autoScroll).toBe(true)
-      expect(s.showTokens).toBe(false)
+      expect(s.showTokens).toBe(true)
     })
 
     it('resets ALL fields including narrativeEntries and tokenUsage', () => {
       const store = useGameStore.getState()
       store.addNarrativeEntry({ type: 'narrative', content: 'Persistent entry' })
-      store.setTokenUsage({ accumulated: 50, latest: 10 })
+      store.setTokenUsage({
+        total: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        latest: { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 },
+      })
 
       store.reset()
 
       const s = useGameStore.getState()
       // initialState now includes ALL fields, so reset clears everything
       expect(s.narrativeEntries).toEqual([])
-      expect(s.tokenUsage).toEqual({ accumulated: 0, latest: 0 })
+      expect(s.tokenUsage).toEqual({
+        total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      })
     })
   })
 
@@ -395,33 +407,54 @@ describe('gameStore', () => {
   })
 
   describe('setTokenUsage', () => {
-    it('sets both accumulated and latest', () => {
-      useGameStore.getState().setTokenUsage({ accumulated: 100, latest: 25 })
-      expect(useGameStore.getState().tokenUsage).toEqual({ accumulated: 100, latest: 25 })
+    it('sets both total and latest', () => {
+      const total = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+      const latest = { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 }
+      useGameStore.getState().setTokenUsage({ total, latest })
+      expect(useGameStore.getState().tokenUsage).toEqual({ total, latest })
     })
 
-    it('partial update with only accumulated preserves latest', () => {
-      useGameStore.setState({ tokenUsage: { accumulated: 50, latest: 10 } })
-      useGameStore.getState().setTokenUsage({ accumulated: 75 })
-      expect(useGameStore.getState().tokenUsage).toEqual({ accumulated: 75, latest: 10 })
+    it('partial update with only total preserves latest', () => {
+      const total = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+      const latest = { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 }
+      useGameStore.setState({ tokenUsage: { total, latest } })
+      useGameStore.getState().setTokenUsage({ total: { prompt_tokens: 200, completion_tokens: 100, total_tokens: 300 } })
+      expect(useGameStore.getState().tokenUsage).toEqual({
+        total: { prompt_tokens: 200, completion_tokens: 100, total_tokens: 300 },
+        latest,
+      })
     })
 
-    it('partial update with only latest preserves accumulated', () => {
-      useGameStore.setState({ tokenUsage: { accumulated: 50, latest: 10 } })
-      useGameStore.getState().setTokenUsage({ latest: 20 })
-      expect(useGameStore.getState().tokenUsage).toEqual({ accumulated: 50, latest: 20 })
+    it('partial update with only latest preserves total', () => {
+      const total = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+      const latest = { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 }
+      useGameStore.setState({ tokenUsage: { total, latest } })
+      useGameStore.getState().setTokenUsage({ latest: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 } })
+      expect(useGameStore.getState().tokenUsage).toEqual({
+        total,
+        latest: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+      })
     })
 
     it('empty partial update preserves both fields', () => {
-      useGameStore.setState({ tokenUsage: { accumulated: 99, latest: 33 } })
+      const total = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+      const latest = { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 }
+      useGameStore.setState({ tokenUsage: { total, latest } })
       useGameStore.getState().setTokenUsage({})
-      expect(useGameStore.getState().tokenUsage).toEqual({ accumulated: 99, latest: 33 })
+      expect(useGameStore.getState().tokenUsage).toEqual({ total, latest })
     })
 
-    it('setting accumulated to 0 works', () => {
-      useGameStore.setState({ tokenUsage: { accumulated: 100, latest: 50 } })
-      useGameStore.getState().setTokenUsage({ accumulated: 0 })
-      expect(useGameStore.getState().tokenUsage).toEqual({ accumulated: 0, latest: 50 })
+    it('replaces total entirely when passed', () => {
+      const total = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+      const latest = { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 }
+      useGameStore.setState({ tokenUsage: { total, latest } })
+      useGameStore.getState().setTokenUsage({
+        total: { prompt_tokens: 200, completion_tokens: 100, total_tokens: 300 },
+      })
+      expect(useGameStore.getState().tokenUsage).toEqual({
+        total: { prompt_tokens: 200, completion_tokens: 100, total_tokens: 300 },
+        latest,
+      })
     })
   })
 
@@ -696,7 +729,10 @@ describe('gameStore', () => {
       store.setIsThinking(true)
       store.setNpcThinking('goblin', 'sneak')
       store.incrementTurnCount()
-      store.setTokenUsage({ accumulated: 100, latest: 20 })
+      store.setTokenUsage({
+        total: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        latest: { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 },
+      })
       store.setShowTokens(true)
       store.toggleAutoScroll() // becomes false
 
@@ -715,7 +751,10 @@ describe('gameStore', () => {
       expect(s.isThinking).toBe(false)
       expect(s.npcThinking).toBeNull()
       expect(s.turnCount).toBe(0)
-      expect(s.tokenUsage).toEqual({ accumulated: 0, latest: 0 })
+      expect(s.tokenUsage).toEqual({
+        total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      })
 
       // Fields that should be preserved
       expect(s.autoScroll).toBe(false) // preserved after toggle
@@ -729,7 +768,7 @@ describe('gameStore', () => {
 
       const s = useGameStore.getState()
       expect(s.autoScroll).toBe(true)
-      expect(s.showTokens).toBe(false)
+      expect(s.showTokens).toBe(true)
     })
 
     it('preserves autoScroll=false and showTokens=true after resetGame', () => {

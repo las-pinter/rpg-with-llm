@@ -33,9 +33,12 @@ function resetStores(): void {
       streamingText: '',
       isThinking: false,
       npcThinking: null,
-      tokenUsage: { accumulated: 0, latest: 0 },
+      tokenUsage: {
+        total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      },
       autoScroll: true,
-      showTokens: false,
+      showTokens: true,
     })
 
     useCharacterStore.setState({

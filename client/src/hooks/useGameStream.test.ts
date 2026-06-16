@@ -340,7 +340,10 @@ describe('useGameStream — SSE events', () => {
     const events = [
       {
         event: 'token_usage',
-        data: JSON.stringify({ accumulated: 150, latest: 50 }),
+        data: JSON.stringify({
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+          latest: { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50 },
+        }),
       },
     ]
     global.fetch = vi.fn().mockResolvedValue(
@@ -355,16 +358,18 @@ describe('useGameStream — SSE events', () => {
 
     await waitFor(() => {
       const state = useGameStore.getState()
-      expect(state.tokenUsage.accumulated).toBe(150)
-      expect(state.tokenUsage.latest).toBe(50)
+      expect(state.tokenUsage.total.total_tokens).toBe(150)
+      expect(state.tokenUsage.latest.total_tokens).toBe(50)
     })
   })
 
-  it('updates token usage partially on token_usage event', async () => {
+  it('updates token usage with only usage field on token_usage event', async () => {
     const events = [
       {
         event: 'token_usage',
-        data: JSON.stringify({ accumulated: 100 }),
+        data: JSON.stringify({
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        }),
       },
     ]
     global.fetch = vi.fn().mockResolvedValue(
@@ -379,9 +384,9 @@ describe('useGameStream — SSE events', () => {
 
     await waitFor(() => {
       const state = useGameStore.getState()
-      expect(state.tokenUsage.accumulated).toBe(100)
+      expect(state.tokenUsage.total.total_tokens).toBe(150)
       // latest should retain the default of 0
-      expect(state.tokenUsage.latest).toBe(0)
+      expect(state.tokenUsage.latest.total_tokens).toBe(0)
     })
   })
 
@@ -486,7 +491,7 @@ describe('useGameStream — SSE events', () => {
     const state = useGameStore.getState()
     expect(state.error).toBeNull()
     expect(state.streamingText).toBe('')
-    expect(state.tokenUsage.accumulated).toBe(0)
+    expect(state.tokenUsage.total.total_tokens).toBe(0)
   })
 
   it('handles malformed JSON in event data without crashing', async () => {

@@ -14,10 +14,18 @@ export interface NarrativeEntry {
 }
 
 export interface TokenUsage {
-  /** Total tokens consumed so far. */
-  accumulated: number
+  /** Total tokens consumed so far (all turns). */
+  total: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
   /** Tokens from the most recent turn. */
-  latest: number
+  latest: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 
 export interface GameState {
@@ -95,9 +103,12 @@ const initialState: ExpandedGameState = {
   isThinking: false,
   npcThinking: null,
   turnCount: 0,
-  tokenUsage: { accumulated: 0, latest: 0 },
+  tokenUsage: {
+    total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+  },
   autoScroll: true,
-  showTokens: false,
+  showTokens: true,
 }
 
 /** Segments that are NEVER allowed in dot-path access — blocks prototype pollution vectors. */
@@ -228,8 +239,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   setTokenUsage: (usage) =>
     set((state) => ({
       tokenUsage: {
-        accumulated: usage.accumulated ?? state.tokenUsage.accumulated,
-        latest: usage.latest ?? state.tokenUsage.latest,
+        total: { ...state.tokenUsage.total, ...usage.total },
+        latest: { ...state.tokenUsage.latest, ...usage.latest },
       },
     })),
 
@@ -278,7 +289,10 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     set({
       ...initialState,
       narrativeEntries: [],
-      tokenUsage: { accumulated: 0, latest: 0 },
+      tokenUsage: {
+        total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        latest: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      },
       autoScroll,
       showTokens,
     })
