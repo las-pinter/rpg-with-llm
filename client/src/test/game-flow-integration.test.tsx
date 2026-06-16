@@ -157,7 +157,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('game flow — starting a new game', () => {
-  it('does not auto-connect on mount — waits for user input', async () => {
+  it('auto-connects with start input on mount when no active game', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       mockFetchResponse(mockSSEStream([], 0)),
     )
@@ -166,24 +166,27 @@ describe('game flow — starting a new game', () => {
 
     renderPage()
 
-    // No auto-start — fetch should not be called on mount
-    expect(global.fetch).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/game/stream',
+        expect.objectContaining({
+          body: expect.stringContaining('"input":"start"'),
+        }),
+      )
+    })
   })
 
-  it('renders the game layout with input enabled (user can type to start)', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      mockFetchResponse(mockSSEStream([], 0)),
-    )
+  it('shows connecting overlay on mount when no active game', async () => {
+    const { promise } = deferred<Response>()
+    global.fetch = vi.fn().mockReturnValue(promise)
 
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
 
     renderPage()
 
-    // Game layout renders immediately (no auto-connect needed)
+    // Auto-start fires — connecting overlay shows while waiting for backend
     await waitFor(() => {
-      const input = screen.getByPlaceholderText(/what do you do/i)
-      expect(input).toBeInTheDocument()
-      expect(input).not.toBeDisabled()
+      expect(screen.getByText('Entering the Realm…')).toBeInTheDocument()
     })
   })
 })

@@ -115,7 +115,26 @@ export default function GamePage() {
     worldStateRef.current = worldState
   }, [worldState])
 
+  // ==================================================================
+  // Auto-start: first visit with no active game or saved state
+  // ==================================================================
+  useEffect(() => {
+    if (
+      character &&
+      !isActive &&
+      worldState === null &&
+      !startedRef.current &&
+      !isConnecting
+    ) {
+      startedRef.current = true
 
+      connect({
+        input: 'start',
+        character: character as unknown as Record<string, unknown>,
+        provider: buildProvider(),
+      })
+    }
+  }, [character, isActive, worldState, isConnecting, connect])
 
   // ==================================================================
   // Submit: user sends a turn
