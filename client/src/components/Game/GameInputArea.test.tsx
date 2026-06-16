@@ -316,13 +316,13 @@ describe('GameInputArea — action buttons', () => {
 /* ------------------------------------------------------------------ */
 
 describe('GameInputArea — disabled states', () => {
-  it('disables input when isActive is false', () => {
+  it('enables input when isActive is false (user can type to start)', () => {
     setIsActive(false)
     render(<GameInputArea />)
 
     expect(
       screen.getByPlaceholderText('What do you do?'),
-    ).toBeDisabled()
+    ).not.toBeDisabled()
   })
 
   it('disables input when processing is true', () => {
@@ -343,13 +343,13 @@ describe('GameInputArea — disabled states', () => {
     ).toBeDisabled()
   })
 
-  it('disables Act button when isActive is false', () => {
+  it('enables Act button when isActive is false (user can submit to start)', () => {
     setIsActive(false)
     render(<GameInputArea />)
 
     expect(
       screen.getByRole('button', { name: /submit action/i }),
-    ).toBeDisabled()
+    ).not.toBeDisabled()
   })
 
   it('Act button is enabled when input has text and game is active', () => {

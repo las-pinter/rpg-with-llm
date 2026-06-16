@@ -105,7 +105,7 @@ export default function GameInputArea({
     }
   }, [])
 
-  const isDisabled = processing || !isActive
+  const isDisabled = processing
 
   return (
     <div className={styles.container} role="region" aria-label="Game input area">
@@ -119,7 +119,7 @@ export default function GameInputArea({
           autoComplete="off"
           ref={inputRef}
           onKeyDown={onKeyDown}
-          disabled={!isActive || processing}
+          disabled={processing}
         />
         <button
           type="submit"
@@ -139,7 +139,7 @@ export default function GameInputArea({
             type="button"
             className={styles.quickChip}
             onClick={() => handleQuickAction(action)}
-            disabled={processing || !isActive}
+            disabled={processing}
             aria-label={`Quick action: ${action}`}
           >
             {action}

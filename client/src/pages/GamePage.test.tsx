@@ -185,14 +185,11 @@ describe('GamePage — empty state', () => {
 // ---------------------------------------------------------------------------
 
 describe('GamePage — game start', () => {
-  it('calls connect on mount when character exists and game not active', () => {
+  it('does not auto-connect on mount — waits for user input', () => {
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
     renderPage()
 
-    expect(mockConnect).toHaveBeenCalledTimes(1)
-    expect(mockConnect).toHaveBeenCalledWith(
-      expect.objectContaining({ input: 'start' }),
-    )
+    expect(mockConnect).not.toHaveBeenCalled()
   })
 
   it('does not set isActive optimistically — waits for stream confirmation', () => {
@@ -213,16 +210,24 @@ describe('GamePage — game start', () => {
     expect(mockConnect).not.toHaveBeenCalled()
   })
 
-  it('passes character data in the connect call', () => {
+  it('passes character data when user submits an action', async () => {
+    const user = userEvent.setup()
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    useGameStore.getState().setIsActive(true)
     renderPage()
 
-    expect(mockConnect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: 'start',
-        character: expect.objectContaining({ name: 'Baldric the Brave' }),
-      }),
-    )
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Look around the room')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
+
+    await waitFor(() => {
+      expect(mockConnect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: 'Look around the room',
+          character: expect.objectContaining({ name: 'Baldric the Brave' }),
+        }),
+      )
+    })
   })
 })
 
@@ -552,28 +557,25 @@ describe('GamePage — double-submit guard', () => {
 
   it('disables the Act button when processing is true (prevents double-submit)', async () => {
     const user = userEvent.setup()
-    // isActive starts false, so auto-start fires connect() on mount
-    useGameStore.getState().setIsActive(false)
+    useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    useGameStore.getState().setIsActive(true)
     renderPage()
 
-    // Auto-start effect fires connect() with input: 'start'
+    // Submit an action — this calls connect and sets processing=true
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'First action')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
+
     await waitFor(() => {
       expect(mockConnect).toHaveBeenCalledTimes(1)
     })
 
-    // Now mark the game as active and set processing=true
-    useGameStore.getState().setIsActive(true)
-    useGameStore.getState().setProcessing(true)
-
-    const input = screen.getByPlaceholderText(/what do you do/i)
-    await user.type(input, 'Second action')
-
-    // The submit button should be disabled while processing
+    // The submit button should be disabled while processing (set by handleSubmit)
     expect(
       screen.getByRole('button', { name: /submit action/i }),
     ).toBeDisabled()
 
-    // mockConnect should still be 1 (from mount) — processing blocked the submit
+    // mockConnect should still be 1 — processing blocked clicking submit again
     expect(mockConnect).toHaveBeenCalledTimes(1)
   })
 })

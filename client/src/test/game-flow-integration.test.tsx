@@ -157,8 +157,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('game flow — starting a new game', () => {
-  it('connects to the SSE stream with "start" input when character exists', async () => {
-    // Mock fetch so the real useGameStream can connect
+  it('does not auto-connect on mount — waits for user input', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       mockFetchResponse(mockSSEStream([], 0)),
     )
@@ -167,21 +166,11 @@ describe('game flow — starting a new game', () => {
 
     renderPage()
 
-    // The hook should start connecting
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled()
-    })
-
-    const callArgs = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(callArgs[0]).toBe('/api/game/stream')
-    expect(callArgs[1].method).toBe('POST')
-
-    const body = JSON.parse(callArgs[1].body)
-    expect(body.input).toBe('start')
-    expect(body.character.name).toBe('Baldric the Brave')
+    // No auto-start — fetch should not be called on mount
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('renders the game layout after connection establishes', async () => {
+  it('renders the game layout with input enabled (user can type to start)', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       mockFetchResponse(mockSSEStream([], 0)),
     )
@@ -190,10 +179,11 @@ describe('game flow — starting a new game', () => {
 
     renderPage()
 
+    // Game layout renders immediately (no auto-connect needed)
     await waitFor(() => {
-      expect(
-        screen.getByPlaceholderText(/what do you do/i),
-      ).toBeInTheDocument()
+      const input = screen.getByPlaceholderText(/what do you do/i)
+      expect(input).toBeInTheDocument()
+      expect(input).not.toBeDisabled()
     })
   })
 })
@@ -203,7 +193,7 @@ describe('game flow — starting a new game', () => {
 // ---------------------------------------------------------------------------
 
 describe('game flow — submitting input', () => {
-  it('renders narrative content from SSE events', async () => {
+  it('renders narrative content from SSE events after user submit', async () => {
     const events = [
       {
         event: 'narrative',
@@ -216,8 +206,16 @@ describe('game flow — submitting input', () => {
     )
 
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    // Game must be active for the input to be enabled
+    useGameStore.getState().setIsActive(true)
 
+    const user = userEvent.setup()
     renderPage()
+
+    // Submit a turn to trigger the SSE connection
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Look around')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
 
     // Wait for the narrative content to appear in the DOM via NarrativeStream
     await waitFor(() => {
@@ -237,16 +235,23 @@ describe('game flow — submitting input', () => {
     global.fetch = vi.fn().mockReturnValue(fetchPromise)
 
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    // Game must be active for the input to be enabled
+    useGameStore.getState().setIsActive(true)
 
+    const user = userEvent.setup()
     renderPage()
 
-    // Initially the game is not active after start (no SSE events yet)
-    // Wait for fetch to be called with 'start'
+    // Submit a turn to trigger the SSE connection
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Explore the cave')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
+
+    // Wait for fetch to be called (from the user submit)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalled()
     })
 
-    // Now resolve the start stream with a narrative + done
+    // Now resolve the stream with a narrative + done
     const startEvents = [
       {
         event: 'narrative',
@@ -282,8 +287,16 @@ describe('game flow — error recovery', () => {
     )
 
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    // Game must be active for the input to be enabled
+    useGameStore.getState().setIsActive(true)
 
+    const user = userEvent.setup()
     renderPage()
+
+    // Submit a turn — the SSE stream will return an error event
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Enter the darkness')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
 
     await waitFor(() => {
       expect(
@@ -301,10 +314,19 @@ describe('game flow — error recovery', () => {
     })
 
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
+    // Game must be active for the input to be enabled
+    useGameStore.getState().setIsActive(true)
+
+    const user = userEvent.setup()
 
     // Render with real timers — the hook will retry with backoff delays
     // (1s, 2s, 4s), so we need to wait longer than the default timeout
     renderPage()
+
+    // Submit a turn — the fetch will return a 503 error
+    const input = screen.getByPlaceholderText(/what do you do/i)
+    await user.type(input, 'Test the connection')
+    await user.click(screen.getByRole('button', { name: /submit action/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/HTTP 503/i)).toBeInTheDocument()
