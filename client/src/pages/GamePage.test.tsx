@@ -185,11 +185,13 @@ describe('GamePage — empty state', () => {
 // ---------------------------------------------------------------------------
 
 describe('GamePage — game start', () => {
-  it('does not auto-connect on mount — waits for user input', () => {
+  it('auto-connects with start input on mount when no active game', () => {
     useCharacterStore.getState().setCurrentCharacter(sampleCharacter)
     renderPage()
 
-    expect(mockConnect).not.toHaveBeenCalled()
+    expect(mockConnect).toHaveBeenCalledWith(
+      expect.objectContaining({ input: 'start' }),
+    )
   })
 
   it('does not set isActive optimistically — waits for stream confirmation', () => {
