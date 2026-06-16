@@ -22,7 +22,7 @@
  *  1. On mount, check for currentCharacter in the character store.
  *  2. If no character → "Create a character first" with link to /character.
  *  3. If character exists but !isActive → auto-connect with "start" input.
- *  4. If loading a saved game → LoadGameModal's onLoaded sets state and connects.
+ *  4. If loading a saved game → LoadGameModal's onLoaded sets state (no auto-connect — player submits next action manually).
  *
  * Cleanup: disconnect() is handled internally by useGameStream on unmount.
  */
@@ -178,15 +178,24 @@ export default function GamePage() {
       useGameStore.getState().setWorldState(state)
 
       // Build the COMPLETE narrative array in ONE pass.
-      // Priority: rich _narrative_entries > story_log + story_summary + user_input_history
+      // Priority: story_summary > rich _narrative_entries > story_log + user_input_history
+      const storySummary = state.story_summary as string[] | undefined
       const richEntries = state._narrative_entries as
         | Array<{ type: string; content: string }>
         | undefined
 
       let entries: NarrativeEntry[]
 
-      if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
-        // Rich entries available — use them, skip the simpler logs entirely
+      if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
+        // Preferred: story_summary (condensed novel-like recap)
+        entries = storySummary.map((content) => ({
+          id: crypto.randomUUID(),
+          type: 'narrative' as const,
+          content,
+          timestamp: Date.now(),
+        }))
+      } else if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
+        // Fallback: rich narrative entries
         entries = richEntries.map((e) => ({
           id: crypto.randomUUID(),
           type: e.type as 'player' | 'narrative' | 'tool_result' | 'separator' | 'error',
@@ -194,24 +203,12 @@ export default function GamePage() {
           timestamp: Date.now(),
         }))
       } else {
-        // No rich entries — merge story_log, story_summary, and user_input_history
+        // Last resort — merge story_log and user_input_history
         entries = []
 
         const storyLog = state.story_log as string[] | undefined
         if (storyLog && Array.isArray(storyLog)) {
           for (const entry of storyLog) {
-            entries.push({
-              id: crypto.randomUUID(),
-              type: 'narrative' as const,
-              content: entry,
-              timestamp: Date.now(),
-            })
-          }
-        }
-
-        const storySummary = state.story_summary as string[] | undefined
-        if (storySummary && Array.isArray(storySummary)) {
-          for (const entry of storySummary) {
             entries.push({
               id: crypto.randomUUID(),
               type: 'narrative' as const,
@@ -260,16 +257,10 @@ export default function GamePage() {
       }
 
       startedRef.current = true
-      connect({
-        input: 'start',
-        state,
-        character: (loadedCharacter as Record<string, unknown>) ?? undefined,
-        provider: buildProvider(),
-      })
       setIsActive(true)
       setOpenModal(null)
     },
-    [connect, setIsActive],
+    [setIsActive],
   )
 
   // ==================================================================

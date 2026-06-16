@@ -711,7 +711,7 @@ describe('GamePage — load game flow', () => {
     useGameStore.getState().setIsActive(true)
   })
 
-  it('calls connect when a save is loaded', async () => {
+  it('does not auto-connect when a save is loaded (waits for player input)', async () => {
     const { promise: listPromise, resolve: resolveList } = deferred<SavesListResponse>()
     const { promise: loadPromise, resolve: resolveLoad } = deferred<LoadResponse>()
     vi.spyOn(endpoints, 'listSaves').mockReturnValue(listPromise)
@@ -737,13 +737,11 @@ describe('GamePage — load game flow', () => {
       })
     })
 
+    // Game should show the loaded state but NOT auto-submit a turn
     await waitFor(() => {
-      expect(mockConnect).toHaveBeenCalledWith(
-        expect.objectContaining({
-          state: { location: 'Dungeon', hp: 50 },
-        }),
-      )
+      expect(useGameStore.getState().isActive).toBe(true)
     })
+    expect(mockConnect).not.toHaveBeenCalled()
   })
 
   it('sets isActive to true when a save is loaded', async () => {
