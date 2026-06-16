@@ -173,29 +173,23 @@ export default function GamePage() {
   // ==================================================================
   const handleLoaded = useCallback(
     (state: Record<string, unknown>, loadedCharacter?: Record<string, unknown>) => {
+      // CRITICAL: Kill any in-flight auto-start SSE connection first!
+      disconnect()
+
       // Clean slate and populate stores with loaded data
       useGameStore.getState().resetGame()
       useGameStore.getState().setWorldState(state)
 
       // Build the COMPLETE narrative array in ONE pass.
-      // Priority: story_summary > rich _narrative_entries > story_log + user_input_history
-      const storySummary = state.story_summary as string[] | undefined
+      // Priority: rich _narrative_entries > story_summary > story_log + user_input_history
       const richEntries = state._narrative_entries as
         | Array<{ type: string; content: string }>
         | undefined
 
       let entries: NarrativeEntry[]
 
-      if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
-        // Preferred: story_summary (condensed novel-like recap)
-        entries = storySummary.map((content) => ({
-          id: crypto.randomUUID(),
-          type: 'narrative' as const,
-          content,
-          timestamp: Date.now(),
-        }))
-      } else if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
-        // Fallback: rich narrative entries
+      if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
+        // Primary: rich narrative entries (player + narrative, full conversation)
         entries = richEntries.map((e) => ({
           id: crypto.randomUUID(),
           type: e.type as 'player' | 'narrative' | 'tool_result' | 'separator' | 'error',
@@ -203,30 +197,41 @@ export default function GamePage() {
           timestamp: Date.now(),
         }))
       } else {
-        // Last resort — merge story_log and user_input_history
-        entries = []
+        // Fallback paths for legacy saves
+        const storySummary = state.story_summary as string[] | undefined
+        if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
+          entries = storySummary.map((content) => ({
+            id: crypto.randomUUID(),
+            type: 'narrative' as const,
+            content,
+            timestamp: Date.now(),
+          }))
+        } else {
+          // Last resort — merge story_log and user_input_history
+          entries = []
 
-        const storyLog = state.story_log as string[] | undefined
-        if (storyLog && Array.isArray(storyLog)) {
-          for (const entry of storyLog) {
-            entries.push({
-              id: crypto.randomUUID(),
-              type: 'narrative' as const,
-              content: entry,
-              timestamp: Date.now(),
-            })
+          const storyLog = state.story_log as string[] | undefined
+          if (storyLog && Array.isArray(storyLog)) {
+            for (const entry of storyLog) {
+              entries.push({
+                id: crypto.randomUUID(),
+                type: 'narrative' as const,
+                content: entry,
+                timestamp: Date.now(),
+              })
+            }
           }
-        }
 
-        const userInputHistory = state.user_input_history as string[] | undefined
-        if (userInputHistory && Array.isArray(userInputHistory)) {
-          for (const input of userInputHistory) {
-            entries.push({
-              id: crypto.randomUUID(),
-              type: 'player' as const,
-              content: input,
-              timestamp: Date.now(),
-            })
+          const userInputHistory = state.user_input_history as string[] | undefined
+          if (userInputHistory && Array.isArray(userInputHistory)) {
+            for (const input of userInputHistory) {
+              entries.push({
+                id: crypto.randomUUID(),
+                type: 'player' as const,
+                content: input,
+                timestamp: Date.now(),
+              })
+            }
           }
         }
       }
@@ -260,7 +265,7 @@ export default function GamePage() {
       setIsActive(true)
       setOpenModal(null)
     },
-    [setIsActive],
+    [setIsActive, disconnect],
   )
 
   // ==================================================================

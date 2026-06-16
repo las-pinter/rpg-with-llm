@@ -505,14 +505,14 @@ describe('StoryModal', () => {
       })
       renderModal()
       expect(
-        screen.getByText('Adventure Log for Thorn'),
+        screen.getByText('Story Summary for Thorn'),
       ).toBeInTheDocument()
     })
 
     it('does not show subtitle when no character is set', () => {
       renderModal()
       expect(
-        screen.queryByText(/Adventure Log for/),
+        screen.queryByText(/Story Summary for/),
       ).not.toBeInTheDocument()
     })
   })

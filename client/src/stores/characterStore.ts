@@ -452,20 +452,14 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       useGameStore.getState().setWorldState(response.state)
 
       // Populate narrative entries from save data
-      // Priority: story_summary > rich _narrative_entries > story_log + user_input_history
+      // Priority: rich _narrative_entries > story_summary > story_log + user_input_history
       const gameState = useGameStore.getState()
-      const storySummary = response.state.story_summary as string[] | undefined
       const richEntries = response.state._narrative_entries as
         | Array<{ type: string; content: string }>
         | undefined
 
-      if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
-        // Preferred: story_summary (condensed novel-like recap)
-        for (const entry of storySummary) {
-          gameState.addNarrativeEntry({ type: 'narrative', content: entry })
-        }
-      } else if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
-        // Fallback: rich narrative entries
+      if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
+        // Primary: rich narrative entries (full conversation)
         for (const e of richEntries) {
           gameState.addNarrativeEntry({
             type: (e.type || 'narrative') as NarrativeEntry['type'],
@@ -473,18 +467,26 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
           })
         }
       } else {
-        // Last resort — merge story_log and user_input_history
-        const storyLog = response.state.story_log as string[] | undefined
-        if (storyLog && Array.isArray(storyLog)) {
-          for (const entry of storyLog) {
+        // Fallback paths for legacy saves
+        const storySummary = response.state.story_summary as string[] | undefined
+        if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
+          for (const entry of storySummary) {
             gameState.addNarrativeEntry({ type: 'narrative', content: entry })
           }
-        }
+        } else {
+          // Last resort — merge story_log and user_input_history
+          const storyLog = response.state.story_log as string[] | undefined
+          if (storyLog && Array.isArray(storyLog)) {
+            for (const entry of storyLog) {
+              gameState.addNarrativeEntry({ type: 'narrative', content: entry })
+            }
+          }
 
-        const userInputHistory = response.state.user_input_history as string[] | undefined
-        if (userInputHistory && Array.isArray(userInputHistory)) {
-          for (const input of userInputHistory) {
-            gameState.addNarrativeEntry({ type: 'player', content: input })
+          const userInputHistory = response.state.user_input_history as string[] | undefined
+          if (userInputHistory && Array.isArray(userInputHistory)) {
+            for (const input of userInputHistory) {
+              gameState.addNarrativeEntry({ type: 'player', content: input })
+            }
           }
         }
       }
