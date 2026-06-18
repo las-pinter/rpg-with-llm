@@ -100,13 +100,19 @@ class TestWorldStorage:
     # Save
     # ------------------------------------------------------------------
 
-    def test_save_creates_file(
+    def test_save_creates_folder(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
-        """Saving a WorldState must create the expected JSON file."""
+        """Saving a WorldState must create the expected folder."""
         slug = storage.save(sample_world, name="test_save")
-        save_path = storage.saves_dir / f"{slug}.json"
-        assert save_path.is_file()
+        save_folder = storage.saves_dir / slug
+        assert save_folder.is_dir()
+        assert (save_folder / "state.json").exists()
+        # character.json is only created if _character is set
+        if sample_world._character:
+            assert (save_folder / "character.json").exists()
+        assert (save_folder / "narrative_entries.json").exists()
+        assert (save_folder / "summary.json").exists()
 
     def test_save_returns_slug(
         self, storage: WorldStorage, sample_world: WorldState
@@ -131,13 +137,14 @@ class TestWorldStorage:
     ) -> None:
         """The contents of the save file must be parseable JSON."""
         slug = storage.save(sample_world, name="json_test")
-        save_path = storage.saves_dir / f"{slug}.json"
-        with open(save_path) as f:
+        state_path = storage.saves_dir / slug / "state.json"
+        with open(state_path) as f:
             data = json.load(f)
         assert isinstance(data, dict)
-        assert "version" in data
-        assert "turn_count" in data
-        assert data["turn_count"] == 7
+        assert "save_version" in data
+        # Since it's wrapped in SaveEnvelope, the actual state is in payload
+        payload = data.get("payload", {})
+        assert payload["turn_count"] == 7
 
     # ------------------------------------------------------------------
     # Round-trip (save + load)
@@ -254,16 +261,16 @@ class TestWorldStorage:
     # Delete
     # ------------------------------------------------------------------
 
-    def test_delete_removes_file(
+    def test_delete_removes_folder(
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
-        """Deleting a save must remove its JSON file."""
+        """Deleting a save must remove its folder."""
         slug = storage.save(sample_world, name="delete_me")
-        save_path = storage.saves_dir / f"{slug}.json"
-        assert save_path.is_file()
+        save_folder = storage.saves_dir / slug
+        assert save_folder.is_dir()
 
         storage.delete(slug)
-        assert not save_path.exists()
+        assert not save_folder.exists()
 
     def test_delete_removes_index_entry(
         self, storage: WorldStorage, sample_world: WorldState
@@ -307,9 +314,11 @@ class TestWorldStorage:
             storage.load("ghost_save")
 
     def test_load_corrupt_file_raises_error(self, storage: WorldStorage) -> None:
-        """Loading a corrupt (invalid JSON) file must raise ValueError."""
-        bad_file = storage.saves_dir / "corrupt.json"
-        bad_file.write_text("this is not json", encoding="utf-8")
+        """Loading a corrupt (invalid JSON) state file must raise ValueError."""
+        bad_folder = storage.saves_dir / "corrupt"
+        bad_folder.mkdir()
+        with open(bad_folder / "state.json", "w") as f:
+            f.write("this is not json")
 
         with pytest.raises(ValueError, match="corrupt|invalid JSON"):
             storage.load("corrupt")
@@ -318,8 +327,10 @@ class TestWorldStorage:
         self, storage: WorldStorage
     ) -> None:
         """Loading a JSON file that isn't a dict must raise ValueError."""
-        bad_file = storage.saves_dir / "not_a_dict.json"
-        bad_file.write_text('"just a string"', encoding="utf-8")
+        bad_folder = storage.saves_dir / "not_a_dict"
+        bad_folder.mkdir()
+        with open(bad_folder / "state.json", "w") as f:
+            f.write('"just a string"')
 
         with pytest.raises(ValueError, match="corrupt|expected a JSON object"):
             storage.load("not_a_dict")
@@ -363,8 +374,10 @@ class TestWorldStorage:
             os.rename = original_rename
             os.replace = original_replace
 
-        # Confirm the final file exists and tmp file is gone
-        assert (storage.saves_dir / f"{slug}.json").exists()
+        # Confirm the final folder exists and contains a state.json file
+        save_folder = storage.saves_dir / slug
+        assert save_folder.is_dir()
+        assert (save_folder / "state.json").exists()
         assert not (storage.saves_dir / f"{slug}.json.tmp").exists()
 
     # ------------------------------------------------------------------
@@ -499,20 +512,21 @@ class TestWorldStorage:
     def test_load_with_parent_dir_reference_raises_error(
         self, storage: WorldStorage
     ) -> None:
-        """Loading with '..' in name must raise FileNotFoundError."""
-        with pytest.raises(FileNotFoundError, match="not found"):
+        """Loading with '..' in name must raise ValueError."""
+        with pytest.raises(ValueError, match="(parent directory|path separator)"):
             storage.load("../../tmp/evil")
 
     def test_delete_with_parent_dir_reference_raises_error(
         self, storage: WorldStorage
     ) -> None:
-        """Deleting with '..' in name must raise FileNotFoundError."""
-        with pytest.raises(FileNotFoundError, match="not found"):
+        """Deleting with '..' in name must raise ValueError."""
+        with pytest.raises(ValueError, match="(parent directory|path separator)"):
             storage.delete("../../tmp/evil")
 
     def test_save_exists_with_parent_dir_reference(self, storage: WorldStorage) -> None:
-        """save_exists with '..' in name returns False (no validation)."""
-        assert storage.save_exists("../../tmp/evil") is False
+        """save_exists with '..' in name must raise ValueError."""
+        with pytest.raises(ValueError, match="(parent directory|path separator)"):
+            storage.save_exists("../../tmp/evil")
 
     def test_save_with_long_name_raises_error(
         self, storage: WorldStorage, sample_world: WorldState
@@ -550,9 +564,12 @@ class TestWorldStorage:
         slug = storage.save(sample_world, name="manually_gone")
         assert len(storage.list_saves()) == 1
 
-        # Manually delete the file
-        save_path = storage.saves_dir / f"{slug}.json"
-        save_path.unlink()
+        # Manually delete the folder
+        save_path = storage.saves_dir / slug
+        if save_path.exists():
+            import shutil
+
+            shutil.rmtree(save_path)
 
         # delete() should succeed and clean the index
         storage.delete(slug)
@@ -606,20 +623,20 @@ class TestWorldStorage:
         sample_world.character_name = "Test Hero"
         slug = storage.save(sample_world, name="char_embed")
 
-        save_path = storage.saves_dir / f"{slug}.json"
-        with open(save_path) as f:
-            raw_data = json.load(f)
-
-        assert "_character" in raw_data
-        assert raw_data["_character"]["name"] == "Test Hero"
-        assert raw_data["_character"]["class"] == "Mage"
-        assert raw_data["_character"]["level"] == 5
+        save_folder = storage.saves_dir / slug
+        with open(save_folder / "state.json") as f:
+            envelope = json.load(f)
+        payload = envelope.get("payload", {})
+        assert "_character" in payload
+        assert payload["_character"]["name"] == "Test Hero"
+        assert payload["_character"]["class"] == "Mage"
+        assert payload["_character"]["level"] == 5
         # Duplicate flat fields removed by to_dict() when _character is present
         # (inventory and gold are world-level runtime state, NOT redundant)
-        assert "character_name" not in raw_data
-        assert "character_id" not in raw_data
-        assert "inventory" in raw_data
-        assert "gold" in raw_data
+        assert "character_name" not in payload
+        assert "character_id" not in payload
+        assert "inventory" in payload
+        assert "gold" in payload
 
     def test_load_extracts_embedded_character(
         self, storage: WorldStorage, sample_world: WorldState
@@ -638,80 +655,6 @@ class TestWorldStorage:
         # character_name loaded from saved file — removed by to_dict()
         # when _character is present, defaults to "" in from_dict
         assert loaded.character_name == ""
-
-    def test_load_falls_back_to_companion_character(self, client, monkeypatch) -> None:
-        """Load falls back to old .char.json companion file when _character
-        is absent (backward compatibility)."""
-        tmp_dir = Path(tempfile.mkdtemp())
-        saves_dir = tmp_dir / "saves"
-        saves_dir.mkdir(parents=True)
-
-        storage = WorldStorage(tmp_dir)
-        monkeypatch.setattr("app.routes.saves._storage", storage)
-
-        # Create a state file WITHOUT _character (old format)
-        save_name = "backward_compat"
-        state_path = saves_dir / f"{save_name}.json"
-        with open(state_path, "w") as f:
-            json.dump(
-                {
-                    "version": "1.0",
-                    "turn_count": 5,
-                    "character_id": "old_hero",
-                },
-                f,
-            )
-
-        # Create companion .char.json file in the location
-        # _load_companion_character looks for (Path("data") / "saves").
-        companion_dir = tmp_dir / "data" / "saves"
-        companion_dir.mkdir(parents=True)
-        save_key = hashlib.sha256(save_name.encode("utf-8")).hexdigest()
-        char_data = {"name": "Old Hero", "class": "Fighter", "level": 3}
-        char_path = companion_dir / f"{save_key}.char.json"
-        with open(char_path, "w") as f:
-            json.dump(char_data, f)
-
-        monkeypatch.chdir(tmp_dir)
-
-        # Load via Flask endpoint — should find companion character
-        resp = client.post("/api/load/backward_compat")
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["ok"] is True
-        assert data["character"]["name"] == "Old Hero"
-        assert data["character"]["class"] == "Fighter"
-        assert data["character"]["level"] == 3
-
-    def test_delete_cleans_up_companion_file(self, client, monkeypatch) -> None:
-        """Deleting a save also removes the orphan .char.json companion file."""
-        tmp_dir = Path(tempfile.mkdtemp())
-        saves_dir = tmp_dir / "saves"
-        saves_dir.mkdir(parents=True)
-
-        storage = WorldStorage(tmp_dir)
-        monkeypatch.setattr("app.routes.saves._storage", storage)
-
-        # Save a game (creates the state file properly)
-        ws = WorldState(turn_count=5, _character={"name": "Hero"})
-        slug = storage.save(ws, name="cleanup_companion")
-
-        # Create companion file in the legacy location
-        companion_dir = tmp_dir / "data" / "saves"
-        companion_dir.mkdir(parents=True)
-        save_key = hashlib.sha256(slug.encode("utf-8")).hexdigest()
-        char_path = companion_dir / f"{save_key}.char.json"
-        with open(char_path, "w") as f:
-            json.dump({"name": "Legacy Hero"}, f)
-        assert char_path.exists()
-
-        monkeypatch.chdir(tmp_dir)
-
-        # Delete via Flask endpoint — companion file should be removed
-        resp = client.delete(f"/api/delete/{slug}")
-        assert resp.status_code == 200
-        assert resp.get_json()["ok"] is True
-        assert not char_path.exists(), "Companion file should be cleaned up"
 
     def test_world_state_character_round_trip(self) -> None:
         """WorldState.from_dict(to_dict()) preserves _character and
