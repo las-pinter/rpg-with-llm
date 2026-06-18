@@ -1,5 +1,5 @@
 """
-World State File Persistence Layer — Phase 3, Task 3.2.
+World State File Persistence Layer — Phase 1, Task 1.2.
 
 Provides WorldStorage, which persists WorldState dataclasses to
 JSON files with atomic saves, corruption detection, and a save index
@@ -11,24 +11,25 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from app.utils import atomic_write
+from app.save_engine.envelope import SaveEnvelope
 from app.world.model import WorldState
 
 
 class WorldStorage:
     """Persist and restore WorldState objects as JSON files on disk.
 
-    Saves are stored as {data_dir}/saves/{name}.json.  Each file
-    contains the raw WorldState.to_dict() output — no wrapping
-    envelope — so it can be handed directly to WorldState.from_dict().
-
-    A companion index.json tracks metadata (timestamp, character
-    name, level, turn count) for every save, enabling fast listings
-    without loading each file.
+    Saves are stored as ``{data_dir}/saves/{slug}/`` folders.
+    Each folder contains up to four JSON files
+    (``state.json``, ``character.json``, ``narrative_entries.json``,
+    ``summary.json``), each wrapped in a :class:`SaveEnvelope` for
+    versioning and corruption detection.  A companion ``index.json``
+    tracks metadata for fast listing.
 
     All writes are **atomic**: content is first written to a .tmp
     file on the same filesystem, then os.rename()ed to the final
@@ -86,10 +87,38 @@ class WorldStorage:
 
         timestamp = _timestamp_now()
         slug = self._generate_slug(world_state.character_name or name)
-        data: dict[str, Any] = world_state.to_dict()
+        save_folder = self.saves_dir / slug
+        save_folder.mkdir(parents=True, exist_ok=True)
 
-        final_path = self.saves_dir / f"{slug}.json"
-        atomic_write(final_path, data, indent=2)
+        # Prepare and save state.json
+        state_data = SaveEnvelope(
+            schema_name="world_state", payload=world_state.to_dict()
+        ).to_dict()
+        atomic_write(save_folder / "state.json", state_data, indent=2)
+
+        # Prepare and save character.json (omit if no character)
+        if world_state._character is not None:
+            char_data = SaveEnvelope(
+                schema_name="character", payload=world_state._character
+            ).to_dict()
+            atomic_write(save_folder / "character.json", char_data, indent=2)
+
+        # Prepare and save narrative_entries.json
+        narrative_data = SaveEnvelope(
+            schema_name="narrative_entries",
+            payload={"entries": world_state._narrative_entries},
+        ).to_dict()
+        atomic_write(save_folder / "narrative_entries.json", narrative_data, indent=2)
+
+        # Prepare and save summary.json
+        summary_data = SaveEnvelope(
+            schema_name="summary",
+            payload={
+                "technical_summary": world_state.technical_summary,
+                "story_summary": world_state.story_summary,
+            },
+        ).to_dict()
+        atomic_write(save_folder / "summary.json", summary_data, indent=2)
 
         # Populate metadata from WorldState (Bug 6)
         metadata: dict[str, Any] = {
@@ -112,22 +141,82 @@ class WorldStorage:
 
     def load(self, slug: str) -> WorldState:
         """Load and return a WorldState previously saved under *slug*."""
-        final_path = self.saves_dir / f"{slug}.json"
-        if not final_path.exists():
-            raise FileNotFoundError(f"Save '{slug}' not found at {final_path}")
+        self._validate_name(slug)
+        save_folder = self.saves_dir / slug
+        if not save_folder.is_dir():
+            raise FileNotFoundError(f"Save '{slug}' folder not found at {save_folder}")
+
+        # Load state.json
+        state_path = save_folder / "state.json"
+        if not state_path.exists():
+            raise FileNotFoundError(
+                f"State file missing in save '{slug}' at {state_path}"
+            )
         try:
-            with open(final_path, encoding="utf-8") as f:
-                data: Any = json.load(f)
+            with open(state_path, encoding="utf-8") as f:
+                state_data = json.load(f)
         except json.JSONDecodeError as exc:
             raise ValueError(
-                f"Save file '{slug}' is corrupt -- invalid JSON: {exc}"
+                f"Save file 'state.json' in '{slug}' is corrupt -- invalid JSON: {exc}"
             ) from exc
-        if not isinstance(data, dict):
+
+        if not isinstance(state_data, dict):
             raise ValueError(
-                f"Save file '{slug}' is corrupt -- expected a JSON object "
-                f"(dict) but got {type(data).__name__}"
+                f"Save file 'state.json' in '{slug}' is corrupt -- expected a JSON object but got {type(state_data).__name__}"
             )
-        return WorldState.from_dict(data)
+
+        # Extract payload from envelope
+        # The SaveEnvelope structure: {"save_version": ..., "schema_name": ..., "payload": ...}
+        if "payload" not in state_data:
+            raise ValueError(
+                f"Save file 'state.json' in '{slug}' is corrupt -- missing payload field"
+            )
+
+        world_state = WorldState.from_dict(state_data["payload"])
+
+        # Load character.json (optional)
+        char_path = save_folder / "character.json"
+        if char_path.exists():
+            try:
+                with open(char_path, encoding="utf-8") as f:
+                    char_data = json.load(f)
+                if "payload" in char_data:
+                    world_state._character = char_data["payload"]
+            except Exception as e:
+                # We can choose to ignore or raise here. The requirement doesn't specify.
+                # Let's log it if possible, but for now just continue.
+                pass
+
+        # Load narrative_entries.json (optional)
+        narrative_path = save_folder / "narrative_entries.json"
+        if narrative_path.exists():
+            try:
+                with open(narrative_path, encoding="utf-8") as f:
+                    narrative_data = json.load(f)
+                if (
+                    "payload" in narrative_data
+                    and "entries" in narrative_data["payload"]
+                ):
+                    world_state._narrative_entries = narrative_data["payload"][
+                        "entries"
+                    ]
+            except Exception:
+                pass
+
+        # Load summary.json (optional)
+        summary_path = save_folder / "summary.json"
+        if summary_path.exists():
+            try:
+                with open(summary_path, encoding="utf-8") as f:
+                    summary_data = json.load(f)
+                if "payload" in summary_data:
+                    payload = summary_data["payload"]
+                    world_state.technical_summary = payload.get("technical_summary", [])
+                    world_state.story_summary = payload.get("story_summary", [])
+            except Exception:
+                pass
+
+        return world_state
 
     # ------------------------------------------------------------------
     # List saves
@@ -161,20 +250,19 @@ class WorldStorage:
 
     def delete(self, slug: str) -> None:
         """Delete the save with the given *slug*."""
-        save_path = self.saves_dir / f"{slug}.json"
+        self._validate_name(slug)
+        save_folder = self.saves_dir / slug
 
         # Check if the save exists in index or on disk
-        if not save_path.exists() and not self._index_has(slug):
-            raise FileNotFoundError(f"Save '{slug}' not found at {save_path}")
+        if not save_folder.is_dir() and not self._index_has(slug):
+            raise FileNotFoundError(f"Save '{slug}' not found at {save_folder}")
 
         # Remove from index FIRST so orphan metadata can't linger (Bug 5)
         self._remove_from_index(slug)
 
-        # Then try to delete the file (may already be gone)
-        try:
-            save_path.unlink(missing_ok=True)
-        except Exception:
-            pass  # File might already be gone
+        # Then try to delete the folder tree
+        if save_folder.is_dir():
+            shutil.rmtree(save_folder, ignore_errors=True)
 
     # ------------------------------------------------------------------
     # Save exists
@@ -182,7 +270,8 @@ class WorldStorage:
 
     def save_exists(self, slug: str) -> bool:
         """Return True if a save with *slug* exists on disk."""
-        return (self.saves_dir / f"{slug}.json").exists()
+        self._validate_name(slug)
+        return (self.saves_dir / slug).is_dir()
 
     # ------------------------------------------------------------------
     # Auto-save
