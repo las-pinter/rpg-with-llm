@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
+from app.world.model import DMNotes, WorldState
+from app.world.persistence import WorldStorage
 
 # ---------------------------------------------------------------------------
 # DM_SYSTEM_PROMPT
@@ -803,6 +807,69 @@ class TestDungeonMasterMaybeSummarize:
         # Summary should remain unchanged after failure
         assert dm.history.compressed_summary == ""
         assert dm.history.get_summary() == ""
+
+    def test_maybe_summarize_triggers_autosave(self) -> None:
+        """Autosave fires when L2 summarization succeeds."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage = WorldStorage(tmpdir, auto_save_interval=None)
+
+            # Create a minimal WorldState for the save
+            world_state = WorldState(
+                version="1.0",
+                character_id="hero_42",
+                current_location="tavern",
+                locations={},
+                quests={},
+                faction_standings={},
+                inventory=[],
+                dm_notes=DMNotes(plot_threads=[], secrets=[]),
+                turn_count=0,
+            )
+
+            # Create a save first so the folder exists
+            slug = storage.save(world_state, name="test_autosave_dm")
+
+            # Create DM with real world_state and storage reference
+            dm = DungeonMaster(
+                llm_provider=None,
+                world_state=world_state,
+                character=None,
+            )
+            dm._storage = storage
+            dm._save_slug = slug
+
+            # Fill buffer to trigger summarization (need 5 turns)
+            for i in range(5):
+                dm.history.add_turn(f"Turn {i}", f"Response {i}")
+
+            # Patch summarize_turns to return a mock summary (no real LLM needed)
+            with patch("app.agents.dm.summarize_turns", return_value="Mocked summary"):
+                dm._maybe_summarize()
+
+            # Verify autosave was created
+            backups_dir = storage.saves_dir / slug / "backups"
+            assert backups_dir.exists(), "Backups directory should exist after autosave"
+            backup_dirs = [d for d in backups_dir.iterdir() if d.is_dir()]
+            assert len(backup_dirs) == 1, (
+                f"Expected exactly one autosave, got {len(backup_dirs)}"
+            )
+            assert backup_dirs[0].name == "autosave-001", (
+                f"Expected autosave-001, got {backup_dirs[0].name}"
+            )
+
+            # Verify the backup contains expected files
+            backup_path = backups_dir / "autosave-001"
+            assert (backup_path / "state.json").exists()
+
+            # Verify the backup captures the L2 summary written to disk before autosave
+            import json as _json
+
+            with open(backup_path / "summary.json") as f:
+                summary_data = _json.load(f)
+            payload = summary_data.get("payload", {})
+            assert len(payload.get("technical_summary", [])) >= 1, (
+                "Backup summary should contain the L2 summary written before autosave"
+            )
 
 
 # ---------------------------------------------------------------------------

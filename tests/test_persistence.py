@@ -709,3 +709,134 @@ class TestWorldStorage:
         assert d["inventory"] == ["sword"]
         assert d["gold"] == 100
         assert d["turn_count"] == 5
+
+    # ------------------------------------------------------------------
+    # Autosave backups (Task 4.2)
+    # ------------------------------------------------------------------
+
+    def test_autosave_creates_backup(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """autosave() copies the entire save folder into a numbered subfolder."""
+        slug = storage.save(sample_world, name="test_autosave")
+        sample_world.story_summary.append("[Turn 1] Something happened.")
+
+        storage.autosave(slug, sample_world)
+
+        backups_dir = storage.saves_dir / slug / "backups"
+        assert backups_dir.exists()
+        backup_files = [d for d in backups_dir.iterdir() if d.is_dir()]
+        assert len(backup_files) == 1
+        assert backup_files[0].name == "autosave-001"
+
+        # Verify the copy contains expected files
+        backup_path = backups_dir / "autosave-001"
+        assert (backup_path / "state.json").exists()
+        assert (backup_path / "summary.json").exists()
+
+    def test_autosave_sequential_numbers(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """Multiple autosaves get incrementing backup numbers."""
+        storage.backup_count = 0  # Disable retention for this test
+
+        slug = storage.save(sample_world, name="test_multi")
+
+        for _ in range(5):
+            storage.autosave(slug, sample_world)
+
+        backups_dir = storage.saves_dir / slug / "backups"
+        backup_names = sorted(d.name for d in backups_dir.iterdir() if d.is_dir())
+        assert backup_names == [
+            "autosave-001",
+            "autosave-002",
+            "autosave-003",
+            "autosave-004",
+            "autosave-005",
+        ]
+
+    def test_backup_retention_removes_oldest(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """When backup_count is exceeded, oldest backups are removed."""
+        storage.backup_count = 3  # Keep only 3
+
+        slug = storage.save(sample_world, name="test_retention")
+
+        for _ in range(5):
+            storage.autosave(slug, sample_world)
+
+        backups_dir = storage.saves_dir / slug / "backups"
+        backup_names = sorted(d.name for d in backups_dir.iterdir() if d.is_dir())
+        assert len(backup_names) == 3
+        # Should keep the 3 newest: autosave-003, autosave-004, autosave-005
+        assert backup_names == ["autosave-003", "autosave-004", "autosave-005"]
+
+    def test_backup_count_zero_keeps_all(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """When backup_count is 0, all backups are kept indefinitely."""
+        storage.backup_count = 0
+
+        slug = storage.save(sample_world, name="test_no_retention")
+
+        for _ in range(10):
+            storage.autosave(slug, sample_world)
+
+        backups_dir = storage.saves_dir / slug / "backups"
+        backup_names = sorted(d.name for d in backups_dir.iterdir() if d.is_dir())
+        assert len(backup_names) == 10
+
+    def test_backup_retention_negative_count_keeps_all(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """Negative backup_count behaves like zero — keeps all backups."""
+        storage.backup_count = -1
+
+        slug = storage.save(sample_world, name="test_neg")
+
+        for _ in range(5):
+            storage.autosave(slug, sample_world)
+
+        backups_dir = storage.saves_dir / slug / "backups"
+        backup_names = sorted(d.name for d in backups_dir.iterdir() if d.is_dir())
+        assert len(backup_names) == 5
+
+    def test_autosave_verification_warns_on_corruption(
+        self,
+        storage: WorldStorage,
+        sample_world: WorldState,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """_verify_autosave logs warnings for corrupt JSON files."""
+        import logging
+
+        # Set log level before any autosaves so we capture all messages
+        caplog.set_level(logging.WARNING)
+
+        slug = storage.save(sample_world, name="test_verify")
+
+        # First autosave creates a valid backup
+        storage.autosave(slug, sample_world)
+
+        # Corrupt the state.json in the first backup
+        backups_dir = storage.saves_dir / slug / "backups"
+        assert backups_dir.exists()
+        backup_path = backups_dir / "autosave-001"
+        state_file = backup_path / "state.json"
+        if state_file.exists():
+            with open(state_file, "w") as f:
+                f.write("NOT VALID JSON {{{")
+
+        # Directly re-verify the corrupted backup path
+        storage._verify_autosave(backup_path)
+
+        # Check that a warning was logged for the corruption
+        has_warning = any(
+            "verification failed" in r.getMessage().lower()
+            or "autosave missing" in r.getMessage().lower()
+            for r in caplog.records
+        )
+        assert has_warning, (
+            f"No verification warning found. Records: {[r.message for r in caplog.records]}"
+        )

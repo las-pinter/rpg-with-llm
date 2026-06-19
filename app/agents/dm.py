@@ -10,6 +10,7 @@ invoke, weaves narrative, and proposes world state changes at every turn.
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import logging
 import re
 from collections.abc import Generator
@@ -18,6 +19,9 @@ from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.world.persistence import WorldStorage
+
+from app.save_engine.envelope import SaveEnvelope
+from app.utils.atomic_write import atomic_write
 
 from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
@@ -1481,6 +1485,44 @@ class DungeonMaster:
                 # Persist technical summary for save/load
                 if self.world_state is not None:
                     self.world_state.technical_summary.append(summary)
+
+                    # Persist technical summary to disk so autosave captures it.
+                    # Without this, the backup copies stale on-disk data and
+                    # misses the very L2 summary change that triggered autosave.
+                    if self._storage is not None and self._save_slug is not None:
+                        try:
+                            save_folder = self._storage.saves_dir / self._save_slug
+                            summary_path = save_folder / "summary.json"
+
+                            # Read existing envelope or create new one
+                            if summary_path.exists():
+                                with open(summary_path, encoding="utf-8") as f:
+                                    data = json.load(f)
+                                payload = data.get("payload", {})
+                            else:
+                                payload = {
+                                    "technical_summary": [],
+                                    "story_summary": [],
+                                    "meta_summary": getattr(
+                                        self.world_state, "meta_summary", []
+                                    ),
+                                }
+
+                            # Update with latest technical summary and write back atomically
+                            payload["technical_summary"] = list(
+                                self.world_state.technical_summary
+                            )
+                            envelope = SaveEnvelope(
+                                schema_name="summary",
+                                payload=payload,
+                            ).to_dict()
+                            atomic_write(summary_path, envelope, indent=2)
+                        except Exception:
+                            logger.exception(
+                                "Failed to persist summary before autosave for slug '%s'",
+                                self._save_slug,
+                            )
+
                     # Run forgetting mechanism on the accumulated L2 summaries
                     newly_forgotten = self.history.forget(
                         self.world_state.technical_summary
@@ -1491,6 +1533,16 @@ class DungeonMaster:
                             len(newly_forgotten),
                             newly_forgotten,
                         )
+
+                    # Autosave after successful L2 creation
+                    if self._storage is not None and self._save_slug is not None:
+                        try:
+                            self._storage.autosave(self._save_slug, self.world_state)
+                        except Exception:
+                            logger.exception(
+                                "Autosave failed for slug '%s'", self._save_slug
+                            )
+
                 logger.debug(
                     "_maybe_summarize: created compressed summary — "
                     "%d chars (was %d turns + existing summary)",
