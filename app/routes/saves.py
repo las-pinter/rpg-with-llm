@@ -225,7 +225,7 @@ def delete_save(slug: str) -> tuple[flask.Response, int] | flask.Response:
 
 @bp.route("/story/<string:slug>", methods=["GET"])
 def get_story(slug: str) -> tuple[flask.Response, int] | flask.Response:
-    """Return the story log for a saved game.
+    """Return the condensed story summaries for a saved game.
 
     Parameters
     ----------
@@ -234,7 +234,7 @@ def get_story(slug: str) -> tuple[flask.Response, int] | flask.Response:
 
     Returns
     -------
-    JSON with ``ok`` and ``story`` (list of narrative strings) on success.
+    JSON with ``ok`` and ``story`` (list of prose summary strings) on success.
 
     Errors
     ------
@@ -242,9 +242,24 @@ def get_story(slug: str) -> tuple[flask.Response, int] | flask.Response:
         If no save with the given *slug* exists.
     """
     try:
-        world_state = _storage.load(slug)
-        return jsonify({"ok": True, "story": world_state._narrative_entries})
-    except FileNotFoundError:
+        # Validate slug before reading
+        _storage._validate_name(slug)
+        story_path = _storage.saves_dir / slug / "story_summary.json"
+
+        if not story_path.exists():
+            # Fall back to loading from summary.json for old saves
+            world_state = _storage.load(slug)
+            return jsonify({"ok": True, "story": world_state.story_summary})
+
+        with open(story_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        story = []
+        if "payload" in data and "entries" in data["payload"]:
+            story = [str(e) for e in data["payload"]["entries"] if isinstance(e, str)]
+
+        return jsonify({"ok": True, "story": story})
+    except (FileNotFoundError, ValueError):
         return jsonify({"ok": False, "error": "Save not found"}), 404
 
 

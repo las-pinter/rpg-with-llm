@@ -121,6 +121,16 @@ class WorldStorage:
         ).to_dict()
         atomic_write(save_folder / "summary.json", summary_data, indent=2)
 
+        # Write story_summary to its own file if there are entries
+        if world_state.story_summary:
+            story_summary_data = SaveEnvelope(
+                schema_name="story_summary",
+                payload={"entries": world_state.story_summary},
+            ).to_dict()
+            atomic_write(
+                save_folder / "story_summary.json", story_summary_data, indent=2
+            )
+
         # Populate metadata from WorldState (Bug 6)
         metadata: dict[str, Any] = {
             "id": slug,
@@ -255,6 +265,20 @@ class WorldStorage:
                     world_state.technical_summary = payload.get("technical_summary", [])
                     world_state.story_summary = payload.get("story_summary", [])
                     world_state.meta_summary = payload.get("meta_summary", [])
+            except Exception:
+                pass
+
+        # Load story_summary.json (new location, overrides bundled value)
+        story_summary_path = save_folder / "story_summary.json"
+        if story_summary_path.exists():
+            try:
+                with open(story_summary_path, encoding="utf-8") as f:
+                    ss_data = json.load(f)
+                if "payload" in ss_data and "entries" in ss_data["payload"]:
+                    entries = ss_data["payload"]["entries"]
+                    world_state.story_summary = [
+                        str(e) for e in entries if isinstance(e, str)
+                    ]
             except Exception:
                 pass
 

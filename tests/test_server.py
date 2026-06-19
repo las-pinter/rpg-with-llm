@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1586,13 +1587,12 @@ class TestStoryEndpoint:
     """Tests for GET /api/story/<name>."""
 
     def test_get_story_endpoint_returns_story(self, client):
-        """Save a game with _narrative_entries, then GET /api/story/<slug>
-        returns the narrative entries."""
+        """GET /api/story/<slug> returns condensed story summaries."""
         state = {
             "version": "1.0",
-            "_narrative_entries": [
-                {"type": "narrative", "content": "You enter the dark forest."},
-                {"type": "narrative", "content": "A goblin appears!"},
+            "story_summary": [
+                "[Turn 1] You enter the dark forest.",
+                "[Turn 4] A goblin appears!",
             ],
         }
         resp = client.post(
@@ -1607,9 +1607,37 @@ class TestStoryEndpoint:
         data = resp.get_json()
         assert data["ok"] is True
         assert data["story"] == [
-            {"type": "narrative", "content": "You enter the dark forest."},
-            {"type": "narrative", "content": "A goblin appears!"},
+            "[Turn 1] You enter the dark forest.",
+            "[Turn 4] A goblin appears!",
         ]
+
+    def test_get_story_endpoint_fallback_to_old_save(self, client):
+        """GET /api/story/<slug> falls back to WorldState.story_summary for saves without story_summary.json."""
+        state = {
+            "version": "1.0",
+            "story_summary": [
+                "[Turn 2] The dragon awakens.",
+            ],
+        }
+        resp = client.post(
+            "/api/save",
+            json={"state": state, "name": "old_save_test"},
+        )
+        assert resp.status_code == 200
+        slug = resp.get_json()["slug"]
+
+        # Delete story_summary.json to simulate an old save (pre-Task 4.1)
+        saves_dir = Path("data/saves") / slug
+        story_file = saves_dir / "story_summary.json"
+        if story_file.exists():
+            os.remove(story_file)
+
+        # Now the endpoint should fall back to loading WorldState from summary.json
+        resp = client.get(f"/api/story/{slug}")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["story"] == ["[Turn 2] The dragon awakens."]
 
     def test_get_story_endpoint_404(self, client):
         """GET /api/story/<nonexistent> returns 404."""

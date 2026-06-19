@@ -30,7 +30,14 @@ class SaveEnvelope:
         return cls(**filtered_data)
 
 
-KNOWN_SCHEMAS = {"world_state", "character", "narrative_entries", "summary", "state"}
+KNOWN_SCHEMAS = {
+    "world_state",
+    "character",
+    "narrative_entries",
+    "summary",
+    "state",
+    "story_summary",
+}
 
 SCHEMAS = {
     "envelope": {
