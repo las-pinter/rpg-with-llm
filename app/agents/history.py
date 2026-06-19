@@ -27,11 +27,13 @@ class SessionHistory:
     """
 
     MAX_RECENT_TURNS: int = 5
+    L3_INTERVAL: int = 25
 
     def __init__(self, max_turns: int = 5) -> None:
         self.max_turns: int = max_turns
         self.recent_turns: deque[dict[str, str]] = deque(maxlen=max_turns)
         self.compressed_summary: str = ""
+        self.l3_summaries: list[str] = []
 
     # ------------------------------------------------------------------
     # Public API
@@ -102,6 +104,26 @@ class SessionHistory:
         """
         self.compressed_summary = summary
 
+    def add_l3_summary(self, summary: str) -> None:
+        """Append an L3 meta-summary.
+
+        Parameters
+        ----------
+        summary : str
+            The L3 meta-summary text to append.
+        """
+        self.l3_summaries.append(summary)
+
+    def get_l3_summaries(self) -> list[str]:
+        """Return all L3 meta-summaries.
+
+        Returns
+        -------
+        list[str]
+            A copy of the accumulated L3 meta-summaries.
+        """
+        return self.l3_summaries.copy()
+
     # ------------------------------------------------------------------
     # Serialisation
     # ------------------------------------------------------------------
@@ -119,6 +141,7 @@ class SessionHistory:
             "max_turns": self.max_turns,
             "recent_turns": list(self.recent_turns),
             "compressed_summary": self.compressed_summary,
+            "l3_summaries": self.l3_summaries,
         }
 
     @classmethod
@@ -138,6 +161,7 @@ class SessionHistory:
         max_turns = data.get("max_turns", cls.MAX_RECENT_TURNS)
         instance = cls(max_turns=max_turns)
         instance.compressed_summary = data.get("compressed_summary", "")
+        instance.l3_summaries = data.get("l3_summaries", [])
         for turn in data.get("recent_turns", []):
             instance.recent_turns.append(turn)
         return instance
@@ -150,6 +174,7 @@ class SessionHistory:
         """Reset all history — drops recent turns and summary."""
         self.recent_turns.clear()
         self.compressed_summary = ""
+        self.l3_summaries.clear()
 
     def clear_turns(self) -> None:
         """Clear all recent turns from the buffer.

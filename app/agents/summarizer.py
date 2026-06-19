@@ -62,6 +62,22 @@ SUMMARIZER_SYSTEM_PROMPT: str = (
 # Story Writer System Prompt
 # ---------------------------------------------------------------------------
 
+META_SUMMARIZER_SYSTEM_PROMPT: str = """You are a meta-summarizer for a long-running RPG campaign. Your task is to condense multiple session summaries into a concise, high-level overview.
+
+Focus on:
+- Major plot developments and story arcs
+- Character growth and relationship changes
+- World-changing events and their consequences
+- Open threads and unresolved mysteries
+- Long-term goals and shifts in direction
+
+Ignore minor details, individual combat exchanges, and routine actions.
+Output 2-4 paragraphs covering the most important developments."""
+
+# ---------------------------------------------------------------------------
+# Story Writer System Prompt
+# ---------------------------------------------------------------------------
+
 STORY_WRITER_SYSTEM_PROMPT: str = (
     "You are a fantasy novelist chronicling the adventures of a hero. "
     "Your job is to transform raw gameplay narrative into a flowing, "
@@ -310,6 +326,92 @@ def summarize_story(
 
 
 # ---------------------------------------------------------------------------
+# L3 Meta-Summarization
+# ---------------------------------------------------------------------------
+
+
+def summarize_meta(
+    summaries_text: str,
+    provider: Any,
+    previous_meta: str | None = None,
+    max_retries: int = 2,
+) -> str:
+    """Generate an L3 meta-summary from a collection of L2 summaries.
+
+    Condenses multiple session summaries into a concise high-level overview
+    of the campaign's major plot developments, character growth, and
+    unresolved threads.
+
+    Parameters
+    ----------
+    summaries_text : str
+        Concatenated L2 summaries to condense.
+    provider : LLMProvider
+        LLM provider with ``.call(messages)`` method.
+    previous_meta : str or None
+        Optional previous L3 summary for continuity.
+    max_retries : int
+        Number of retries on failure.  Defaults to 2.
+
+    Returns
+    -------
+    str
+        Meta-summary text, or truncated fallback on complete failure.
+    """
+    if not summaries_text or not isinstance(summaries_text, str):
+        return ""
+
+    if provider is None:
+        return _truncation_fallback(summaries_text)
+
+    # If previous_meta is provided, prepend it for continuity
+    if previous_meta:
+        input_text = (
+            f"Previous meta-summary:\n{previous_meta}"
+            f"\n\nNew summaries to incorporate:\n{summaries_text}"
+        )
+    else:
+        input_text = summaries_text
+
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": META_SUMMARIZER_SYSTEM_PROMPT},
+        {"role": "user", "content": input_text},
+    ]
+
+    last_error: Exception | None = None
+
+    for attempt in range(1 + max_retries):
+        try:
+            response: dict[str, Any] = provider.call(messages)
+            content: str = response.get("content", "")
+            if content:
+                return content.strip()
+            # Empty content counts as a failure — retry
+            last_error = ValueError("LLM returned empty content")
+            logger.warning(
+                "Meta-summarizer attempt %d/%d returned empty content",
+                attempt + 1,
+                1 + max_retries,
+            )
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "Meta-summarizer attempt %d/%d failed: %s",
+                attempt + 1,
+                1 + max_retries,
+                e,
+            )
+
+    # All attempts exhausted — log and return fallback
+    logger.warning(
+        "Meta-summarizer failed after %d attempts: %s",
+        1 + max_retries,
+        last_error,
+    )
+    return _truncation_fallback(summaries_text)
+
+
+# ---------------------------------------------------------------------------
 # Caveman compression for summaries
 # ---------------------------------------------------------------------------
 
@@ -349,8 +451,10 @@ def compress_summary(summary: str) -> str:
 
 
 __all__ = [
+    "META_SUMMARIZER_SYSTEM_PROMPT",
     "SUMMARIZER_SYSTEM_PROMPT",
     "STORY_WRITER_SYSTEM_PROMPT",
+    "summarize_meta",
     "summarize_turns",
     "summarize_story",
     "should_summarize",

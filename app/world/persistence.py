@@ -116,6 +116,7 @@ class WorldStorage:
             payload={
                 "technical_summary": world_state.technical_summary,
                 "story_summary": world_state.story_summary,
+                "meta_summary": world_state.meta_summary,
             },
         ).to_dict()
         atomic_write(save_folder / "summary.json", summary_data, indent=2)
@@ -213,6 +214,7 @@ class WorldStorage:
                     payload = summary_data["payload"]
                     world_state.technical_summary = payload.get("technical_summary", [])
                     world_state.story_summary = payload.get("story_summary", [])
+                    world_state.meta_summary = payload.get("meta_summary", [])
             except Exception:
                 pass
 

@@ -210,6 +210,11 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
     if world_state.technical_summary:
         dm.history.compressed_summary = world_state.technical_summary[-1]
 
+    # Restore L3 meta-summaries for continuity across save/load cycles
+    if world_state.meta_summary:
+        for ms in world_state.meta_summary:
+            dm.history.add_l3_summary(ms)
+
     def generate() -> Generator[str, None, None]:
         try:
             for event in dm.process_turn_stream(player_input):

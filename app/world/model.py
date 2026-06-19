@@ -149,6 +149,9 @@ class WorldState:
     # alongside story summaries
     technical_summary: list[str] = field(default_factory=list)
 
+    # L3 meta-summaries — high-level overviews of multiple L2 summaries
+    meta_summary: list[str] = field(default_factory=list)
+
     # Embedded character data for single-file save (not part of game logic)
     _character: dict[str, Any] | None = field(default=None, repr=False)
     # Embedded narrative entries for rich frontend restoration on load
@@ -260,6 +263,13 @@ class WorldState:
         else:
             technical_summary = []
 
+        # meta_summary — ensure it's a list of strings
+        raw_meta = data.get("meta_summary", [])
+        if isinstance(raw_meta, list):
+            meta_summary = [str(s) for s in raw_meta if isinstance(s, str)]
+        else:
+            meta_summary = []
+
         return cls(
             version=version,
             character_id=data.get("character_id"),
@@ -276,6 +286,7 @@ class WorldState:
             established_facts=established_facts,
             story_summary=story_summary,
             technical_summary=technical_summary,
+            meta_summary=meta_summary,
             _character=data.get("_character"),
             _narrative_entries=data.get("_narrative_entries", []),
         )

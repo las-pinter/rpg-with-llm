@@ -19,7 +19,7 @@ from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
 from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
-from app.agents.summarizer import summarize_story, summarize_turns
+from app.agents.summarizer import summarize_meta, summarize_story, summarize_turns
 from app.agents.tools import dispatch_tool
 from app.character.model import Character
 from app.llm.base import LLMProvider
@@ -519,6 +519,9 @@ class DungeonMaster:
         self._pending_story_entries: list[str] = []
         self._story_summary_interval: int = 3  # Summarize every 3 turns
 
+        # L3 meta-summarization state
+        self.l3_interval: int = 25  # Every 25 turns
+
     def _build_context(
         self,
         player_input: str,
@@ -621,6 +624,12 @@ class DungeonMaster:
                 self._maybe_summarize_story()
             except Exception:
                 logger.exception("Story summarization failed, continuing")
+            try:
+                self._maybe_meta_summarize()
+            except Exception:
+                logger.exception(
+                    "L3 meta-summarization failed in impossible-action branch, continuing"
+                )
 
             state_dict = (
                 self.world_state.to_dict() if self.world_state is not None else {}
@@ -1196,6 +1205,10 @@ class DungeonMaster:
             self._maybe_summarize_story()
         except Exception:
             logger.exception("Story summarization failed, continuing")
+        try:
+            self._maybe_meta_summarize()
+        except Exception:
+            logger.exception("L3 meta-summarization failed, continuing")
 
         logger.debug(
             "Token usage after turn: prompt=%s, completion=%s, total=%s",
@@ -1445,3 +1458,50 @@ class DungeonMaster:
             logger.exception(
                 "Story summarization failed, keeping entries for next cycle"
             )
+
+    def _maybe_meta_summarize(self) -> None:
+        """Generate L3 meta-summary at configured intervals.
+
+        Called after each completed turn (via ``_record_turn_and_summarize``).
+        Uses ``self.turn_count`` to determine when to fire (every
+        ``self.l3_interval`` turns).  Collects all accumulated L2 technical
+        summaries and condenses them into a higher-level meta-summary.
+        """
+        if self.summarizer_provider is None or self.world_state is None:
+            return
+
+        if self.turn_count == 0:
+            return
+
+        if self.turn_count % self.l3_interval != 0:
+            return
+
+        # Build input from accumulated L2 summaries
+        if not self.world_state.technical_summary:
+            return
+
+        summaries_text = "\n\n---\n\n".join(self.world_state.technical_summary)
+
+        # Include previous L3 if available
+        previous_meta = (
+            self.history.get_l3_summaries()[-1]
+            if self.history.get_l3_summaries()
+            else None
+        )
+
+        try:
+            meta_summary = summarize_meta(
+                summaries_text,
+                self.summarizer_provider,
+                previous_meta=previous_meta,
+            )
+            if meta_summary:
+                self.history.add_l3_summary(meta_summary)
+                if self.world_state is not None:
+                    self.world_state.meta_summary.append(meta_summary)
+                logger.debug(
+                    "_maybe_meta_summarize: created L3 meta-summary — %d chars",
+                    len(meta_summary),
+                )
+        except Exception:
+            logger.exception("L3 meta-summarization failed")
