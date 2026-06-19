@@ -1,5 +1,6 @@
 from .bucket import Bucket
 from .envelope import SaveEnvelope, SCHEMAS, validate_envelope
+from .migration import MigrationError, register_migration, run_migration
 from .schemas import (
     NPC_SCHEMA,
     ITEM_SCHEMA,

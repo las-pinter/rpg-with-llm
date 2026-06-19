@@ -235,3 +235,98 @@ def test_validate_payload_function():
     errors = validate_payload({}, schema)
     assert len(errors) > 0
     assert any("'name' is a required property" in e for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# Migration framework integration tests (Task 2.3)
+# ---------------------------------------------------------------------------
+
+
+def test_register_and_run_migration(temp_data_dir):
+    """Register a simple migration and verify it runs via run_migration()."""
+    from app.save_engine.migration import register_migration, run_migration
+
+    def add_foo(payload: dict) -> dict:
+        payload["foo"] = "bar"
+        return payload
+
+    register_migration("test_integration", "1.0.0", "2.0.0", add_foo)
+    result = run_migration("test_integration", {"a": 1}, "1.0.0", "2.0.0")
+    assert result == {"a": 1, "foo": "bar"}
+
+
+def test_migration_chain(temp_data_dir):
+    """Register 1.0.0→1.1.0 and 1.1.0→1.2.0, run from 1.0.0 to 1.2.0."""
+    from app.save_engine.migration import register_migration, run_migration
+
+    def step1(payload: dict) -> dict:
+        payload["step"] = 1
+        return payload
+
+    def step2(payload: dict) -> dict:
+        payload["step"] = 2
+        payload["done"] = True
+        return payload
+
+    register_migration("test_chain_2", "1.0.0", "1.1.0", step1)
+    register_migration("test_chain_2", "1.1.0", "1.2.0", step2)
+
+    result = run_migration("test_chain_2", {"x": 0}, "1.0.0", "1.2.0")
+    assert result == {"x": 0, "step": 2, "done": True}
+
+
+def test_migration_missing_path(temp_data_dir):
+    """Run migration with no registered path, expect MigrationError."""
+    from app.save_engine.migration import run_migration, MigrationError
+
+    with pytest.raises(MigrationError, match="No migration path"):
+        run_migration("no_path_schema", {"a": 1}, "1.0.0", "2.0.0")
+
+
+def test_load_triggers_migration(temp_data_dir):
+    """Create a save with old version, register migration, load, verify."""
+    import json
+    from pathlib import Path
+    from app.save_engine.manager import SaveGameManager
+    from app.save_engine.bucket import Bucket
+    from app.save_engine.migration import register_migration
+
+    manager = SaveGameManager(temp_data_dir)
+
+    # Register a bucket with v2.0.0 and identity deserializer
+    bucket = Bucket(
+        "test_load_migrate",
+        "2.0.0",
+        {"type": "object"},
+        lambda x: x,
+        lambda x: x,
+    )
+    manager.register_bucket(bucket)
+
+    # Register migration v1.0.0 -> v2.0.0
+    def add_version_flag(payload: dict) -> dict:
+        payload["migrated"] = True
+        return payload
+
+    register_migration("test_load_migrate", "1.0.0", "2.0.0", add_version_flag)
+
+    # Create a save file manually with v1.0.0
+    slug = "test_load_migrate_slug"
+    save_folder = Path(temp_data_dir) / "saves" / slug
+    save_folder.mkdir(parents=True, exist_ok=True)
+
+    old_data = {
+        "save_version": "1.0.0",
+        "schema_name": "test_load_migrate",
+        "schema_version": "1.0.0",
+        "timestamp": "now",
+        "payload": {"original": "data"},
+    }
+
+    with open(save_folder / "test_load_migrate.json", "w") as f:
+        json.dump(old_data, f)
+
+    loaded = manager.load(slug)
+    assert "test_load_migrate" in loaded
+    assert loaded["test_load_migrate"]["migrated"] is True
+    assert loaded["test_load_migrate"]["original"] == "data"
