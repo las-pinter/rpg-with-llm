@@ -16,9 +16,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import logging
+
 from app.utils import atomic_write
 from app.save_engine.envelope import SaveEnvelope
 from app.world.model import WorldState
+
+logger = logging.getLogger(__name__)
 
 
 class WorldStorage:
@@ -44,6 +48,7 @@ class WorldStorage:
         self.data_dir = Path(data_dir)
         self.saves_dir = self.data_dir / "saves"
         self.auto_save_interval = auto_save_interval
+        self.backup_count: int = 3  # Maximum autosaves to keep per save (0 = unlimited)
         self._last_save_turn: int | None = None
         self.saves_dir.mkdir(parents=True, exist_ok=True)
 
@@ -348,6 +353,118 @@ class WorldStorage:
         if self.auto_save_interval is None or self._last_save_turn is None:
             return False
         return (current_turn - self._last_save_turn) >= self.auto_save_interval
+
+    # ------------------------------------------------------------------
+    # Autosave backups
+    # ------------------------------------------------------------------
+
+    def autosave(self, slug: str, world_state: WorldState) -> None:
+        """Create an autosave backup for the given save folder.
+
+        Copies the entire save folder into a numbered subfolder under
+        ``{slug}/backups/`` and manages retention (oldest removed when
+        count exceeded).
+
+        Parameters
+        ----------
+        slug : str
+            The save folder slug (validated against path traversal).
+        world_state : WorldState
+            The current game state.
+
+        Raises
+        ------
+        ValueError
+            If *slug* contains path separators or parent dir references.
+        """
+        self._validate_name(slug)
+
+        backups_dir = self.saves_dir / slug / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+
+        existing_backups = sorted(
+            [
+                d
+                for d in backups_dir.iterdir()
+                if d.is_dir() and d.name.startswith("autosave-")
+            ]
+        )
+        # Find the highest existing number to avoid collisions after retention
+        next_num = 1
+        for b in existing_backups:
+            try:
+                num = int(b.name.split("-")[1])
+                if num >= next_num:
+                    next_num = num + 1
+            except (IndexError, ValueError):
+                continue
+
+        backup_path = backups_dir / f"autosave-{next_num:03d}"
+
+        save_folder = self.saves_dir / slug
+        # Exclude the backups/ subfolder to avoid recursive copy loops
+        shutil.copytree(
+            save_folder,
+            backup_path,
+            ignore=lambda src, names: [n for n in names if n == "backups"],
+        )
+
+        self._manage_backup_retention(slug)
+
+        self._verify_autosave(backup_path)
+
+    def _manage_backup_retention(self, slug: str) -> None:
+        """Remove oldest backups when count exceeds *backup_count*.
+
+        When *backup_count* is 0 or negative, all backups are kept
+        indefinitely.
+        """
+        if self.backup_count <= 0:
+            return
+
+        backups_dir = self.saves_dir / slug / "backups"
+        if not backups_dir.exists():
+            return
+
+        existing_backups = sorted(
+            [
+                d
+                for d in backups_dir.iterdir()
+                if d.is_dir() and d.name.startswith("autosave-")
+            ]
+        )
+
+        while len(existing_backups) > self.backup_count:
+            oldest = existing_backups.pop(0)
+            shutil.rmtree(str(oldest), ignore_errors=True)
+
+    def _verify_autosave(self, backup_path: Path) -> None:
+        """Verify that a backup folder contains readable JSON files with valid envelope structure.
+
+        Checks at least the main entity files (state.json, summary.json).
+        Logs warnings but doesn't raise — failures here are non-fatal.
+        """
+        for json_file in ("state.json", "summary.json"):
+            path = backup_path / json_file
+            if not path.exists():
+                logger.warning("Autosave missing %s at %s", json_file, backup_path)
+                continue
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                # Basic validation — must be a dict or list
+                if not isinstance(data, (dict, list)):
+                    logger.warning("Autosave has unexpected JSON type in %s", path)
+                    continue
+                # Check for SaveEnvelope structure (optional but expected)
+                if isinstance(data, dict) and "payload" in data:
+                    pass  # Valid envelope format
+                elif isinstance(data, dict):
+                    logger.warning(
+                        "Autosave %s missing SaveEnvelope payload key", path.name
+                    )
+            except Exception:
+                logger.warning("Autosave verification failed for %s", path)
 
     # ------------------------------------------------------------------
     # Index helpers
