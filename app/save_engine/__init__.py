@@ -13,4 +13,5 @@ from .schemas import (
     OTHER_SCHEMA,
     SCHEMA_REGISTRY,
     validate_entity_schema,
+    validate_payload,
 )

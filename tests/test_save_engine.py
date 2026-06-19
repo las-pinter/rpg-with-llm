@@ -126,3 +126,112 @@ def test_register_bucket_rejects_invalid_slug(temp_data_dir):
     manager = SaveGameManager(temp_data_dir)
     with pytest.raises(ValueError, match="Invalid slug"):
         manager.save("../escape", {})
+
+
+def test_save_validates_payload(temp_data_dir):
+    """Save raises ValueError when serialized data doesn't match the bucket schema."""
+    manager = SaveGameManager(temp_data_dir)
+
+    # Register a bucket that requires a "name" field
+    bucket = Bucket(
+        "test_bucket",
+        "1.0",
+        {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "value": {"type": "integer"},
+            },
+            "required": ["name"],
+        },
+        lambda x: x,
+        lambda x: x,
+    )
+    manager.register_bucket(bucket)
+
+    slug = "test_save_validate"
+
+    # Valid data should pass without error
+    manager.save(slug, {"test_bucket": {"name": "foo", "value": 42}})
+
+    # Invalid data (missing required "name") should raise ValueError
+    with pytest.raises(ValueError, match="Validation failed for bucket 'test_bucket'"):
+        manager.save(slug, {"test_bucket": {"value": 42}})
+
+
+def test_load_collects_validation_warnings(temp_data_dir, caplog):
+    """Load logs a warning and skips the bucket when payload validation fails."""
+    caplog.set_level("WARNING")
+    manager = SaveGameManager(temp_data_dir)
+
+    # Register a bucket that requires a "name" field
+    bucket = Bucket(
+        "test_bucket",
+        "1.0",
+        {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+        lambda x: x,
+        lambda x: x,
+    )
+    manager.register_bucket(bucket)
+
+    slug = "test_load_warn"
+    save_folder = Path(temp_data_dir) / "saves" / slug
+    save_folder.mkdir(parents=True, exist_ok=True)
+
+    # Create a file with invalid payload (missing "name")
+    invalid_data = {
+        "save_version": "1.0.0",
+        "schema_name": "test_bucket",
+        "schema_version": "1.0",
+        "timestamp": "now",
+        "payload": {"foo": "bar"},
+    }
+
+    with open(save_folder / "test_bucket.json", "w") as f:
+        json.dump(invalid_data, f)
+
+    loaded = manager.load(slug)
+    assert "test_bucket" not in loaded
+    assert any(
+        "Schema validation warnings for bucket 'test_bucket'" in record.message
+        for record in caplog.records
+    )
+
+
+def test_validate_payload_function():
+    """Test the standalone validate_payload function with various cases."""
+    from app.save_engine.schemas import validate_payload
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "age": {"type": "integer"},
+        },
+        "required": ["name"],
+        "additionalProperties": False,
+    }
+
+    # Valid payload returns empty list
+    assert validate_payload({"name": "Alice", "age": 30}, schema) == []
+
+    # Invalid payload (missing required field) returns errors
+    errors = validate_payload({"age": 30}, schema)
+    assert len(errors) > 0
+    assert any("'name' is a required property" in e for e in errors)
+
+    # Invalid payload (wrong type) returns errors
+    errors = validate_payload({"name": "Alice", "age": "thirty"}, schema)
+    assert len(errors) > 0
+    assert any("'thirty' is not of type 'integer'" in e for e in errors)
+
+    # Empty payload against schema with required fields
+    errors = validate_payload({}, schema)
+    assert len(errors) > 0
+    assert any("'name' is a required property" in e for e in errors)

@@ -231,6 +231,28 @@ SCHEMA_REGISTRY = {
 }
 
 
+def validate_payload(payload: dict, schema: dict) -> List[str]:
+    """Validate a payload against a JSON Schema.
+
+    Uses jsonschema to validate the payload against the provided schema.
+    Catches both ValidationError and SchemaError and returns readable error messages.
+
+    Args:
+        payload: The data payload to validate.
+        schema: The JSON Schema to validate against.
+
+    Returns:
+        A list of error messages. An empty list means validation passed.
+    """
+    try:
+        validate(instance=payload, schema=schema)
+        return []
+    except ValidationError as e:
+        return [str(e)]
+    except SchemaError as e:
+        return [f"Schema error: {e}"]
+
+
 def validate_entity_schema(data: Dict[str, Any], entity_type: str) -> List[str]:
     """Validates data against the registered schema for a given entity type.
 

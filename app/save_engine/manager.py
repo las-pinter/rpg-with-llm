@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any
 from pathlib import Path
-from jsonschema import validate, ValidationError
+from app.save_engine.schemas import validate_payload
 
 from app.save_engine.bucket import Bucket
 from app.save_engine.envelope import SaveEnvelope
@@ -62,6 +62,13 @@ class SaveGameManager:
 
             serialized_data = bucket.serializer(data)
 
+            # Validate the serialized data against the bucket's schema before writing
+            schema_errors = validate_payload(serialized_data, bucket.schema)
+            if schema_errors:
+                raise ValueError(
+                    f"Validation failed for bucket '{schema_name}': {'; '.join(schema_errors)}"
+                )
+
             envelope = SaveEnvelope(
                 save_version=self.SAVE_VERSION,
                 schema_name=schema_name,
@@ -105,11 +112,18 @@ class SaveGameManager:
                 envelope = SaveEnvelope.from_dict(data)
 
                 # Validate payload against schema
-                validate(instance=envelope.payload, schema=bucket.schema)
+                schema_errors = validate_payload(envelope.payload, bucket.schema)
+                if schema_errors:
+                    logger.warning(
+                        "Schema validation warnings for bucket '%s': %s",
+                        schema_name,
+                        "; ".join(schema_errors),
+                    )
+                    continue
 
                 # Deserialize
                 loaded_data[schema_name] = bucket.deserializer(envelope.payload)
-            except (json.JSONDecodeError, ValidationError, KeyError, OSError) as e:
+            except (json.JSONDecodeError, KeyError, OSError) as e:
                 logger.warning(
                     "Error loading bucket %s from %s: %s", schema_name, file_path, e
                 )
