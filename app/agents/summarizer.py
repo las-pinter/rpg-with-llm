@@ -416,7 +416,7 @@ def summarize_meta(
 # ---------------------------------------------------------------------------
 
 
-def compress_summary(summary: str) -> str:
+def compress_summary(summary: str, level: str | None = None) -> str:
     """Apply ultra Caveman compression to a summary text.
 
     Reuses the Caveman compression from ``app.agents.npc.compress_text``
@@ -431,6 +431,9 @@ def compress_summary(summary: str) -> str:
     ----------
     summary : str
         The summary text to compress.
+    level : str or None
+        Optional fidelity level hint (e.g. ``"COMPRESSED"``,
+        ``"PLACEHOLDER"``).  Currently unused but reserved for future use.
 
     Returns
     -------

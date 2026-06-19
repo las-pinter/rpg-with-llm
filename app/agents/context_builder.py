@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from app.agents.history import Fidelity
 from app.rules.plausibility import classify_action
 
 if TYPE_CHECKING:
@@ -147,13 +148,27 @@ def build_context(
             }
         )
 
-    # Append compressed summary if available
-    summary_text = dm.history.get_summary()
-    if summary_text:
+    # --- Memory context with fidelity levels ---
+    memory_sections: list[str] = []
+
+    # L3 meta-summaries (COMPRESSED or PLACEHOLDER)
+    for l3_text, fidelity in dm.history.get_l3_summaries_with_fidelity():
+        if fidelity == Fidelity.COMPRESSED:
+            memory_sections.append(f"[L3 Meta-Summary]\n{l3_text}")
+        elif fidelity == Fidelity.PLACEHOLDER:
+            memory_sections.append(f"[L3 Meta-Summary (older)]\n{l3_text[:200]}...")
+
+    # L2 session summary (COMPRESSED)
+    summary_result = dm.history.get_summary_with_fidelity()
+    if summary_result:
+        summary_text, _ = summary_result  # always COMPRESSED
+        memory_sections.append(f"[Session Summary]\n{summary_text}")
+
+    if memory_sections:
         messages.append(
             {
                 "role": "system",
-                "content": (f"Session summary (previous events):\n{summary_text}"),
+                "content": "Active Memory Context:\n" + "\n\n".join(memory_sections),
             }
         )
 
