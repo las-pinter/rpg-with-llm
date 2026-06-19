@@ -274,6 +274,10 @@ class SaveGameManager:
                             "items": {"type": "string"},
                         },
                         "story_summary": {"type": "array", "items": {"type": "string"}},
+                        "meta_summary": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
                     },
                     "required": ["technical_summary", "story_summary"],
                 },

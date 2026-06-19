@@ -358,3 +358,134 @@ class TestTruncationFallback:
         """Empty input bypasses fallback entirely, returning empty string."""
         result = summarize_turns("", provider=None)
         assert result == ""
+
+
+# ===========================================================================
+# summarize_meta
+# ===========================================================================
+
+
+class MockMetaProvider:
+    """Mock LLM provider for meta-summarizer tests."""
+
+    def call(self, messages: list[dict]) -> dict:
+        return {"content": "Mock L3 meta-summary content.", "finish_reason": "stop"}
+
+
+class MockFailingMetaProvider:
+    """Mock LLM provider that always fails."""
+
+    def call(self, messages: list[dict]) -> dict:
+        raise Exception("LLM failure")
+
+
+class TestSummarizeMeta:
+    """Tests for ``summarize_meta``."""
+
+    def test_returns_content_with_mock_provider(self) -> None:
+        """summarize_meta returns expected content with mock provider."""
+        from app.agents.summarizer import summarize_meta
+
+        result = summarize_meta("Summary 1\nSummary 2", MockMetaProvider())
+        assert result == "Mock L3 meta-summary content."
+
+    def test_returns_empty_string_for_empty_input(self) -> None:
+        """Empty input should return an empty string."""
+        from app.agents.summarizer import summarize_meta
+
+        assert summarize_meta("", MockMetaProvider()) == ""
+
+    def test_includes_previous_meta_when_provided(self) -> None:
+        """When previous_meta is provided, it should be included in the prompt."""
+        from app.agents.summarizer import META_SUMMARIZER_SYSTEM_PROMPT, summarize_meta
+
+        calls: list[list[dict]] = []
+
+        class CapturingProvider:
+            def call(self, messages: list[dict]) -> dict:
+                calls.append(messages)
+                return {"content": "L3 summary"}
+
+        summarize_meta("Summary 1", CapturingProvider(), previous_meta="Previous L3")
+        assert len(calls) == 1
+        user_content = calls[0][1]["content"]
+        assert "Previous meta-summary:" in user_content
+        assert "Previous L3" in user_content
+        assert "Summary 1" in user_content
+
+    def test_does_not_include_previous_when_none(self) -> None:
+        """When previous_meta is None, no previous summary preamble."""
+        from app.agents.summarizer import META_SUMMARIZER_SYSTEM_PROMPT, summarize_meta
+
+        calls: list[list[dict]] = []
+
+        class CapturingProvider:
+            def call(self, messages: list[dict]) -> dict:
+                calls.append(messages)
+                return {"content": "L3 summary"}
+
+        summarize_meta("Summary 1", CapturingProvider(), previous_meta=None)
+        assert len(calls) == 1
+        user_content = calls[0][1]["content"]
+        assert "Previous meta-summary:" not in user_content
+        assert user_content == "Summary 1"
+
+    def test_fallback_on_failure(self) -> None:
+        """When provider fails, fallback should return truncated input."""
+        from app.agents.summarizer import summarize_meta
+
+        result = summarize_meta("Short input", MockFailingMetaProvider())
+        assert result is not None
+        assert "... [summary truncated]" in result
+
+    def test_retries_on_empty_content(self) -> None:
+        """Empty content from provider should trigger retries."""
+        from unittest.mock import MagicMock
+
+        from app.agents.summarizer import summarize_meta
+
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {"content": ""}
+        result = summarize_meta("Summarize this", mock_provider, max_retries=1)
+        assert mock_provider.call.call_count == 2
+        assert "truncated" in result
+
+    def test_exhausts_retries_on_failure(self) -> None:
+        """All retry attempts exhausted should fall back to truncation."""
+        from unittest.mock import MagicMock
+
+        from app.agents.summarizer import summarize_meta
+
+        mock_provider = MagicMock()
+        mock_provider.call.side_effect = RuntimeError("LLM failed")
+        result = summarize_meta("Important gameplay text", mock_provider, max_retries=2)
+        assert mock_provider.call.call_count == 3
+        assert "truncated" in result
+
+    def test_default_max_retries(self) -> None:
+        """Default max_retries should be 2 (3 total attempts)."""
+        from unittest.mock import MagicMock
+
+        from app.agents.summarizer import summarize_meta
+
+        mock_provider = MagicMock()
+        mock_provider.call.side_effect = RuntimeError("fail")
+        summarize_meta("Text", mock_provider)
+        assert mock_provider.call.call_count == 3
+
+    def test_uses_correct_system_prompt(self) -> None:
+        """The system message should use META_SUMMARIZER_SYSTEM_PROMPT."""
+        from app.agents.summarizer import META_SUMMARIZER_SYSTEM_PROMPT, summarize_meta
+
+        calls: list[list[dict]] = []
+
+        class CapturingProvider:
+            def call(self, messages: list[dict]) -> dict:
+                calls.append(messages)
+                return {"content": "L3 summary"}
+
+        summarize_meta("Summary 1", CapturingProvider())
+        assert len(calls) == 1
+        assert calls[0][0]["role"] == "system"
+        assert calls[0][0]["content"] == META_SUMMARIZER_SYSTEM_PROMPT
+        assert calls[0][1]["role"] == "user"

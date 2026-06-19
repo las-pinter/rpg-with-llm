@@ -121,6 +121,11 @@ FIELD_SCHEMA: dict[str, dict[str, Any]] = {
         "mutability": "mutable",
         "description": "DM compressed memory summaries for save/load",
     },
+    "meta_summary": {
+        "type": list,
+        "mutability": "mutable",
+        "description": "L3 meta-summaries — high-level overviews of multiple L2 summaries",
+    },
     "_narrative_entries": {
         "type": list,
         "mutability": "mutable",

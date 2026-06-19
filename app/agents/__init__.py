@@ -13,10 +13,12 @@ from app.agents.npc import (
 )
 from app.agents.parser import parse_dm_response
 from app.agents.summarizer import (
+    META_SUMMARIZER_SYSTEM_PROMPT,
     SUMMARIZER_SYSTEM_PROMPT,
     compress_summary,
     count_tokens,
     should_summarize,
+    summarize_meta,
     summarize_turns,
 )
 from app.agents.tools import TOOL_REGISTRY, dispatch_tool
@@ -25,6 +27,7 @@ __all__ = [
     "build_context",
     "DM_SYSTEM_PROMPT",
     "DungeonMaster",
+    "META_SUMMARIZER_SYSTEM_PROMPT",
     "NPC_SYSTEM_PROMPT",
     "NPCAgent",
     "SUMMARIZER_SYSTEM_PROMPT",
@@ -36,6 +39,7 @@ __all__ = [
     "parse_dm_response",
     "parse_npc_response",
     "should_summarize",
+    "summarize_meta",
     "summarize_turns",
     "TOOL_REGISTRY",
 ]

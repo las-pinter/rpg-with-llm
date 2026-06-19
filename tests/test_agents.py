@@ -442,6 +442,75 @@ class TestSessionHistory:
         assert sh.compressed_summary == "Previous summary"
         assert sh.get_summary() == "Previous summary"
 
+    # ------------------------------------------------------------------
+    # L3 meta-summaries
+    # ------------------------------------------------------------------
+
+    def test_l3_summaries_starts_empty(self) -> None:
+        """A fresh SessionHistory should have no L3 summaries."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        assert sh.get_l3_summaries() == []
+        assert sh.l3_summaries == []
+
+    def test_add_l3_summary_appends(self) -> None:
+        """add_l3_summary should append to the L3 list."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_l3_summary("Meta 1")
+        assert sh.get_l3_summaries() == ["Meta 1"]
+
+    def test_add_l3_summary_multiple(self) -> None:
+        """Multiple L3 summaries should accumulate in order."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_l3_summary("Meta 1")
+        sh.add_l3_summary("Meta 2")
+        assert sh.get_l3_summaries() == ["Meta 1", "Meta 2"]
+
+    def test_get_l3_summaries_returns_copy(self) -> None:
+        """get_l3_summaries should return a copy, not the internal list."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory()
+        sh.add_l3_summary("Meta 1")
+        result = sh.get_l3_summaries()
+        result.append("tampered")
+        assert sh.get_l3_summaries() == ["Meta 1"]
+
+    def test_l3_to_dict_round_trip(self) -> None:
+        """L3 summaries should survive to_dict/from_dict round-trip."""
+        from app.agents.history import SessionHistory
+
+        sh = SessionHistory(max_turns=3)
+        sh.add_l3_summary("Meta A")
+        sh.add_l3_summary("Meta B")
+
+        data = sh.to_dict()
+        assert "l3_summaries" in data
+        assert data["l3_summaries"] == ["Meta A", "Meta B"]
+
+        restored = SessionHistory.from_dict(data)
+        assert restored.get_l3_summaries() == ["Meta A", "Meta B"]
+
+    def test_l3_from_dict_missing_keys(self) -> None:
+        """from_dict should handle missing L3 keys gracefully."""
+        from app.agents.history import SessionHistory
+
+        restored = SessionHistory.from_dict(
+            {"max_turns": 5, "recent_turns": [], "compressed_summary": ""}
+        )
+        assert restored.get_l3_summaries() == []
+
+    def test_l3_class_constant(self) -> None:
+        """L3_INTERVAL class constant should be 25."""
+        from app.agents.history import SessionHistory
+
+        assert SessionHistory.L3_INTERVAL == 25
+
 
 class TestDungeonMasterHistoryIntegration:
     """Tests for DungeonMaster integration with SessionHistory."""
@@ -610,6 +679,154 @@ class TestDungeonMasterMaybeSummarize:
         # Summary should remain unchanged after failure
         assert dm.history.compressed_summary == ""
         assert dm.history.get_summary() == ""
+
+
+# ---------------------------------------------------------------------------
+# _maybe_meta_summarize
+# ---------------------------------------------------------------------------
+
+
+class TestDungeonMasterMaybeMetaSummarize:
+    """Tests for ``DungeonMaster._maybe_meta_summarize``."""
+
+    def test_does_nothing_when_provider_is_none(self) -> None:
+        """No provider means no meta-summarization."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        dm.l3_interval = 25
+        dm.turn_count = 25
+        with patch("app.agents.dm.summarize_meta") as mock_meta:
+            dm._maybe_meta_summarize()
+        mock_meta.assert_not_called()
+
+    def test_does_nothing_when_world_state_is_none(self) -> None:
+        """No world_state means no meta-summarization."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 25
+        with patch("app.agents.dm.summarize_meta") as mock_meta:
+            dm._maybe_meta_summarize()
+        mock_meta.assert_not_called()
+
+    def test_does_nothing_when_turn_count_is_zero(self) -> None:
+        """Turn count 0 should not trigger."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 0
+        dm.l3_interval = 25
+        with patch("app.agents.dm.summarize_meta") as mock_meta:
+            dm._maybe_meta_summarize()
+        mock_meta.assert_not_called()
+
+    def test_does_nothing_when_not_at_interval(self) -> None:
+        """Turn count not divisible by interval should not trigger."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 10
+        dm.l3_interval = 25
+        with patch("app.agents.dm.summarize_meta") as mock_meta:
+            dm._maybe_meta_summarize()
+        mock_meta.assert_not_called()
+
+    def test_does_nothing_when_no_technical_summaries(self) -> None:
+        """No L2 summaries available should not trigger."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 25
+        dm.l3_interval = 25
+        with patch("app.agents.dm.summarize_meta") as mock_meta:
+            dm._maybe_meta_summarize()
+        mock_meta.assert_not_called()
+
+    def test_triggers_at_interval_with_summaries(self) -> None:
+        """At the L3 interval with L2 summaries, meta-summarization should run."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["L2 summary 1", "L2 summary 2", "L2 summary 3"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 25
+        dm.l3_interval = 25
+
+        with patch(
+            "app.agents.dm.summarize_meta",
+            return_value="L3 meta-summary",
+        ) as mock_meta:
+            dm._maybe_meta_summarize()
+
+        mock_meta.assert_called_once()
+        assert dm.history.get_l3_summaries() == ["L3 meta-summary"]
+        assert ws.meta_summary == ["L3 meta-summary"]
+
+    def test_includes_previous_l3_when_available(self) -> None:
+        """When previous L3 exists, it should be passed to summarize_meta."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["L2 summary"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.history.add_l3_summary("Previous L3")
+        dm.turn_count = 25
+        dm.l3_interval = 25
+
+        with patch("app.agents.dm.summarize_meta") as mock_meta:
+            dm._maybe_meta_summarize()
+
+        # Previous_meta should be passed as keyword argument
+        _call_kwargs = mock_meta.call_args.kwargs
+        assert "previous_meta" in _call_kwargs
+        assert _call_kwargs["previous_meta"] == "Previous L3"
+
+    def test_handles_failure_gracefully(self) -> None:
+        """When summarize_meta raises, _maybe_meta_summarize should not crash."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["L2 summary"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 25
+        dm.l3_interval = 25
+
+        with patch(
+            "app.agents.dm.summarize_meta",
+            side_effect=ValueError("LLM failed"),
+        ):
+            dm._maybe_meta_summarize()  # Should not raise
+
+        # No L3 summary should be stored
+        assert dm.history.get_l3_summaries() == []
+        assert ws.meta_summary == []
+
+    def test_appends_to_world_state_and_history(self) -> None:
+        """Meta-summary should be stored in both history and world state."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["L2 summary"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.summarizer_provider = MagicMock()
+        dm.turn_count = 25
+        dm.l3_interval = 25
+
+        with patch(
+            "app.agents.dm.summarize_meta",
+            return_value="New L3 meta-summary",
+        ) as mock_meta:
+            dm._maybe_meta_summarize()
+
+        assert dm.history.get_l3_summaries() == ["New L3 meta-summary"]
+        assert ws.meta_summary == ["New L3 meta-summary"]
 
 
 # ===========================================================================
