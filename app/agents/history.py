@@ -48,11 +48,17 @@ class SessionHistory:
     # FULL / COMPRESSED fidelity before falling back to PLACEHOLDER.
     RECENT_TURN_FIDELITY_COUNT: int = 4  # Last 4 turns get FULL fidelity
 
+    # Forgetting mechanism thresholds
+    FORGET_THRESHOLD: int = 20  # Start forgetting when L2 count exceeds this
+    FORGET_PROTECTED_COUNT: int = 5  # Never forget the last N L2 summaries
+    FORGET_MAX_RATIO: float = 0.5  # Forget at most 50% of entries above threshold
+
     def __init__(self, max_turns: int = 5) -> None:
         self.max_turns: int = max_turns
         self.recent_turns: deque[dict[str, str]] = deque(maxlen=max_turns)
         self.compressed_summary: str = ""
         self.l3_summaries: list[str] = []
+        self.forgotten_l2_indices: set[int] = set()  # Indices of forgotten L2 summaries
 
     # ------------------------------------------------------------------
     # Public API
@@ -144,6 +150,91 @@ class SessionHistory:
         return self.l3_summaries.copy()
 
     # ------------------------------------------------------------------
+    # Forgetting mechanism
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_novelty_score(summary: str) -> float:
+        """Score a summary by its unique entity mentions.
+
+        Counts capitalized words (proper nouns) that aren't at the start
+        of a sentence as a rough proxy for novelty/density of information.
+        Normalizes by average across all summaries.
+        """
+        # Count capitalized words not at the start of sentences
+        sentences = summary.replace("!", ".").replace("?", ".").split(".")
+        entity_count = 0
+        for sentence in sentences:
+            words = sentence.strip().split()
+            for word in words[1:]:  # Skip first word (start of sentence)
+                if word and word[0].isupper():
+                    entity_count += 1
+        return float(entity_count)
+
+    def forget(self, technical_summaries: list[str]) -> list[int]:
+        """Run forgetting mechanism on the L2 summary list.
+
+        When the number of summaries exceeds FORGET_THRESHOLD, score eligible
+        entries (those not in the protected last N) by recency + novelty.
+        The lowest-scoring entries are marked as forgotten (up to
+        FORGET_MAX_RATIO of the excess).
+
+        Args:
+            technical_summaries: Full list of L2 summaries (oldest first).
+
+        Returns:
+            List of newly forgotten indices for logging/debugging.
+        """
+        total = len(technical_summaries)
+        if total <= self.FORGET_THRESHOLD:
+            return []
+
+        # Identify eligible entries (not in protected newest ones)
+        excess = total - self.FORGET_THRESHOLD
+        max_to_forget = int(excess * self.FORGET_MAX_RATIO)  # At most 50% of excess
+        eligible_indices = list(range(total - self.FORGET_PROTECTED_COUNT))
+
+        if not eligible_indices:
+            return []
+
+        # Score eligible entries
+        scored: list[tuple[float, int]] = []  # (score, index)
+        for i in eligible_indices:
+            summary = technical_summaries[i]
+            # Recency: i / total — older (lower i) = lower score, more forgettable
+            recency = i / total
+            # Novelty: entities / average entities
+            novelty = self._compute_novelty_score(summary)
+            avg_novelty = sum(
+                self._compute_novelty_score(technical_summaries[j])
+                for j in eligible_indices
+            ) / max(len(eligible_indices), 1)
+            novelty_norm = min(novelty / max(avg_novelty, 0.01), 2.0)
+            # Combined score
+            score = 0.7 * recency + 0.3 * novelty_norm
+            scored.append((score, i))
+
+        # Sort by score ascending (worst first)
+        scored.sort(key=lambda x: x[0])
+
+        # Forget the lowest-scoring entries
+        newly_forgotten = []
+        for score, idx in scored[:max_to_forget]:
+            if idx not in self.forgotten_l2_indices:
+                self.forgotten_l2_indices.add(idx)
+                newly_forgotten.append(idx)
+
+        return newly_forgotten
+
+    def get_forgotten_count(self) -> int:
+        """Return the number of currently forgotten L2 entries."""
+        return len(self.forgotten_l2_indices)
+
+    def get_forgotten_indices(self) -> set[int]:
+        """Return a copy of the forgotten indices set."""
+        return self.forgotten_l2_indices.copy()
+
+    # ------------------------------------------------------------------
     # Fidelity-aware accessors (dynamic — never stored on disk)
     # ------------------------------------------------------------------
 
@@ -183,11 +274,14 @@ class SessionHistory:
     def get_l2_summaries_with_fidelity(
         technical_summaries: list[str],
         recent_count: int = 4,
+        forgotten_indices: set[int] | None = None,
     ) -> list[tuple[str, Fidelity]]:
         """Return L2 summaries with fidelity levels.
 
         The most recent *recent_count* summaries are COMPRESSED.
-        Older summaries are PLACEHOLDER.
+        Older summaries are PLACEHOLDER, unless they are in the
+        *forgotten_indices* set, in which case they are also PLACEHOLDER
+        (regardless of recency).
 
         Parameters
         ----------
@@ -195,6 +289,8 @@ class SessionHistory:
             List of L2 summary strings, oldest first.
         recent_count : int
             Number of most recent summaries to keep as COMPRESSED.
+        forgotten_indices : set[int] or None
+            Set of indices that have been marked as forgotten.
 
         Returns
         -------
@@ -204,7 +300,9 @@ class SessionHistory:
         result: list[tuple[str, Fidelity]] = []
         n = len(technical_summaries)
         for i, summary in enumerate(technical_summaries):
-            if n - i <= recent_count:
+            if forgotten_indices and i in forgotten_indices:
+                result.append((summary, Fidelity.PLACEHOLDER))
+            elif n - i <= recent_count:
                 result.append((summary, Fidelity.COMPRESSED))
             else:
                 result.append((summary, Fidelity.PLACEHOLDER))
@@ -250,6 +348,7 @@ class SessionHistory:
             "recent_turns": list(self.recent_turns),
             "compressed_summary": self.compressed_summary,
             "l3_summaries": self.l3_summaries,
+            "forgotten_l2_indices": list(self.forgotten_l2_indices),
         }
 
     @classmethod
@@ -270,6 +369,7 @@ class SessionHistory:
         instance = cls(max_turns=max_turns)
         instance.compressed_summary = data.get("compressed_summary", "")
         instance.l3_summaries = data.get("l3_summaries", [])
+        instance.forgotten_l2_indices = set(data.get("forgotten_l2_indices", []))
         for turn in data.get("recent_turns", []):
             instance.recent_turns.append(turn)
         return instance
@@ -279,10 +379,11 @@ class SessionHistory:
     # ------------------------------------------------------------------
 
     def clear(self) -> None:
-        """Reset all history — drops recent turns and summary."""
+        """Reset all history — drops recent turns, summary, and forgotten state."""
         self.recent_turns.clear()
         self.compressed_summary = ""
         self.l3_summaries.clear()
+        self.forgotten_l2_indices.clear()
 
     def clear_turns(self) -> None:
         """Clear all recent turns from the buffer.

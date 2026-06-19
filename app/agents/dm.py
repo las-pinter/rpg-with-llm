@@ -1420,6 +1420,16 @@ class DungeonMaster:
                 # Persist technical summary for save/load
                 if self.world_state is not None:
                     self.world_state.technical_summary.append(summary)
+                    # Run forgetting mechanism on the accumulated L2 summaries
+                    newly_forgotten = self.history.forget(
+                        self.world_state.technical_summary
+                    )
+                    if newly_forgotten:
+                        logger.info(
+                            "Forgot %d L2 summaries: indices %s",
+                            len(newly_forgotten),
+                            newly_forgotten,
+                        )
                 logger.debug(
                     "_maybe_summarize: created compressed summary — "
                     "%d chars (was %d turns + existing summary)",

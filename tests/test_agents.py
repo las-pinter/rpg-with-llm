@@ -1260,3 +1260,112 @@ class TestTimelineContext:
             f"Timeline content ({len(content)} chars) should not greatly exceed "
             f"MAX_TIMELINE_CHARS ({MAX_TIMELINE_CHARS})"
         )
+
+
+# ===========================================================================
+# Forgetting Mechanism (Task 3.4)
+# ===========================================================================
+
+
+class TestForgettingMechanism:
+    """Tests for the forgetting mechanism on SessionHistory."""
+
+    def test_forget_below_threshold_does_nothing(self) -> None:
+        """Forgetting does nothing when count is below threshold."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        summaries = [f"Summary {i}" for i in range(10)]  # below 20
+        result = history.forget(summaries)
+        assert result == []
+        assert history.get_forgotten_count() == 0
+
+    def test_forget_above_threshold_forgets_oldest(self) -> None:
+        """When above threshold, the OLDEST eligible entries are forgotten."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        # Create 25 summaries (above 20 threshold)
+        summaries = [
+            f"Summary number {i} with some content about Goblin NPC" for i in range(25)
+        ]
+        result = history.forget(summaries)
+        # Some should be forgotten
+        assert len(result) > 0
+        assert history.get_forgotten_count() == len(result)
+        # The oldest eligible entries should be forgotten, not the newest
+        # eligible = range(20) (indices 0-19 since 20-24 are protected)
+        # With 5 excess (25-20=5), max_to_forget = int(5*0.5) = 2
+        # So indices 0 and 1 (oldest) should be forgotten
+        forgotten = history.get_forgotten_indices()
+        assert 0 in forgotten, "Oldest eligible entry should be forgotten"
+        assert 1 in forgotten, "Second oldest eligible entry should be forgotten"
+
+    def test_forget_protects_recent_entries(self) -> None:
+        """The last N protected entries should never be forgotten."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        summaries = [f"Summary number {i}" for i in range(25)]
+        history.forget(summaries)
+        # The last 5 should not be in forgotten indices
+        for i in range(20, 25):
+            assert i not in history.get_forgotten_indices()
+
+    def test_forget_at_most_half_of_excess(self) -> None:
+        """At most 50% of entries above threshold are forgotten."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        summaries = [f"Summary number {i}" for i in range(30)]  # 10 above threshold
+        history.forget(summaries)
+        # max_to_forget = max(1, int(10 * 0.5)) = 5
+        assert history.get_forgotten_count() <= 5
+
+    def test_forget_returns_indices(self) -> None:
+        """forget() returns list of newly forgotten indices."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        summaries = [f"Summary {i} with Some Entity Names" for i in range(25)]
+        result = history.forget(summaries)
+        assert isinstance(result, list)
+        if result:
+            assert all(isinstance(i, int) for i in result)
+
+    def test_novelty_scoring(self) -> None:
+        """Summaries with more entities should have higher novelty scores."""
+        from app.agents.history import SessionHistory
+
+        low_novelty = "This is a simple summary with few details and no names"
+        high_novelty = (
+            "Goblin Chief Bossnik fought the Evil Wizard Zorath "
+            "in the Dark Cave of Mordak while Grubnik watched"
+        )
+
+        low_score = SessionHistory._compute_novelty_score(low_novelty)
+        high_score = SessionHistory._compute_novelty_score(high_novelty)
+        assert high_score > low_score
+
+    def test_get_l2_with_fidelity_respects_forgotten(self) -> None:
+        """Forgotten entries are marked as PLACEHOLDER."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        summaries = ["Summary A", "Summary B", "Summary C"]
+        result = SessionHistory.get_l2_summaries_with_fidelity(
+            summaries,
+            forgotten_indices={1},  # middle one forgotten
+        )
+        assert result[0][1] == Fidelity.COMPRESSED  # Recent, not forgotten
+        assert result[1][1] == Fidelity.PLACEHOLDER  # Forgotten
+        assert result[2][1] == Fidelity.COMPRESSED  # Most recent
+
+    def test_forget_idempotent(self) -> None:
+        """Calling forget twice with same data doesn't double-forget."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        summaries = [f"Summary {i}" for i in range(25)]
+        first = history.forget(summaries)
+        second = history.forget(summaries)
+        assert len(second) == 0  # No new forgettings
