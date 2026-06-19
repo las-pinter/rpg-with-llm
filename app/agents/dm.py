@@ -13,7 +13,11 @@ import concurrent.futures
 import logging
 import re
 from collections.abc import Generator
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.world.persistence import WorldStorage
 
 from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
@@ -473,6 +477,8 @@ class DungeonMaster:
         character: Character | None,
         npc_provider: LLMProvider | None = None,
         summarizer_provider: LLMProvider | None = None,
+        storage: WorldStorage | None = None,
+        save_slug: str | None = None,
     ) -> None:
         """Store references for later use in the turn loop.
 
@@ -490,6 +496,12 @@ class DungeonMaster:
         summarizer_provider : LLMProvider or None
             Provider for memory summarization.  Falls back to *llm_provider*
             if not specified.
+        storage : WorldStorage or None
+            Storage backend for per-turn narrative persistence on disk.
+            When ``None``, narrative entries are kept in memory only.
+        save_slug : str or None
+            The save folder slug for disk writes.  Required (along with
+            *storage*) for per-turn narrative persistence.
         """
         self.llm_provider = llm_provider
         self.npc_provider = llm_provider if npc_provider is None else npc_provider
@@ -521,6 +533,10 @@ class DungeonMaster:
 
         # L3 meta-summarization state
         self.l3_interval: int = 25  # Every 25 turns
+
+        # Per-turn narrative persistence
+        self._storage: WorldStorage | None = storage
+        self._save_slug: str | None = save_slug
 
     def _build_context(
         self,
@@ -630,6 +646,28 @@ class DungeonMaster:
                 logger.exception(
                     "L3 meta-summarization failed in impossible-action branch, continuing"
                 )
+
+            # Persist narrative entry for impossible-action turns too
+            if self.world_state is not None:
+                entry = {
+                    "turn": self.turn_count,
+                    "player_input": player_input,
+                    "narrative": impossibility_narrative,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                self.world_state._narrative_entries.append(entry)
+                if self._storage is not None and self._save_slug is not None:
+                    try:
+                        self._storage.write_narrative_entries(
+                            self._save_slug,
+                            self.world_state._narrative_entries,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to persist narrative entries for slug '%s' "
+                            "(impossible-action branch)",
+                            self._save_slug,
+                        )
 
             state_dict = (
                 self.world_state.to_dict() if self.world_state is not None else {}
@@ -1209,6 +1247,29 @@ class DungeonMaster:
             self._maybe_meta_summarize()
         except Exception:
             logger.exception("L3 meta-summarization failed, continuing")
+
+        # Persist narrative entry for this turn — append to world state
+        # and flush to disk atomically if storage is configured.
+        entry = {
+            "turn": self.turn_count,
+            "player_input": player_input,
+            "narrative": narrative,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        if self.world_state is not None:
+            self.world_state._narrative_entries.append(entry)
+            if self._storage is not None and self._save_slug is not None:
+                try:
+                    self._storage.write_narrative_entries(
+                        self._save_slug,
+                        self.world_state._narrative_entries,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to persist narrative entries for slug '%s' "
+                        "(record_turn branch)",
+                        self._save_slug,
+                    )
 
         logger.debug(
             "Token usage after turn: prompt=%s, completion=%s, total=%s",

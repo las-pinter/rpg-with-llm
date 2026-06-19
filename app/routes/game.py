@@ -6,6 +6,7 @@ import json
 import logging
 import time
 from collections.abc import Generator
+from pathlib import Path
 
 import flask as flask
 from flask import Response, jsonify, request, stream_with_context
@@ -17,6 +18,7 @@ from app.llm.base import (
 )
 from app.llm.config import ProviderConfig, create_provider
 from app.world.model import WorldState
+from app.world.persistence import WorldStorage
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,9 @@ _dm_cache: dict[str, DungeonMaster] = {}
 # Track last cleanup time
 _dm_cache_cleanup_time: float = 0.0
 _DM_CACHE_CLEANUP_INTERVAL: float = 300.0  # 5 minutes
+
+# Shared storage backend for per-turn narrative persistence
+_storage = WorldStorage(data_dir=Path("data"))
 
 
 def _cleanup_stale_dms() -> None:
@@ -188,12 +193,21 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
         if not world_state.gold and character.gold:
             world_state.gold = character.gold
 
+    # Extract optional save slug for per-turn narrative persistence.
+    # The frontend passes this when the game was loaded from a save.
+    raw_slug = body.get("slug")
+    save_slug: str | None = str(raw_slug).strip() if raw_slug else None
+
     # Create or retrieve persistent DungeonMaster for this character.
     character_id = character.id if character else None
     if character_id and character_id in _dm_cache:
         dm = _dm_cache[character_id]
         # Keep world_state fresh from the request while preserving history
         dm.world_state = world_state
+        # Update storage attributes so per-turn persistence uses
+        # the correct slug and storage backend (Bug 2 fix)
+        dm._save_slug = save_slug
+        dm._storage = _storage
     else:
         dm = DungeonMaster(
             llm_provider=dm_provider,
@@ -201,6 +215,8 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
             character=character,
             npc_provider=npc_provider,
             summarizer_provider=summarizer_provider,
+            storage=_storage,
+            save_slug=save_slug,
         )
         if character_id:
             _dm_cache[character_id] = dm

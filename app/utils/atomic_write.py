@@ -13,12 +13,14 @@ from pathlib import Path
 from typing import Any
 
 
-def atomic_write(path: Path, data: dict[str, Any], indent: int = 2) -> None:
+def atomic_write(path: Path, data: Any, indent: int = 2) -> None:
     """
     Atomically write *data* as JSON to *path*.
 
     Writes to a .tmp file first, then renames to final path.
     Cleans up tmp file on failure.
+
+    *data* can be any JSON-serialisable value (dict, list, etc.).
     """
     tmp_path = path.parent / (path.name + ".tmp")
     try:
