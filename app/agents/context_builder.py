@@ -166,7 +166,8 @@ def build_context(
     # 2. L2 summaries from world_state (oldest first)
     if dm.world_state is not None:
         l2_with_fidelity = SessionHistory.get_l2_summaries_with_fidelity(
-            dm.world_state.technical_summary
+            dm.world_state.technical_summary,
+            forgotten_indices=dm.history.get_forgotten_indices(),
         )
         for i, (summary_text, fidelity) in enumerate(l2_with_fidelity):
             turn_start = i * 5 + 1
