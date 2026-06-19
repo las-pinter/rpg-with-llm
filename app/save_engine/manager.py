@@ -3,6 +3,7 @@ import logging
 from typing import Any
 from pathlib import Path
 from app.save_engine.schemas import validate_payload
+from app.save_engine.migration import MigrationError, run_migration
 
 from app.save_engine.bucket import Bucket
 from app.save_engine.envelope import SaveEnvelope
@@ -121,6 +122,33 @@ class SaveGameManager:
                     )
                     continue
 
+                # Auto-migrate if version mismatch
+                if envelope.schema_version != bucket.version:
+                    try:
+                        migrated_payload = run_migration(
+                            schema_name,
+                            envelope.payload,
+                            envelope.schema_version,
+                            bucket.version,
+                        )
+                        envelope.payload = migrated_payload
+                        logger.info(
+                            "Migrated bucket '%s' from v%s to v%s",
+                            schema_name,
+                            envelope.schema_version,
+                            bucket.version,
+                        )
+                    except MigrationError as e:
+                        logger.warning(
+                            "Migration failed for bucket '%s': %s. "
+                            "Using original payload.",
+                            schema_name,
+                            e,
+                        )
+                        # Fall through to use original payload
+                        # NOTE: The original payload may fail deserialization
+                        # if the schema changed in an incompatible way.
+
                 # Deserialize
                 loaded_data[schema_name] = bucket.deserializer(envelope.payload)
             except (json.JSONDecodeError, KeyError, OSError) as e:
@@ -178,7 +206,7 @@ class SaveGameManager:
         self.register_bucket(
             Bucket(
                 "character",
-                "1.0.0",
+                "1.1.0",
                 {
                     "type": "object",
                     "properties": {
