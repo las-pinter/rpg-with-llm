@@ -659,9 +659,12 @@ class TestDungeonMasterBuildContextSummary:
     """Tests for ``_build_context`` with compressed summary integration."""
 
     def test_context_includes_summary_when_present(self) -> None:
-        """A system message with summary should appear when summary is set."""
-        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
-        dm.history.set_summary("Player entered the dark forest")
+        """Session Summary should appear in timeline when technical_summary has entries."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["Player entered the dark forest"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
         context = dm._build_context("Hello")
         summary_msgs = [m for m in context if "Session Summary" in m.get("content", "")]
         assert len(summary_msgs) == 1
@@ -676,11 +679,12 @@ class TestDungeonMasterBuildContextSummary:
         assert len(summary_msgs) == 0
 
     def test_context_summary_position(self) -> None:
-        """Summary should appear after character info but before history."""
+        """Timeline should appear after character info but before history pairs."""
         from app.character.model import Character
         from app.world.model import WorldState
 
         ws = WorldState(current_location="dark_forest", turn_count=3)
+        ws.technical_summary = ["Summary text here"]
         char = Character(
             name="Kaelen",
             character_class="Rogue",
@@ -699,26 +703,25 @@ class TestDungeonMasterBuildContextSummary:
         )
         dm = DungeonMaster(llm_provider=None, world_state=ws, character=char)
         dm.history.add_turn("I sneak ahead", "You move silently through the shadows")
-        dm.history.set_summary("Summary text here")
         context = dm._build_context("I continue forward")
 
-        # Summary should be message index 4 (0=system, 1=world,
-        # 2=continuation instruction, 3=character, 4=summary)
-        summary_idx = next(
+        # Timeline should be message index 4 (0=system, 1=world,
+        # 2=continuation instruction, 3=character, 4=timeline)
+        timeline_idx = next(
             i
             for i, m in enumerate(context)
             if "Session Summary" in m.get("content", "")
         )
-        assert summary_idx == 4, (
-            f"Expected summary at index 4, got {summary_idx}. "
+        assert timeline_idx == 4, (
+            f"Expected timeline at index 4, got {timeline_idx}. "
             f"Messages: {[m['role'] + ':' + m['content'][:30] for m in context]}"
         )
 
-        # History messages should appear after the summary
+        # History messages should appear after the timeline
         history_idx = next(
             i for i, m in enumerate(context) if m.get("content") == "I sneak ahead"
         )
-        assert history_idx > summary_idx
+        assert history_idx > timeline_idx
 
 
 # ---------------------------------------------------------------------------
@@ -1139,3 +1142,121 @@ class TestDungeonMasterSpawnNPCsEdgeCases:
         dm._sync_npcs_to_world_state()
         assert "innkeeper" in ws.active_npcs
         assert ws.active_npcs["innkeeper"]["name"] == "innkeeper"
+
+
+# ===========================================================================
+# Timeline-based context (Task 3.3)
+# ===========================================================================
+
+
+class TestTimelineContext:
+    """Tests for the timeline-based context retrieval in ``build_context``."""
+
+    def test_timeline_includes_l3_when_available(self) -> None:
+        """Timeline shows L3 meta-summary when one exists."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_l3_summary("L3 test summary")
+        context = dm._build_context("Hello")
+        l3_msgs = [m for m in context if "L3 Meta-Summary" in m.get("content", "")]
+        assert len(l3_msgs) == 1
+        assert "L3 test summary" in l3_msgs[0]["content"]
+
+    def test_timeline_includes_l2_summaries(self) -> None:
+        """Timeline shows L2 summaries with approximate turn range labels."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["Summary 1", "Summary 2"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        context = dm._build_context("Hello")
+        timeline_msgs = [
+            m for m in context if "Session Summary" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+        assert "[Session Summary: Turns 1-5]" in content
+        assert "[Session Summary: Turns 6-10]" in content
+        assert "Summary 1" in content
+        assert "Summary 2" in content
+
+    def test_timeline_includes_turns_with_labels(self) -> None:
+        """Timeline shows recent turns with ``[Turn N]`` labels."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_turn("Player action", "DM response")
+        dm.turn_count = 1
+        context = dm._build_context("New action")
+        timeline_msgs = [m for m in context if "[Turn" in m.get("content", "")]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+        assert "Player: Player action" in content
+        assert "DM: DM response" in content
+
+    def test_timeline_empty_tiers_omitted(self) -> None:
+        """Empty tiers (no L3, no L2) are gracefully skipped."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        context = dm._build_context("Hello")
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 0
+
+    def test_timeline_chronological_order(self) -> None:
+        """Entries within each tier are oldest first."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["Old L2", "New L2"]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_l3_summary("Old L3")
+        dm.history.add_l3_summary("New L3")
+        dm.history.add_turn("Old turn", "Old resp")
+        dm.history.add_turn("New turn", "New resp")
+        context = dm._build_context("Hello")
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # L3 summaries: oldest first
+        assert content.index("Old L3") < content.index("New L3"), (
+            "L3 entries should be oldest first"
+        )
+        # L2 summaries: oldest first
+        assert content.index("Old L2") < content.index("New L2"), (
+            "L2 entries should be oldest first"
+        )
+        # Turns oldest first
+        assert content.index("Old turn") < content.index("New turn"), (
+            "Turn entries should be oldest first"
+        )
+
+    def test_timeline_token_limit_degradation(self) -> None:
+        """When content exceeds MAX_TIMELINE_CHARS, oldest entries degrade."""
+        from app.agents.context_builder import MAX_TIMELINE_CHARS
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        # Many L2 summaries should push content over the limit
+        ws.technical_summary = ["Summary " * 250 for _ in range(10)]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        context = dm._build_context("Hello")
+
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        # There should still be a timeline message (it just got degraded)
+        assert len(timeline_msgs) >= 1
+        content = timeline_msgs[0]["content"]
+        # The content should not greatly exceed MAX_TIMELINE_CHARS
+        # (it will be a bit longer due to the header)
+        assert len(content) < MAX_TIMELINE_CHARS + 500, (
+            f"Timeline content ({len(content)} chars) should not greatly exceed "
+            f"MAX_TIMELINE_CHARS ({MAX_TIMELINE_CHARS})"
+        )

@@ -179,6 +179,37 @@ class SessionHistory:
             return (self.compressed_summary, Fidelity.COMPRESSED)
         return None
 
+    @staticmethod
+    def get_l2_summaries_with_fidelity(
+        technical_summaries: list[str],
+        recent_count: int = 4,
+    ) -> list[tuple[str, Fidelity]]:
+        """Return L2 summaries with fidelity levels.
+
+        The most recent *recent_count* summaries are COMPRESSED.
+        Older summaries are PLACEHOLDER.
+
+        Parameters
+        ----------
+        technical_summaries : list[str]
+            List of L2 summary strings, oldest first.
+        recent_count : int
+            Number of most recent summaries to keep as COMPRESSED.
+
+        Returns
+        -------
+        list[tuple[str, Fidelity]]
+            List of (summary_text, fidelity) pairs, oldest first.
+        """
+        result: list[tuple[str, Fidelity]] = []
+        n = len(technical_summaries)
+        for i, summary in enumerate(technical_summaries):
+            if n - i <= recent_count:
+                result.append((summary, Fidelity.COMPRESSED))
+            else:
+                result.append((summary, Fidelity.PLACEHOLDER))
+        return result
+
     def get_l3_summaries_with_fidelity(self) -> list[tuple[str, Fidelity]]:
         """Return L3 meta-summaries with computed fidelity levels.
 
