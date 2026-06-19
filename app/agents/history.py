@@ -11,6 +11,21 @@ Provides ``SessionHistory`` which maintains:
 from __future__ import annotations
 
 from collections import deque
+from enum import IntEnum
+
+
+class Fidelity(IntEnum):
+    """Fidelity level for memory entries in the DM context window.
+
+    FULL: Complete verbatim content (recent turns).
+    COMPRESSED: Summarized content (L2/L3 summaries).
+    PLACEHOLDER: Single-sentence reminder that content exists but was
+                 forgotten (very old content beyond retention).
+    """
+
+    FULL = 0
+    COMPRESSED = 1
+    PLACEHOLDER = 2
 
 
 class SessionHistory:
@@ -28,6 +43,10 @@ class SessionHistory:
 
     MAX_RECENT_TURNS: int = 5
     L3_INTERVAL: int = 25
+
+    # Fidelity thresholds — define how many entries at each level get
+    # FULL / COMPRESSED fidelity before falling back to PLACEHOLDER.
+    RECENT_TURN_FIDELITY_COUNT: int = 4  # Last 4 turns get FULL fidelity
 
     def __init__(self, max_turns: int = 5) -> None:
         self.max_turns: int = max_turns
@@ -123,6 +142,64 @@ class SessionHistory:
             A copy of the accumulated L3 meta-summaries.
         """
         return self.l3_summaries.copy()
+
+    # ------------------------------------------------------------------
+    # Fidelity-aware accessors (dynamic — never stored on disk)
+    # ------------------------------------------------------------------
+
+    def get_turns_with_fidelity(self) -> list[tuple[dict[str, str], Fidelity]]:
+        """Return recent turns with computed fidelity levels.
+
+        The most recent ``RECENT_TURN_FIDELITY_COUNT`` turns are FULL.
+        Older turns in the buffer are PLACEHOLDER (will be condensed).
+
+        Returns
+        -------
+        list[tuple[dict[str, str], Fidelity]]
+            List of (turn_dict, fidelity) pairs in chronological order.
+        """
+        turns: list[tuple[dict[str, str], Fidelity]] = []
+        threshold = len(self.recent_turns) - self.RECENT_TURN_FIDELITY_COUNT
+        for i, turn in enumerate(self.recent_turns):
+            if i >= threshold:
+                turns.append((turn, Fidelity.FULL))
+            else:
+                turns.append((turn, Fidelity.PLACEHOLDER))
+        return turns
+
+    def get_summary_with_fidelity(self) -> tuple[str, Fidelity] | None:
+        """Return the compressed summary with COMPRESSED fidelity.
+
+        Returns
+        -------
+        tuple[str, Fidelity] or None
+            (summary_text, Fidelity.COMPRESSED) if summary exists, else None.
+        """
+        if self.compressed_summary:
+            return (self.compressed_summary, Fidelity.COMPRESSED)
+        return None
+
+    def get_l3_summaries_with_fidelity(self) -> list[tuple[str, Fidelity]]:
+        """Return L3 meta-summaries with computed fidelity levels.
+
+        The most recent L3 is COMPRESSED.
+        Older L3 summaries are PLACEHOLDER.
+
+        Returns
+        -------
+        list[tuple[str, Fidelity]]
+            List of (summary_text, fidelity) pairs, oldest first.
+        """
+        if not self.l3_summaries:
+            return []
+        # All but the last are PLACEHOLDER; the last (most recent) is COMPRESSED
+        result: list[tuple[str, Fidelity]] = []
+        for i, summary in enumerate(self.l3_summaries):
+            if i == len(self.l3_summaries) - 1:
+                result.append((summary, Fidelity.COMPRESSED))
+            else:
+                result.append((summary, Fidelity.PLACEHOLDER))
+        return result
 
     # ------------------------------------------------------------------
     # Serialisation

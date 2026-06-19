@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.agents.context_builder import build_context
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
-from app.agents.history import SessionHistory
+from app.agents.history import Fidelity, SessionHistory
 from app.agents.npc import (
     NPC_SYSTEM_PROMPT,
     NPCAgent,
@@ -27,6 +27,7 @@ __all__ = [
     "build_context",
     "DM_SYSTEM_PROMPT",
     "DungeonMaster",
+    "Fidelity",
     "META_SUMMARIZER_SYSTEM_PROMPT",
     "NPC_SYSTEM_PROMPT",
     "NPCAgent",

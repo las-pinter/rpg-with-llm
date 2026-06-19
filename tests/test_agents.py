@@ -511,6 +511,127 @@ class TestSessionHistory:
 
         assert SessionHistory.L3_INTERVAL == 25
 
+    # ------------------------------------------------------------------
+    # Fidelity tests
+    # ------------------------------------------------------------------
+
+
+class TestSessionHistoryFidelity:
+    """Tests for fidelity-aware accessors on ``SessionHistory``."""
+
+    def test_fidelity_enum_values(self) -> None:
+        """Fidelity enum should have correct integer values."""
+        from app.agents.history import Fidelity
+
+        assert Fidelity.FULL == 0
+        assert Fidelity.COMPRESSED == 1
+        assert Fidelity.PLACEHOLDER == 2
+        assert isinstance(Fidelity.FULL, int)
+
+    def test_get_turns_with_fidelity_full(self) -> None:
+        """All turns within RECENT_TURN_FIDELITY_COUNT should be FULL."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory(max_turns=5)
+        for i in range(4):
+            history.add_turn(f"input{i}", f"response{i}")
+        turns = history.get_turns_with_fidelity()
+        assert len(turns) == 4
+        for _, fid in turns:
+            assert fid == Fidelity.FULL  # All 4 should be FULL
+
+    def test_get_turns_with_fidelity_placeholder(self) -> None:
+        """Oldest turn beyond RECENT_TURN_FIDELITY_COUNT should be PLACEHOLDER."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory(max_turns=5)
+        for i in range(5):
+            history.add_turn(f"input{i}", f"response{i}")
+        turns = history.get_turns_with_fidelity()
+        assert len(turns) == 5
+        # First turn should be PLACEHOLDER (oldest, beyond count=4)
+        assert turns[0][1] == Fidelity.PLACEHOLDER
+        # Last 4 should be FULL
+        for _, fid in turns[1:]:
+            assert fid == Fidelity.FULL
+
+    def test_get_summary_with_fidelity_none(self) -> None:
+        """No summary should return None."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        assert history.get_summary_with_fidelity() is None
+
+    def test_get_summary_with_fidelity_compressed(self) -> None:
+        """Existing summary should return COMPRESSED fidelity."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory()
+        history.set_summary("Test summary")
+        result = history.get_summary_with_fidelity()
+        assert result is not None
+        text, fid = result
+        assert text == "Test summary"
+        assert fid == Fidelity.COMPRESSED
+
+    def test_get_l3_summaries_with_fidelity_empty(self) -> None:
+        """Empty L3 list should return empty list."""
+        from app.agents.history import SessionHistory
+
+        history = SessionHistory()
+        assert history.get_l3_summaries_with_fidelity() == []
+
+    def test_get_l3_summaries_with_fidelity(self) -> None:
+        """Oldest L3 should be PLACEHOLDER, latest COMPRESSED."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory()
+        history.add_l3_summary("Old meta")
+        history.add_l3_summary("New meta")
+        result = history.get_l3_summaries_with_fidelity()
+        assert len(result) == 2
+        # Oldest is PLACEHOLDER
+        assert result[0] == ("Old meta", Fidelity.PLACEHOLDER)
+        # Latest is COMPRESSED
+        assert result[1] == ("New meta", Fidelity.COMPRESSED)
+
+    def test_get_turns_with_fidelity_orders_chronologically(self) -> None:
+        """Turns should be returned oldest-first, matching insertion order."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory(max_turns=5)
+        for i in range(3):
+            history.add_turn(f"input{i}", f"response{i}")
+        turns = history.get_turns_with_fidelity()
+        assert len(turns) == 3
+        assert turns[0][0]["user"] == "input0"
+        assert turns[1][0]["user"] == "input1"
+        assert turns[2][0]["user"] == "input2"
+
+    def test_get_l3_summaries_with_fidelity_single(self) -> None:
+        """Single L3 summary should be COMPRESSED."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory()
+        history.add_l3_summary("Only meta")
+        result = history.get_l3_summaries_with_fidelity()
+        assert len(result) == 1
+        assert result[0] == ("Only meta", Fidelity.COMPRESSED)
+
+    def test_get_l3_summaries_with_fidelity_multiple(self) -> None:
+        """Multiple L3s: all but last PLACEHOLDER, last COMPRESSED."""
+        from app.agents.history import Fidelity, SessionHistory
+
+        history = SessionHistory()
+        history.add_l3_summary("Meta 1")
+        history.add_l3_summary("Meta 2")
+        history.add_l3_summary("Meta 3")
+        result = history.get_l3_summaries_with_fidelity()
+        assert len(result) == 3
+        assert result[0] == ("Meta 1", Fidelity.PLACEHOLDER)
+        assert result[1] == ("Meta 2", Fidelity.PLACEHOLDER)
+        assert result[2] == ("Meta 3", Fidelity.COMPRESSED)
+
 
 class TestDungeonMasterHistoryIntegration:
     """Tests for DungeonMaster integration with SessionHistory."""
@@ -542,7 +663,7 @@ class TestDungeonMasterBuildContextSummary:
         dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
         dm.history.set_summary("Player entered the dark forest")
         context = dm._build_context("Hello")
-        summary_msgs = [m for m in context if "Session summary" in m.get("content", "")]
+        summary_msgs = [m for m in context if "Session Summary" in m.get("content", "")]
         assert len(summary_msgs) == 1
         assert summary_msgs[0]["role"] == "system"
         assert "Player entered the dark forest" in summary_msgs[0]["content"]
@@ -551,7 +672,7 @@ class TestDungeonMasterBuildContextSummary:
         """No summary message should appear when compressed_summary is empty."""
         dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
         context = dm._build_context("Hello")
-        summary_msgs = [m for m in context if "Session summary" in m.get("content", "")]
+        summary_msgs = [m for m in context if "Session Summary" in m.get("content", "")]
         assert len(summary_msgs) == 0
 
     def test_context_summary_position(self) -> None:
@@ -586,7 +707,7 @@ class TestDungeonMasterBuildContextSummary:
         summary_idx = next(
             i
             for i, m in enumerate(context)
-            if "Session summary" in m.get("content", "")
+            if "Session Summary" in m.get("content", "")
         )
         assert summary_idx == 4, (
             f"Expected summary at index 4, got {summary_idx}. "
