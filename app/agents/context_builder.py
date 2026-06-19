@@ -10,13 +10,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from app.agents.history import Fidelity
+from app.agents.history import Fidelity, SessionHistory
 from app.rules.plausibility import classify_action
 
 if TYPE_CHECKING:
     from app.agents.dm import DungeonMaster
 
 logger = logging.getLogger(__name__)
+
+# Maximum character budget for the timeline context block.
+# Approx 4 chars per token → 3000 chars ≈ 750 tokens.
+# Can be tuned at the module level without changing function signatures.
+MAX_TIMELINE_CHARS: int = 3000
 
 
 def build_context(
@@ -148,32 +153,96 @@ def build_context(
             }
         )
 
-    # --- Memory context with fidelity levels ---
-    memory_sections: list[str] = []
+    # --- Timeline context (replaces old summary + full conversation history) ---
+    timeline_parts: list[str] = []
 
-    # L3 meta-summaries (COMPRESSED or PLACEHOLDER)
+    # 1. L3 meta-summaries (oldest first)
     for l3_text, fidelity in dm.history.get_l3_summaries_with_fidelity():
         if fidelity == Fidelity.COMPRESSED:
-            memory_sections.append(f"[L3 Meta-Summary]\n{l3_text}")
+            timeline_parts.append(f"[L3 Meta-Summary]\n{l3_text}")
         elif fidelity == Fidelity.PLACEHOLDER:
-            memory_sections.append(f"[L3 Meta-Summary (older)]\n{l3_text[:200]}...")
+            timeline_parts.append(f"[L3 Meta-Summary (older)]\n{l3_text[:200]}...")
 
-    # L2 session summary (COMPRESSED)
-    summary_result = dm.history.get_summary_with_fidelity()
-    if summary_result:
-        summary_text, _ = summary_result  # always COMPRESSED
-        memory_sections.append(f"[Session Summary]\n{summary_text}")
+    # 2. L2 summaries from world_state (oldest first)
+    if dm.world_state is not None:
+        l2_with_fidelity = SessionHistory.get_l2_summaries_with_fidelity(
+            dm.world_state.technical_summary
+        )
+        for i, (summary_text, fidelity) in enumerate(l2_with_fidelity):
+            turn_start = i * 5 + 1
+            turn_end = (i + 1) * 5
+            if fidelity == Fidelity.COMPRESSED:
+                timeline_parts.append(
+                    f"[Session Summary: Turns {turn_start}-{turn_end}]\n{summary_text}"
+                )
+            elif fidelity == Fidelity.PLACEHOLDER:
+                first_line = (
+                    summary_text.split(".")[0]
+                    if "." in summary_text
+                    else summary_text[:100]
+                )
+                timeline_parts.append(
+                    f"[Session Summary: Turns {turn_start}-{turn_end} (condensed)]\n{first_line}..."
+                )
 
-    if memory_sections:
+    # 3. Recent turns from history buffer (oldest first)
+    buffer_size = len(dm.history.recent_turns)
+    for i, (turn, fidelity) in enumerate(dm.history.get_turns_with_fidelity()):
+        turn_num = dm.turn_count - buffer_size + i + 1 if dm.turn_count > 0 else i + 1
+        if fidelity == Fidelity.FULL:
+            timeline_parts.append(
+                f"[Turn {turn_num}]\nPlayer: {turn['user']}\nDM: {turn['assistant']}"
+            )
+        elif fidelity == Fidelity.PLACEHOLDER:
+            timeline_parts.append(
+                f"[Turn {turn_num} (older)]\nPlayer: {turn['user'][:100]}..."
+            )
+
+    # Assemble the timeline context message
+    if timeline_parts:
+        total_chars = sum(len(p) for p in timeline_parts)
+
+        if total_chars > MAX_TIMELINE_CHARS:
+            # Degrade oldest L2 summaries and drop oldest turns to fit budget.
+            # L3 entries are preserved by design (they are expected to be small).
+            degraded_timeline: list[str] = []
+            remaining_to_trim = total_chars - MAX_TIMELINE_CHARS
+            for part in timeline_parts:
+                if remaining_to_trim <= 0:
+                    degraded_timeline.append(part)
+                elif part.startswith("[Session Summary:"):
+                    shortened = part[:150] + "..."
+                    degraded_timeline.append(shortened)
+                    remaining_to_trim -= len(part) - len(shortened)
+                elif part.startswith("[Turn"):
+                    # Drop older turns entirely
+                    remaining_to_trim -= len(part)
+                    continue
+                else:
+                    # L3 entries are preserved (expected to be small)
+                    degraded_timeline.append(part)
+            timeline_parts = degraded_timeline
+
+        if dm.turn_count > 0:
+            timeline_header = (
+                "Active Memory Context (most recent entries shown, "
+                "oldest first within each tier):"
+            )
+        else:
+            timeline_header = "Active Memory Context:"
+
         messages.append(
             {
                 "role": "system",
-                "content": "Active Memory Context:\n" + "\n\n".join(memory_sections),
+                "content": timeline_header + "\n\n" + "\n\n".join(timeline_parts),
             }
         )
 
-    # Append conversation history (last few exchanges for context)
-    for msg in dm.history.get_context_messages():
+    # Append the most recent 1-2 turns (up to 4 messages) as user/assistant
+    # pairs to preserve conversation flow for the LLM (it needs to see
+    # the alternation pattern).
+    recent_msgs = dm.history.get_context_messages()
+    for msg in recent_msgs[-4:]:
         messages.append(msg)
 
     # Add the player's input
