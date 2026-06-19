@@ -12,7 +12,7 @@ import json
 import re
 import secrets
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +52,7 @@ class WorldStorage:
     # ------------------------------------------------------------------
 
     def _validate_name(self, name: str) -> None:
-        """Validate save name to prevent path traversal."""
+        """Validate save name or slug to prevent path traversal."""
         if not name or not name.strip():
             raise ValueError("Save name must be non-empty")
         if "/" in name or "\\" in name:
@@ -135,6 +135,46 @@ class WorldStorage:
         self._update_index(slug, metadata)
         self._last_save_turn = world_state.turn_count
         return slug
+
+    # ------------------------------------------------------------------
+    # Per-turn narrative entries (envelope-wrapped, matching save/load format)
+    # ------------------------------------------------------------------
+
+    def write_narrative_entries(self, slug: str, entries: list[dict[str, Any]]) -> None:
+        """Atomically write narrative entries to disk as envelope-wrapped JSON.
+
+        Called per-turn during gameplay to preserve full turn history on
+        disk.  The file is written in the same envelope-wrapped format as
+        :meth:`save`, so :meth:`load` can read it without a format mismatch.
+
+        Parameters
+        ----------
+        slug : str
+            The save folder slug (validated against path traversal).
+        entries : list[dict]
+            The complete list of narrative entry dicts, each with
+            ``turn``, ``player_input``, ``narrative``, and ``timestamp``.
+
+        Raises
+        ------
+        ValueError
+            If *slug* contains path separators or parent dir references.
+        """
+        self._validate_name(slug)
+        save_folder = self.saves_dir / slug
+        save_folder.mkdir(parents=True, exist_ok=True)
+
+        now = datetime.now(timezone.utc).isoformat()
+        envelope = {
+            "save_version": "1.0.0",
+            "schema_name": "narrative_entries",
+            "schema_version": "1.0.0",
+            "timestamp": now,
+            "payload": {"entries": entries},
+        }
+
+        narrative_path = save_folder / "narrative_entries.json"
+        atomic_write(narrative_path, envelope, indent=2)
 
     # ------------------------------------------------------------------
     # Load
