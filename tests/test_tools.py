@@ -11,6 +11,7 @@ from app.agents.tools import (
     rules_attack,
     rules_saving_throw,
     rules_skill_check,
+    set_record_keeper,
     table_lookup,
 )
 
@@ -210,3 +211,111 @@ class TestRulesSavingThrow:
         """Missing ability should return error."""
         result = rules_saving_throw({})
         assert result["ok"] is False
+
+
+class TestRecordKeeperTools:
+    """Tests for ``record_keeper_fetch`` tool and ``set_record_keeper``."""
+
+    def test_record_keeper_fetch_not_configured(self) -> None:
+        """Without record_keeper set, returns 'not configured' error."""
+        set_record_keeper(None)
+        result = dispatch_tool(
+            "record_keeper_fetch",
+            {
+                "entity_type": "npc",
+                "entity_id": "test",
+            },
+        )
+        assert result == {"ok": False, "error": "Record-Keeper not configured"}
+
+    def test_record_keeper_fetch_missing_entity_type(self) -> None:
+        """Missing entity_type returns appropriate error when configured."""
+        mock_rk = MagicMock()
+        set_record_keeper(mock_rk)
+        try:
+            result = dispatch_tool("record_keeper_fetch", {})
+            assert result["ok"] is False
+            assert "entity_type" in result.get("error", "")
+        finally:
+            set_record_keeper(None)
+
+    def test_record_keeper_fetch_missing_entity_id(self) -> None:
+        """Missing entity_id returns appropriate error when configured."""
+        mock_rk = MagicMock()
+        set_record_keeper(mock_rk)
+        try:
+            result = dispatch_tool("record_keeper_fetch", {"entity_type": "npc"})
+            assert result["ok"] is False
+            assert "entity_id" in result.get("error", "")
+        finally:
+            set_record_keeper(None)
+
+    def test_record_keeper_fetch_alias_resolves(self) -> None:
+        """Alias 'rk_fetch' dispatches to record_keeper_fetch."""
+        set_record_keeper(None)
+        result = dispatch_tool("rk_fetch", {"entity_type": "npc", "entity_id": "x"})
+        assert result["ok"] is False  # Not configured, but alias resolves
+        # Should say "not configured", NOT "Unknown tool"
+        assert "Unknown tool" not in result.get("error", "")
+
+    def test_rk_fetch_and_record_keeper_fetch_in_registry(self) -> None:
+        """Both names are registered in TOOL_REGISTRY."""
+        assert "rk_fetch" in TOOL_REGISTRY
+        assert "record_keeper_fetch" in TOOL_REGISTRY
+        assert TOOL_REGISTRY["rk_fetch"] is TOOL_REGISTRY["record_keeper_fetch"]
+
+    def test_record_keeper_fetch_with_mock(self) -> None:
+        """With a mock record_keeper, returns entity data."""
+        mock_rk = MagicMock()
+        mock_rk.fetch_entity.return_value = {
+            "entity_id": "test_npc",
+            "name": "Test NPC",
+            "entity_type": "npc",
+        }
+        set_record_keeper(mock_rk)
+        try:
+            result = dispatch_tool(
+                "record_keeper_fetch",
+                {
+                    "entity_type": "npc",
+                    "entity_id": "test_npc",
+                },
+            )
+            assert result["ok"] is True
+            assert result["result"]["entity_id"] == "test_npc"
+            mock_rk.fetch_entity.assert_called_once_with("npc", "test_npc")
+        finally:
+            set_record_keeper(None)
+
+    def test_record_keeper_fetch_not_found(self) -> None:
+        """Entity not found returns appropriate error."""
+        mock_rk = MagicMock()
+        mock_rk.fetch_entity.return_value = None
+        set_record_keeper(mock_rk)
+        try:
+            result = dispatch_tool(
+                "record_keeper_fetch",
+                {
+                    "entity_type": "npc",
+                    "entity_id": "unknown",
+                },
+            )
+            assert result["ok"] is False
+            assert "not found" in result.get("error", "")
+        finally:
+            set_record_keeper(None)
+
+    def test_set_record_keeper_clears_reference(self) -> None:
+        """set_record_keeper(None) clears the module-level reference."""
+        mock_rk = MagicMock()
+        set_record_keeper(mock_rk)
+        set_record_keeper(None)
+        result = dispatch_tool(
+            "record_keeper_fetch",
+            {
+                "entity_type": "npc",
+                "entity_id": "x",
+            },
+        )
+        assert result["ok"] is False
+        assert "not configured" in result.get("error", "")

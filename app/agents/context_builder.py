@@ -160,7 +160,9 @@ def build_context(
         try:
             # Build a current_narrative from the last few turns
             narrative_parts = []
-            for turn in dm.history.recent_turns[-3:]:  # last 3 turns
+            # recent_turns is a deque — convert to list for slice access
+            recent = list(dm.history.recent_turns)
+            for turn in recent[-3:]:  # last 3 turns
                 narrative_parts.append(f"Player: {turn.get('user', '')}")
                 narrative_parts.append(f"DM: {turn.get('assistant', '')}")
             current_narrative = "\n".join(narrative_parts)
