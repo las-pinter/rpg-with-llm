@@ -25,6 +25,20 @@ from app.rules.combat import attack_roll
 
 logger = logging.getLogger(__name__)
 
+# Module-level Record-Keeper reference (set by DM when configured)
+_record_keeper: Any = None  # RecordKeeperAgent | None
+
+
+def set_record_keeper(rk: Any) -> None:
+    """Set the module-level Record-Keeper singleton for tool dispatch.
+
+    Called when a DungeonMaster with a RecordKeeper is created.
+    Pass None to clear.
+    """
+    global _record_keeper
+    _record_keeper = rk
+
+
 # ---------------------------------------------------------------------------
 # Tool implementations
 # ---------------------------------------------------------------------------
@@ -229,6 +243,44 @@ def rules_saving_throw(params: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": f"Saving throw failed: {e}"}
 
 
+def record_keeper_fetch(params: dict[str, Any]) -> dict[str, Any]:
+    """Fetch an entity record by type and ID.
+
+    Parameters
+    ----------
+    params : dict
+        Must contain ``entity_type`` (str) and ``entity_id`` (str).
+
+    Returns
+    -------
+    dict
+        ``{"ok": True, "result": <entity dict>}`` on success, or
+        ``{"ok": False, "error": "..."}`` on failure.
+    """
+    if _record_keeper is None:
+        return {"ok": False, "error": "Record-Keeper not configured"}
+
+    entity_type = params.get("entity_type", "")
+    entity_id = params.get("entity_id", "")
+
+    if not entity_type:
+        return {"ok": False, "error": "Missing required param: 'entity_type'"}
+    if not entity_id:
+        return {"ok": False, "error": "Missing required param: 'entity_id'"}
+
+    try:
+        result = _record_keeper.fetch_entity(entity_type, entity_id)
+        if result is None:
+            return {
+                "ok": False,
+                "error": f"Entity '{entity_type}/{entity_id}' not found",
+            }
+        return {"ok": True, "result": result}
+    except Exception as e:
+        logger.exception("record_keeper_fetch failed")
+        return {"ok": False, "error": f"Record-Keeper fetch failed: {e}"}
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -239,11 +291,13 @@ TOOL_REGISTRY: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "skill_check": rules_skill_check,
     "attack": rules_attack,
     "saving_throw": rules_saving_throw,
+    "record_keeper_fetch": record_keeper_fetch,
 }
 
 # Aliases for flexibility
 TOOL_REGISTRY["dice_roll"] = dice_roll
 TOOL_REGISTRY["table_lookup"] = table_lookup
+TOOL_REGISTRY["rk_fetch"] = record_keeper_fetch
 
 
 # ---------------------------------------------------------------------------
