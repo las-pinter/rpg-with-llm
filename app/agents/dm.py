@@ -19,6 +19,7 @@ from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.world.persistence import WorldStorage
+    from app.agents.record_keeper import RecordKeeperAgent
 
 from app.save_engine.envelope import SaveEnvelope
 from app.utils.atomic_write import atomic_write
@@ -483,6 +484,7 @@ class DungeonMaster:
         summarizer_provider: LLMProvider | None = None,
         storage: WorldStorage | None = None,
         save_slug: str | None = None,
+        record_keeper: RecordKeeperAgent | None = None,
     ) -> None:
         """Store references for later use in the turn loop.
 
@@ -506,6 +508,10 @@ class DungeonMaster:
         save_slug : str or None
             The save folder slug for disk writes.  Required (along with
             *storage*) for per-turn narrative persistence.
+        record_keeper : RecordKeeperAgent or None
+            Record Keeper agent for entity memory and narrative analysis.
+            When provided, its pre-DM analysis is injected into the DM's
+            context window.  When ``None``, no Record-Keeper context is added.
         """
         self.llm_provider = llm_provider
         self.npc_provider = llm_provider if npc_provider is None else npc_provider
@@ -542,6 +548,9 @@ class DungeonMaster:
         self._storage: WorldStorage | None = storage
         self._save_slug: str | None = save_slug
 
+        # Record-Keeper agent for entity memory & narrative analysis
+        self.record_keeper = record_keeper
+
     def _build_context(
         self,
         player_input: str,
@@ -573,7 +582,7 @@ class DungeonMaster:
             A list of message dicts, each with ``role`` and ``content`` keys,
             suitable for passing to an LLM provider's ``call()`` or ``stream()``.
         """
-        return build_context(self, player_input, plausibility_note)
+        return build_context(self, player_input, plausibility_note, self.record_keeper)
 
     def process_turn_stream(
         self,
