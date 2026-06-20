@@ -28,6 +28,12 @@ from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
 from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
+from app.agents.record_keeper_schemas import (
+    NPCRecord,
+    PlaceRecord,
+    ItemRecord,
+    EntityChangeLog,
+)
 from app.agents.summarizer import summarize_meta, summarize_story, summarize_turns
 from app.agents.tools import dispatch_tool
 from app.character.model import Character
@@ -455,6 +461,125 @@ If you reference any previously established people, places, or things,
 use the EXACT same name as originally recorded. Do NOT rename or
 re-describe them.
 """
+
+# ---------------------------------------------------------------------------
+# Post-DM entity persistence helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_entity_record(entity_type: str, fields: dict[str, Any]) -> dict[str, Any]:
+    """Build a complete entity dict from extracted fields.
+
+    Merges the extracted fields with default values appropriate for
+    each entity type. Sets mention_count to 1 and first_seen_turn
+    / last_seen_turn as appropriate.
+    """
+    record = {"entity_type": entity_type}
+    # Start with defaults from the schema
+    if entity_type == "npc":
+        record.update(
+            {
+                "entity_id": fields.get("entity_id", ""),
+                "name": fields.get("name", ""),
+                "description": fields.get("description", ""),
+                "personality": fields.get("personality", ""),
+                "faction": fields.get("faction", ""),
+                "relationships": fields.get("relationships", {}),
+                "first_seen_turn": fields.get("first_seen_turn", 0),
+                "last_seen_turn": fields.get("last_seen_turn", 0),
+                "mention_count": fields.get("mention_count", 1),
+                "notes": fields.get("notes", []),
+                "tags": fields.get("tags", []),
+                "is_active": True,
+                "metadata": fields.get("metadata", {}),
+            }
+        )
+    elif entity_type == "place":
+        record.update(
+            {
+                "entity_id": fields.get("entity_id", ""),
+                "name": fields.get("name", ""),
+                "description": fields.get("description", ""),
+                "tags": fields.get("tags", []),
+                "notable_features": fields.get("notable_features", []),
+                "connected_places": fields.get("connected_places", []),
+                "first_seen_turn": fields.get("first_seen_turn", 0),
+                "last_seen_turn": fields.get("last_seen_turn", 0),
+                "mention_count": fields.get("mention_count", 1),
+                "notes": fields.get("notes", []),
+                "is_active": True,
+                "metadata": fields.get("metadata", {}),
+            }
+        )
+    elif entity_type == "item":
+        record.update(
+            {
+                "entity_id": fields.get("entity_id", ""),
+                "name": fields.get("name", ""),
+                "description": fields.get("description", ""),
+                "properties": fields.get("properties", {}),
+                "origin": fields.get("origin", ""),
+                "history": fields.get("history", []),
+                "current_holder": fields.get("current_holder", ""),
+                "first_seen_turn": fields.get("first_seen_turn", 0),
+                "last_seen_turn": fields.get("last_seen_turn", 0),
+                "mention_count": fields.get("mention_count", 1),
+                "notes": fields.get("notes", []),
+                "tags": fields.get("tags", []),
+                "is_active": True,
+                "metadata": fields.get("metadata", {}),
+            }
+        )
+    return record
+
+
+def _persist_entity_create(entity_storage, op):
+    """Create a new entity record."""
+    # Build from fields, using field values directly
+    record = _build_entity_record(op.entity_type, op.fields)
+    # Ensure entity_id is set
+    record["entity_id"] = op.entity_id
+    if "name" in op.fields:
+        record["name"] = op.fields["name"]
+    # Set first/last seen
+    record["first_seen_turn"] = op.fields.get("first_seen_turn", 0)
+    record["last_seen_turn"] = op.fields.get("last_seen_turn", 0)
+    record["mention_count"] = 1
+    entity_storage.save_entity(op.entity_type, record)
+
+
+def _persist_entity_update(entity_storage, op):
+    """Update an existing entity record by merging fields."""
+    existing = entity_storage.get_entity(op.entity_type, op.entity_id)
+    if existing is None:
+        # Entity doesn't exist yet — create it instead
+        record = _build_entity_record(op.entity_type, op.fields)
+        record["entity_id"] = op.entity_id
+        record["mention_count"] = 1
+        entity_storage.save_entity(op.entity_type, record)
+        return
+
+    # Merge new fields into existing record
+    existing.update(op.fields)
+    # Increment mention count
+    existing["mention_count"] = existing.get("mention_count", 0) + 1
+    existing["last_seen_turn"] = op.fields.get(
+        "last_seen_turn", existing.get("last_seen_turn", 0)
+    )
+    entity_storage.save_entity(op.entity_type, existing)
+
+
+def _persist_entity_deactivate(entity_storage, op):
+    """Deactivate an entity (set is_active=False)."""
+    existing = entity_storage.get_entity(op.entity_type, op.entity_id)
+    if existing is None:
+        return  # Nothing to deactivate
+    existing["is_active"] = False
+    existing["last_seen_turn"] = op.fields.get(
+        "last_seen_turn", existing.get("last_seen_turn", 0)
+    )
+    entity_storage.save_entity(op.entity_type, existing)
+
 
 # ---------------------------------------------------------------------------
 # DungeonMaster
@@ -887,6 +1012,12 @@ class DungeonMaster:
         self._record_turn_and_summarize(player_input, narrative)
 
         # ------------------------------------------------------------------
+        # 10b. Post-DM hook — persist entity changes via Record Keeper
+        # ------------------------------------------------------------------
+        if self.record_keeper is not None and narrative:
+            self._run_post_dm(narrative)
+
+        # ------------------------------------------------------------------
         # 11. Yield final events
         # ------------------------------------------------------------------
         state_dict = self.world_state.to_dict() if self.world_state is not None else {}
@@ -1290,6 +1421,64 @@ class DungeonMaster:
             self.token_usage["completion_tokens"],
             self.token_usage["total_tokens"],
         )
+
+    def _run_post_dm(self, narrative: str) -> None:
+        """Run post-DM entity persistence via the Record Keeper.
+
+        Called after the DM's narrative is validated and state changes are
+        applied.  Extracts entity operations from the narrative, persists
+        them to EntityStorage, and logs changes to the changelog.
+
+        Parameters
+        ----------
+        narrative : str
+            The cleaned narrative text (XML tags already stripped).
+        """
+        if self.record_keeper is None:
+            return
+
+        if self.world_state is None:
+            return
+
+        try:
+            analysis = self.record_keeper.analyze_post_dm(
+                dm_response=narrative,
+                world_state=self.world_state,
+                turn_count=self.turn_count,
+            )
+        except Exception:
+            logger.exception("RecordKeeper post-DM analysis failed")
+            return
+
+        entity_storage = self.record_keeper.entity_storage
+
+        for op in analysis.entity_operations:
+            try:
+                if op.action == "create":
+                    _persist_entity_create(entity_storage, op)
+                elif op.action == "update":
+                    _persist_entity_update(entity_storage, op)
+                elif op.action == "deactivate":
+                    _persist_entity_deactivate(entity_storage, op)
+            except Exception:
+                logger.exception(
+                    "Failed to process entity operation: %s %s %s",
+                    op.action,
+                    op.entity_type,
+                    op.entity_id,
+                )
+                # Don't block other operations
+
+        # Log all changelog entries
+        for entry in analysis.changelog_entries:
+            try:
+                entity_storage.log_change(entry)
+            except Exception:
+                logger.exception(
+                    "Failed to log changelog entry for %s %s",
+                    entry.entity_type,
+                    entry.entity_id,
+                )
 
     # ------------------------------------------------------------------
     # NPC spawning
