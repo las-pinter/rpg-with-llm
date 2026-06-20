@@ -11,6 +11,14 @@ from app.agents.npc import (
     compress_text,
     parse_npc_response,
 )
+from app.agents.record_keeper import (
+    ENTITY_SYSTEM_PROMPT,
+    PLOT_SYSTEM_PROMPT,
+    EntityOperation,
+    PostDMAnalysis,
+    RecordKeeperAgent,
+    RecordKeeperContext,
+)
 from app.agents.parser import parse_dm_response
 from app.agents.summarizer import (
     META_SUMMARIZER_SYSTEM_PROMPT,
@@ -27,10 +35,16 @@ __all__ = [
     "build_context",
     "DM_SYSTEM_PROMPT",
     "DungeonMaster",
+    "ENTITY_SYSTEM_PROMPT",
+    "EntityOperation",
     "Fidelity",
     "META_SUMMARIZER_SYSTEM_PROMPT",
     "NPC_SYSTEM_PROMPT",
     "NPCAgent",
+    "PLOT_SYSTEM_PROMPT",
+    "PostDMAnalysis",
+    "RecordKeeperAgent",
+    "RecordKeeperContext",
     "SUMMARIZER_SYSTEM_PROMPT",
     "SessionHistory",
     "compress_summary",
