@@ -840,3 +840,274 @@ class TestWorldStorage:
         assert has_warning, (
             f"No verification warning found. Records: {[r.message for r in caplog.records]}"
         )
+
+    # ------------------------------------------------------------------
+    # write_narrative_entries
+    # ------------------------------------------------------------------
+
+    def test_write_narrative_entries_creates_file_with_envelope(
+        self, storage: WorldStorage
+    ) -> None:
+        """Write entries must create narrative_entries.json with correct envelope format."""
+        ws = WorldState()
+        slug = storage.save(ws)
+
+        entries = [
+            {
+                "turn": 1,
+                "player_input": "hello",
+                "narrative": "You said hello",
+                "timestamp": "2024-01-01T00:00:00",
+            },
+            {
+                "turn": 2,
+                "player_input": "go north",
+                "narrative": "You go north",
+                "timestamp": "2024-01-01T00:01:00",
+            },
+        ]
+        storage.write_narrative_entries(slug, entries)
+
+        narrative_path = storage.saves_dir / slug / "narrative_entries.json"
+        assert narrative_path.exists()
+
+        with open(narrative_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert data["save_version"] == "1.0.0"
+        assert data["schema_name"] == "narrative_entries"
+        assert data["schema_version"] == "1.0.0"
+        assert "timestamp" in data
+        assert "payload" in data
+        assert data["payload"]["entries"] == entries
+
+    def test_write_narrative_entries_empty_list(self, storage: WorldStorage) -> None:
+        """Writing an empty entries list must produce a valid envelope with empty entries."""
+        ws = WorldState()
+        slug = storage.save(ws)
+
+        storage.write_narrative_entries(slug, [])
+
+        narrative_path = storage.saves_dir / slug / "narrative_entries.json"
+        assert narrative_path.exists()
+
+        with open(narrative_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert data["payload"]["entries"] == []
+
+    def test_write_narrative_entries_uses_atomic_write(
+        self, storage: WorldStorage
+    ) -> None:
+        """write_narrative_entries must write via a temp file before renaming."""
+        ws = WorldState()
+        slug = storage.save(ws)
+
+        original_rename = os.rename
+        original_replace = os.replace
+        tmp_paths: list[Path] = []
+
+        def tracking_rename(src: str, dst: str) -> None:
+            src_path = Path(src)
+            if src_path.suffix == ".tmp":
+                assert src_path.exists(), (
+                    f"Temp file {src_path} should exist before rename"
+                )
+                tmp_paths.append(src_path)
+            original_rename(src, dst)
+
+        def tracking_replace(src: str, dst: str) -> None:
+            src_path = Path(src)
+            if src_path.suffix == ".tmp":
+                assert src_path.exists(), (
+                    f"Temp file {src_path} should exist before replace"
+                )
+                tmp_paths.append(src_path)
+            original_replace(src, dst)
+
+        try:
+            os.rename = tracking_rename  # type: ignore[assignment]
+            os.replace = tracking_replace  # type: ignore[assignment]
+            storage.write_narrative_entries(
+                slug, [{"turn": 1, "player_input": "test", "narrative": "test"}]
+            )
+            assert len(tmp_paths) >= 1, (
+                "No tmp file was used during write_narrative_entries"
+            )
+        finally:
+            os.rename = original_rename
+            os.replace = original_replace
+
+        # Verify no tmp files linger after write
+        assert not (storage.saves_dir / slug / "narrative_entries.json.tmp").exists()
+
+    # ------------------------------------------------------------------
+    # Optional file load failures (silent skip on missing/corrupt)
+    # ------------------------------------------------------------------
+
+    def test_load_with_missing_character_file(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """If character.json is missing, load must succeed with _character as None."""
+        # Save with character data so character.json gets created
+        sample_world._character = {"name": "Hero", "class": "Mage"}
+        slug = storage.save(sample_world)
+
+        char_path = storage.saves_dir / slug / "character.json"
+        assert char_path.exists()
+        char_path.unlink()
+
+        loaded = storage.load(slug)
+        # _character falls back to state.json payload since character.json is missing
+        assert loaded._character == {"name": "Hero", "class": "Mage"}
+
+    def test_load_with_corrupt_character_file(
+        self, storage: WorldStorage, sample_world: WorldState
+    ) -> None:
+        """If character.json is corrupt, load must succeed silently."""
+        sample_world._character = {"name": "Hero", "class": "Mage"}
+        slug = storage.save(sample_world)
+
+        char_path = storage.saves_dir / slug / "character.json"
+        assert char_path.exists()
+        char_path.write_text("{{{not valid json}}}", encoding="utf-8")
+
+        loaded = storage.load(slug)
+        # _character falls back to state.json payload since character.json is corrupt
+        assert loaded._character == {"name": "Hero", "class": "Mage"}
+
+    def test_load_with_missing_narrative_entries(self, storage: WorldStorage) -> None:
+        """If narrative_entries.json is missing, load must succeed with empty _narrative_entries."""
+        ws = WorldState(_narrative_entries=[{"turn": 1, "text": "hello"}])
+        slug = storage.save(ws)
+
+        narrative_path = storage.saves_dir / slug / "narrative_entries.json"
+        assert narrative_path.exists()
+        narrative_path.unlink()
+
+        loaded = storage.load(slug)
+        # _narrative_entries falls back to state.json payload since file is missing
+        assert loaded._narrative_entries == [{"turn": 1, "text": "hello"}]
+
+    def test_load_with_corrupt_narrative_entries(self, storage: WorldStorage) -> None:
+        """If narrative_entries.json is corrupt, load must succeed silently."""
+        ws = WorldState(_narrative_entries=[{"turn": 1, "text": "hello"}])
+        slug = storage.save(ws)
+
+        narrative_path = storage.saves_dir / slug / "narrative_entries.json"
+        assert narrative_path.exists()
+        narrative_path.write_text("{{{corrupt json}}}", encoding="utf-8")
+
+        loaded = storage.load(slug)
+        # Falls back to payload's _narrative_entries (from state.json)
+        assert loaded._narrative_entries == [{"turn": 1, "text": "hello"}]
+
+    def test_load_with_missing_summary_file(self, storage: WorldStorage) -> None:
+        """If summary.json is missing, load must succeed with summaries from state payload."""
+        ws = WorldState(
+            story_summary=["Story beat"],
+            technical_summary=["Tech note"],
+            meta_summary=["Meta overview"],
+        )
+        slug = storage.save(ws)
+
+        summary_path = storage.saves_dir / slug / "summary.json"
+        assert summary_path.exists()
+        summary_path.unlink()
+
+        loaded = storage.load(slug)
+        # Summaries should come from state.json payload
+        assert loaded.story_summary == ["Story beat"]
+        assert loaded.technical_summary == ["Tech note"]
+        assert loaded.meta_summary == ["Meta overview"]
+
+    def test_load_with_corrupt_summary_file(self, storage: WorldStorage) -> None:
+        """If summary.json is corrupt, load must succeed with summaries from state payload."""
+        ws = WorldState(
+            story_summary=["Story beat"],
+            technical_summary=["Tech note"],
+            meta_summary=["Meta overview"],
+        )
+        slug = storage.save(ws)
+
+        summary_path = storage.saves_dir / slug / "summary.json"
+        assert summary_path.exists()
+        summary_path.write_text("{{{corrupt}}}", encoding="utf-8")
+
+        loaded = storage.load(slug)
+        # Summaries should come from state.json payload
+        assert loaded.story_summary == ["Story beat"]
+        assert loaded.technical_summary == ["Tech note"]
+        assert loaded.meta_summary == ["Meta overview"]
+
+    # ------------------------------------------------------------------
+    # story_summary.json conditional write
+    # ------------------------------------------------------------------
+
+    def test_story_summary_not_written_when_empty(self, storage: WorldStorage) -> None:
+        """Save with empty story_summary must not create story_summary.json."""
+        ws = WorldState(story_summary=[])
+        slug = storage.save(ws)
+
+        story_summary_path = storage.saves_dir / slug / "story_summary.json"
+        assert not story_summary_path.exists()
+
+    def test_story_summary_written_when_not_empty(self, storage: WorldStorage) -> None:
+        """Save with non-empty story_summary must create correct story_summary.json."""
+        ws = WorldState(
+            story_summary=["Turn 1: The hero arrives.", "Turn 2: A mystery unfolds."]
+        )
+        slug = storage.save(ws)
+
+        story_summary_path = storage.saves_dir / slug / "story_summary.json"
+        assert story_summary_path.exists()
+
+        with open(story_summary_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert data["save_version"] == "1.0.0"
+        assert data["schema_name"] == "story_summary"
+        assert "payload" in data
+        assert data["payload"]["entries"] == [
+            "Turn 1: The hero arrives.",
+            "Turn 2: A mystery unfolds.",
+        ]
+
+    # ------------------------------------------------------------------
+    # Missing state.json
+    # ------------------------------------------------------------------
+
+    def test_load_with_missing_state_file(self, storage: WorldStorage) -> None:
+        """Load a save folder that exists but has no state.json must raise FileNotFoundError."""
+        slug = "no_state_file"
+        save_folder = storage.saves_dir / slug
+        save_folder.mkdir()
+        # Deliberately do NOT create state.json
+
+        with pytest.raises(FileNotFoundError, match="State file missing"):
+            storage.load(slug)
+
+    # ------------------------------------------------------------------
+    # Missing payload in state.json
+    # ------------------------------------------------------------------
+
+    def test_load_state_without_payload_field(self, storage: WorldStorage) -> None:
+        """state.json without a 'payload' key must raise ValueError."""
+        slug = "no_payload_field"
+        save_folder = storage.saves_dir / slug
+        save_folder.mkdir()
+
+        state_path = save_folder / "state.json"
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "save_version": "1.0.0",
+                    "schema_name": "world_state",
+                    "schema_version": "1.0.0",
+                    "timestamp": "2024-01-01T00:00:00Z",
+                },
+                f,
+            )
+
+        with pytest.raises(ValueError, match="missing payload"):
+            storage.load(slug)

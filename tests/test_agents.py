@@ -1328,6 +1328,330 @@ class TestTimelineContext:
             f"MAX_TIMELINE_CHARS ({MAX_TIMELINE_CHARS})"
         )
 
+    # ------------------------------------------------------------------
+    # Degradation detail tests
+    # ------------------------------------------------------------------
+
+    def test_degradation_shortens_l2_summaries(self) -> None:
+        """When over MAX_TIMELINE_CHARS, L2 summaries are shortened to 150+``...``."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        # Three long L2 summaries (each ~530 chars formatted)
+        ws.technical_summary = ["A" * 500 for _ in range(3)]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_l3_summary("Campaign meta")
+        dm.history.add_turn("Player action", "DM response")
+
+        # Tight budget forces degradation
+        with patch("app.agents.context_builder.MAX_TIMELINE_CHARS", 50):
+            context = dm._build_context("Hello")
+
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # L3 is preserved
+        assert "[L3 Meta-Summary]" in content
+        assert "Campaign meta" in content
+
+        # L2 summaries appear but are shortened — full long text is truncated
+        assert "[Session Summary: Turns 1-5]" in content
+        # The original 500 "A"s would not survive truncation to 150 chars
+        assert "A" * 200 not in content, (
+            "L2 summary text should be truncated — 200 consecutive A's "
+            "should not appear after shortening to 150 chars"
+        )
+
+    def test_degradation_drops_turns(self) -> None:
+        """After shortening L2 summaries, if still over budget, turns are dropped."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        # Two long L2 summaries + 3 turns
+        ws.technical_summary = ["A" * 500 for _ in range(2)]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_l3_summary("Campaign meta")
+        for i in range(3):
+            dm.history.add_turn(f"Player action {i}", f"DM response {i}")
+        dm.turn_count = 3
+
+        # Extreme budget — turns must be dropped
+        with patch("app.agents.context_builder.MAX_TIMELINE_CHARS", 10):
+            context = dm._build_context("Hello")
+
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # L3 preserved
+        assert "[L3 Meta-Summary]" in content
+
+        # Turns are dropped entirely (no [Turn marker survives)
+        assert "[Turn" not in content, (
+            f"All turns should have been dropped but found [Turn in:\n{content}"
+        )
+
+    def test_degradation_preserves_l3_regardless_of_budget(self) -> None:
+        """L3 entries are never dropped, even under extreme budget pressure."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        ws.technical_summary = ["A" * 500 for _ in range(3)]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_l3_summary("Campaign meta overview")
+        dm.history.add_turn("Player action", "DM response")
+
+        with patch("app.agents.context_builder.MAX_TIMELINE_CHARS", 1):
+            context = dm._build_context("Hello")
+
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        # Timeline message should still exist (L3 is preserved)
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # L3 is present
+        assert "[L3 Meta-Summary]" in content
+        assert "Campaign meta overview" in content
+
+        # All turns dropped under extreme pressure
+        assert "[Turn" not in content
+
+    def test_degradation_preserves_turns_when_budget_met(self) -> None:
+        """Once remaining_to_trim reaches 0, remaining entries are kept as-is."""
+        from unittest.mock import patch
+
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        # One L2 summary just long enough that shortening it covers the excess,
+        # allowing subsequent turns to survive untouched.
+        ws.technical_summary = ["A" * 200]
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_l3_summary("Campaign meta")
+        dm.history.add_turn("Player 0", "Response 0")
+        dm.history.add_turn("Player 1", "Response 1")
+        dm.turn_count = 2
+
+        # Budget tight enough to trigger degradation but loose enough
+        # that shortening the single L2 entry covers the excess.
+        with patch("app.agents.context_builder.MAX_TIMELINE_CHARS", 300):
+            context = dm._build_context("Hello")
+
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # L3 preserved
+        assert "[L3 Meta-Summary]" in content
+
+        # L2 is shortened (truncated to 150 chars + "...")
+        assert "[Session Summary: Turns 1-5]" in content
+        # Original had 200 consecutive A's; shortened has ~121.
+        # Verify the full 200-A streak is gone.
+        assert "A" * 200 not in content, (
+            "L2 summary should be shortened — 200 consecutive A's "
+            "should not appear after truncation"
+        )
+
+        # Turns survive untouched because budget was met after L2 shortening
+        assert "[Turn 1]" in content, "Turn 1 should be preserved"
+        assert "Player: Player 0" in content
+        assert "DM: Response 0" in content
+        assert "[Turn 2]" in content
+        assert "Player: Player 1" in content
+        assert "DM: Response 1" in content
+
+    # ------------------------------------------------------------------
+    # PLACEHOLDER turn format
+    # ------------------------------------------------------------------
+
+    def test_placeholder_turn_shows_truncated_format(self) -> None:
+        """A turn with PLACEHOLDER fidelity shows the truncated (older) format."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        # 5 turns: oldest (index 0) is PLACEHOLDER, rest are FULL
+        for i in range(5):
+            dm.history.add_turn(f"Player action {i}", f"DM response {i}")
+        dm.turn_count = 5
+
+        context = dm._build_context("New action")
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # Oldest turn (index 0 / turn 1) → PLACEHOLDER format with (older)
+        assert "[Turn 1 (older)]" in content, (
+            "Oldest turn should use PLACEHOLDER format with '(older)' label"
+        )
+        # PLACEHOLDER shows truncated user input (no DM line)
+        assert "Player: Player action 0" in content
+        assert "DM: DM response 0" not in content, (
+            "PLACEHOLDER turn should NOT include the DM response line"
+        )
+
+        # Most recent turn (index 4 / turn 5) → FULL format
+        assert "[Turn 5]" in content
+        assert "Player: Player action 4" in content
+        assert "DM: DM response 4" in content
+
+    def test_full_turn_shows_full_format(self) -> None:
+        """A turn with FULL fidelity shows the full Player/DM content."""
+        from app.world.model import WorldState
+
+        ws = WorldState()
+        dm = DungeonMaster(llm_provider=None, world_state=ws, character=None)
+        dm.history.add_turn("I attack the goblin", "The goblin dodges!")
+        dm.turn_count = 1
+
+        context = dm._build_context("I attack again")
+        timeline_msgs = [
+            m for m in context if "Active Memory Context" in m.get("content", "")
+        ]
+        assert len(timeline_msgs) == 1
+        content = timeline_msgs[0]["content"]
+
+        # FULL format has [Turn N] without (older) and includes DM line
+        assert "[Turn 1]" in content
+        assert "[Turn 1 (older)]" not in content
+        assert "Player: I attack the goblin" in content
+        assert "DM: The goblin dodges!" in content
+
+
+# ===========================================================================
+# Plausibility / Ambition Notes
+# ===========================================================================
+
+
+class TestPlausibilityNotes:
+    """Tests for plausibility/ambition note injection in ``build_context``."""
+
+    def test_plausibility_note_injected_when_provided(self) -> None:
+        """When ``plausibility_note`` is provided, it appears as a system message."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        note = "[PLAUSIBILITY NOTE: The player attempts something implausible. DC: 20]"
+        context = dm._build_context("attack", plausibility_note=note)
+
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) == 1
+        assert note_msgs[0]["role"] == "system"
+        assert "implausible" in note_msgs[0]["content"]
+
+    def test_auto_classified_implausible_injects_note(self) -> None:
+        """When auto-classification yields ``implausible``, a note is injected."""
+        from unittest.mock import patch
+
+        from app.character.model import Character
+
+        char = Character(
+            name="Thorn",
+            character_class="Fighter",
+            level=3,
+            hp=24,
+            max_hp=30,
+            ac=18,
+            abilities=_default_abilities(),
+        )
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
+
+        with patch("app.agents.context_builder.classify_action") as mock_classify:
+            mock_classify.return_value = {
+                "category": "implausible",
+                "reason": "Too difficult for a level 3 fighter",
+                "dc": "20",
+            }
+            context = dm._build_context("I jump to the moon")
+
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) == 1
+        assert "implausible" in note_msgs[0]["content"]
+        assert "Too difficult" in note_msgs[0]["content"]
+        assert "DC: 20" in note_msgs[0]["content"]
+
+    def test_auto_classified_ambitious_injects_note(self) -> None:
+        """When auto-classification yields ``ambitious``, a note is injected."""
+        from unittest.mock import patch
+
+        from app.character.model import Character
+
+        char = Character(
+            name="Thorn",
+            character_class="Fighter",
+            level=3,
+            hp=24,
+            max_hp=30,
+            ac=18,
+            abilities=_default_abilities(),
+        )
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
+
+        with patch("app.agents.context_builder.classify_action") as mock_classify:
+            mock_classify.return_value = {
+                "category": "ambitious",
+                "reason": "A stretch for this level",
+                "dc": "17",
+            }
+            context = dm._build_context("I try to leap the chasm")
+
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) == 1
+        assert "ambitious" in note_msgs[0]["content"]
+        assert "DC: 17" in note_msgs[0]["content"]
+
+    def test_no_plausibility_note_when_plausible(self) -> None:
+        """When auto-classification yields ``plausible``, no note is injected."""
+        from unittest.mock import patch
+
+        from app.character.model import Character
+
+        char = Character(
+            name="Thorn",
+            character_class="Fighter",
+            level=3,
+            hp=24,
+            max_hp=30,
+            ac=18,
+            abilities=_default_abilities(),
+        )
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
+
+        with patch("app.agents.context_builder.classify_action") as mock_classify:
+            mock_classify.return_value = {
+                "category": "plausible",
+                "reason": "Reasonable action",
+                "dc": "12",
+            }
+            context = dm._build_context("I swing my sword")
+
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) == 0
+
+    def test_no_plausibility_note_without_character(self) -> None:
+        """When no character is set, auto-classification does not run."""
+        dm = DungeonMaster(llm_provider=None, world_state=None, character=None)
+        context = dm._build_context("I swing my sword")
+
+        note_msgs = [m for m in context if "PLAUSIBILITY NOTE" in m.get("content", "")]
+        assert len(note_msgs) == 0
+
 
 # ===========================================================================
 # Forgetting Mechanism (Task 3.4)
