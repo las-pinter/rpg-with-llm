@@ -15,6 +15,7 @@ from app.rules.plausibility import classify_action
 
 if TYPE_CHECKING:
     from app.agents.dm import DungeonMaster
+    from app.agents.record_keeper import RecordKeeperAgent
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ def build_context(
     dm: DungeonMaster,
     player_input: str,
     plausibility_note: str | None = None,
+    record_keeper: RecordKeeperAgent | None = None,
 ) -> list[dict[str, str]]:
     """Build the message list for the LLM call.
 
@@ -152,6 +154,56 @@ def build_context(
                 ),
             }
         )
+
+    # === RECORD-KEEPER CONTEXT INJECTION ===
+    if record_keeper is not None and dm.world_state is not None:
+        try:
+            # Build a current_narrative from the last few turns
+            narrative_parts = []
+            for turn in dm.history.recent_turns[-3:]:  # last 3 turns
+                narrative_parts.append(f"Player: {turn.get('user', '')}")
+                narrative_parts.append(f"DM: {turn.get('assistant', '')}")
+            current_narrative = "\n".join(narrative_parts)
+
+            rk_context = record_keeper.analyze_pre_dm(
+                player_input=player_input,
+                world_state=dm.world_state,
+                current_narrative=current_narrative,
+            )
+
+            if rk_context.context_text:
+                # Timeline context (truncated to 1000 chars)
+                timeline_text = rk_context.timeline_summary
+                if len(timeline_text) > 1000:
+                    timeline_text = timeline_text[:997] + "..."
+
+                if timeline_text:
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": f"RECORD-KEEPER: Timeline Context\n\n{timeline_text}",
+                        }
+                    )
+
+                # Relevant entities (compact single-line summaries)
+                if rk_context.relevant_entities:
+                    entity_lines = []
+                    for entity in rk_context.relevant_entities:
+                        eid = entity.get("entity_id", "?")
+                        ename = entity.get("name", eid)
+                        etype = entity.get("entity_type", "?")
+                        entity_lines.append(f"  - [{etype}] {ename} ({eid})")
+
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": "RECORD-KEEPER: Relevant Entities\n\n"
+                            + "\n".join(entity_lines),
+                        }
+                    )
+        except Exception:
+            logger.exception("Failed to inject Record-Keeper context")
+            # Don't block the game if record-keeper fails
 
     # --- Timeline context (replaces old summary + full conversation history) ---
     timeline_parts: list[str] = []
