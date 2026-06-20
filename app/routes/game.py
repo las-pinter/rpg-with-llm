@@ -19,6 +19,9 @@ from app.llm.base import (
 from app.llm.config import ProviderConfig, create_provider
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
+from app.agents.record_keeper import RecordKeeperAgent
+from app.agents.entity_persistence import EntityStorage
+from app.agents.tools import set_record_keeper
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +174,14 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
         else None
     )
 
+    # Record-Keeper provider (optional — falls back to DM provider, then None)
+    record_keeper_provider_cfg = _prov_from_json(body, "record_keeper_")
+    record_keeper_provider = (
+        _build_provider_from_dict(record_keeper_provider_cfg)
+        if record_keeper_provider_cfg
+        else None
+    )
+
     # Clean up stale DMs periodically
     _cleanup_stale_dms()
 
@@ -209,6 +220,20 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
         dm._save_slug = save_slug
         dm._storage = _storage
     else:
+        # Create Record-Keeper agent (entity memory & narrative analysis)
+        record_keeper = None
+        if character_id:
+            rk_provider = record_keeper_provider or dm_provider
+            data_dir = Path("data") / "saves" / (save_slug or character_id or "default")
+            entity_storage = EntityStorage(data_dir=data_dir)
+            record_keeper = RecordKeeperAgent(
+                llm_provider=rk_provider,
+                entity_storage=entity_storage,
+                character_name=character.name if character else "",
+            )
+            # Set the module-level reference so the on-demand fetch tool works
+            set_record_keeper(record_keeper)
+
         dm = DungeonMaster(
             llm_provider=dm_provider,
             world_state=world_state,
@@ -217,6 +242,7 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
             summarizer_provider=summarizer_provider,
             storage=_storage,
             save_slug=save_slug,
+            record_keeper=record_keeper,
         )
         if character_id:
             _dm_cache[character_id] = dm
