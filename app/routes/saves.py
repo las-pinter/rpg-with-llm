@@ -1,21 +1,25 @@
 """Save / Load / Reset API routes.
 
 Provides endpoints for persisting, restoring, and deleting game world
-states.  Also includes legacy companion-character helpers for backward
-compatibility with old save formats that used separate ``.char.json``
-files.
+states and related data (character, narrative entries, summaries).
+Uses SaveGameManager for envelope-wrapped, schema-validated I/O and
+WorldStorage for index management and slug generation.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 
 import flask as flask
 from flask import jsonify, request
 
+from app.save_engine.envelope import SaveEnvelope
+from app.save_engine.manager import SaveGameManager
+from app.character.model import Character
+from app.utils import atomic_write
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
 
@@ -24,28 +28,31 @@ logger = logging.getLogger(__name__)
 bp = flask.Blueprint("saves", __name__, url_prefix="/api")
 
 _storage = WorldStorage(data_dir=Path("data"))
+_save_manager = SaveGameManager(data_dir=Path("data"))
+_save_manager.register_defaults()
 
 
 @bp.route("/save", methods=["POST"])
 def save_game() -> tuple[flask.Response, int] | flask.Response:
-    """Persist the current world state (and optionally character) to disk.
+    """Persist the current game state (and optional character, narrative, summary) to disk.
 
     Accepts JSON body with a ``state`` dict (the serialised
     :class:`~app.world.model.WorldState`), an optional ``character``
     dict (the serialised :class:`~app.character.model.Character`),
+    optional ``narrative_entries`` list, optional ``summary`` dict,
     and an optional ``name`` (defaults to an auto-generated name).
 
     Returns
     -------
-    JSON with ``ok``, ``name``, and ``timestamp`` on success.
+    JSON with ``ok`` and ``slug`` on success.
 
     Errors
     ------
     400
-        If the request body is not valid JSON, or ``state`` is missing.
+        If the request body is not valid JSON, ``state`` is missing,
+        or the save data fails schema validation.
     500
-        If the persistence layer raises an error (e.g. invalid name,
-        filesystem failure).
+        If an unexpected internal error occurs.
     """
     if not request.is_json:
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
@@ -62,31 +69,97 @@ def save_game() -> tuple[flask.Response, int] | flask.Response:
 
     name = data.get("name") or ""
     if not name or not name.strip():
-        from datetime import datetime
-
         name = f"Adventure - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     state_dict = data["state"]
     if isinstance(state_dict, dict):
         # Shallow copy to avoid mutating the original request data (Bug 8)
         state_dict = state_dict.copy()
-        # Embed character data inside the state dict for single-file save
-        char_data = data.get("character")
-        if char_data and isinstance(char_data, dict):
-            state_dict["_character"] = char_data
-            state_dict["character_name"] = char_data.get("name", "")
+
+        # Extract character for backward compat: if _character is embedded
+        # in state dict and no separate character field, lift it out
+        character_dict = data.get("character")
+        if character_dict is None and "_character" in state_dict:
+            character_dict = state_dict.pop("_character")
+
+        # Sync character_name / character_id to the world state if we have
+        # separate character data (new-style saves)
+        if character_dict is not None and isinstance(character_dict, dict):
+            if character_dict.get("name"):
+                state_dict["character_name"] = character_dict["name"]
+            if character_dict.get("id"):
+                state_dict["character_id"] = character_dict["id"]
+
         logger.debug(
             "Saving game '%s' with state keys: %s", name, list(state_dict.keys())
         )
     else:
+        character_dict = None
         logger.debug(
             "Saving game '%s' with non-dict state: %s", name, type(state_dict).__name__
         )
 
     try:
         world_state = WorldState.from_dict(state_dict)
-        slug = _storage.save(world_state, name)
+
+        # Generate slug via WorldStorage slug generator
+        slug = _storage._generate_slug(name or "autosave")
+
+        # Prepare buckets for SaveGameManager
+        buckets_data: dict[str, object] = {
+            "world_state": world_state,
+        }
+
+        if character_dict is not None and isinstance(character_dict, dict):
+            buckets_data["character"] = Character.from_dict(character_dict)
+
+        narrative_entries = data.get("narrative_entries")
+        if (
+            narrative_entries is not None
+            and isinstance(narrative_entries, list)
+            and len(narrative_entries) > 0
+        ):
+            buckets_data["narrative_entries"] = {"entries": narrative_entries}
+
+        summary = data.get("summary")
+        if summary is not None and isinstance(summary, dict) and len(summary) > 0:
+            buckets_data["summary"] = summary
+
+        # Write envelope-wrapped, schema-validated files
+        _save_manager.save(slug, buckets_data)
+
+        # Update save index with metadata
+        metadata = {
+            "id": slug,
+            "name": name,
+            "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
+            "character_name": world_state.character_name
+            or world_state.character_id
+            or "Unknown",
+            "level": world_state.turn_count,
+            "turn_count": world_state.turn_count,
+        }
+        _storage._update_index(slug, metadata)
+
+        # Write story_summary.json for backward compat with the get_story
+        # endpoint, which reads this file directly (Task 4.1)
+        if world_state.story_summary:
+            story_summary_data = SaveEnvelope(
+                save_version="1.0.0",
+                schema_name="story_summary",
+                schema_version="1.0.0",
+                payload={"entries": world_state.story_summary},
+            ).to_dict()
+            atomic_write(
+                _storage.saves_dir / slug / "story_summary.json",
+                story_summary_data,
+                indent=2,
+            )
+
         logger.debug("Game '%s' saved successfully with slug '%s'", name, slug)
+    except ValueError as exc:
+        logger.warning("Failed to save game '%s': %s", name, exc)
+        return jsonify({"ok": False, "error": str(exc)}), 400
     except Exception:
         logger.exception("Failed to save game '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
@@ -106,67 +179,37 @@ def list_saves() -> tuple[flask.Response, int] | flask.Response:
     return jsonify({"ok": True, "saves": saves})
 
 
-def _load_companion_character(slug: str) -> dict | None:
-    """Load companion character data for a save, or None.
-
-    This is a backward-compatibility shim for old saves that used
-    separate .char.json files. New saves embed character data directly
-    in the world state file.
-    """
-    char_dir = (Path("data") / "saves").resolve()
-    save_key = hashlib.sha256(slug.encode("utf-8")).hexdigest()
-    char_path = (char_dir / f"{save_key}.char.json").resolve()
-    try:
-        char_path.relative_to(char_dir)
-    except ValueError:
-        return None
-    if not char_path.exists():
-        return None
-    try:
-        with open(char_path, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
-
-
-def _delete_companion_character(slug: str) -> None:
-    """Delete orphan companion character file for a save, if it exists."""
-    char_dir = (Path("data") / "saves").resolve()
-    save_key = hashlib.sha256(slug.encode("utf-8")).hexdigest()
-    char_path = (char_dir / f"{save_key}.char.json").resolve()
-    try:
-        char_path.relative_to(char_dir)
-    except ValueError:
-        return
-    try:
-        char_path.unlink(missing_ok=True)
-    except OSError:
-        pass
-
-
 @bp.route("/load/<string:slug>", methods=["POST"])
 def load_game(slug: str) -> tuple[flask.Response, int] | flask.Response:
-    """Restore a previously saved world state.
+    """Restore a previously saved game state.
 
     Returns
     -------
     JSON with ``ok``, the full ``state`` dict, and optional
-    ``character`` data on success.
+    ``character`` dict on success.
 
     Errors
     ------
     404
         If no save with the given *slug* exists.
     400
-        If the save file is corrupt or unreadable.
+        If the save data is corrupt or fails validation.
+    500
+        If an unexpected internal error occurs.
     """
     try:
-        world_state = _storage.load(slug)
+        result = _save_manager.load(slug)
+        world_state: WorldState | None = result.get("world_state")
+        character: Character | None = result.get("character")
+
+        state_dict = world_state.to_dict() if world_state else {}
+        char_dict = character.to_dict() if character else None
+
         logger.debug(
             "Loaded game '%s' — location=%s, turn=%d",
             slug,
-            world_state.current_location,
-            world_state.turn_count,
+            getattr(world_state, "current_location", "unknown"),
+            getattr(world_state, "turn_count", 0),
         )
     except FileNotFoundError:
         return jsonify({"ok": False, "error": f"Save '{slug}' not found"}), 404
@@ -180,15 +223,10 @@ def load_game(slug: str) -> tuple[flask.Response, int] | flask.Response:
         logger.exception("Failed to load save '%s'", slug)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
-    # Extract character data from embedded _character field
-    char_data = world_state._character
-    if char_data is None:
-        # Backward compat: try loading from old companion file
-        char_data = _load_companion_character(slug)
-    result: dict[str, object] = {"ok": True, "state": world_state.to_dict()}
-    if char_data is not None:
-        result["character"] = char_data
-    return jsonify(result)
+    response: dict[str, object] = {"ok": True, "state": state_dict}
+    if char_dict is not None:
+        response["character"] = char_dict
+    return jsonify(response)
 
 
 @bp.route("/delete/<string:slug>", methods=["DELETE"])
@@ -216,9 +254,6 @@ def delete_save(slug: str) -> tuple[flask.Response, int] | flask.Response:
             jsonify({"ok": False, "error": "Internal server error"}),
             500,
         )
-
-    # Clean up any orphan .char.json companion files (legacy format)
-    _delete_companion_character(slug)
 
     return jsonify({"ok": True})
 
