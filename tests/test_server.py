@@ -12,6 +12,7 @@ import pytest
 from app.agents.dm import DungeonMaster
 from app.character.creation import CharacterStorage
 from app.llm.base import LLMProvider, ModelInfo, _model_cache
+from app.save_engine.manager import SaveGameManager
 from app.server import app
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
@@ -22,7 +23,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Create a test client with isolated storage directories."""
     tmp_world_storage = WorldStorage(data_dir=tmp_path)
     tmp_char_storage = CharacterStorage(data_dir=tmp_path)
+    tmp_save_manager = SaveGameManager(data_dir=tmp_path)
+    tmp_save_manager.register_defaults()
     monkeypatch.setattr("app.routes.saves._storage", tmp_world_storage)
+    monkeypatch.setattr("app.routes.saves._save_manager", tmp_save_manager)
     monkeypatch.setattr("app.routes.characters._character_storage", tmp_char_storage)
 
     with app.test_client() as c:
