@@ -1,0 +1,253 @@
+[
+    {
+        "id": "goblin_001",
+        "name": "Goblin",
+        "ac": 15,
+        "hp": 7,
+        "max_hp": 7,
+        "abilities": {
+            "str": 8,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 8,
+            "cha": 8
+        },
+        "skills": ["stealth"],
+        "resistances": [],
+        "vulnerabilities": [],
+        "immunities": [],
+        "actions": [
+            {
+                "name": "Scimitar",
+                "description": "Melee Weapon Attack",
+                "damage": "1d6+2",
+                "attack_bonus": 4
+            },
+            {
+                "name": "Shortbow",
+                "description": "Ranged Weapon Attack",
+                "damage": "1d6+2",
+                "attack_bonus": 4
+            }
+        ],
+        "xp_value": 50,
+        "cr": 0.25,
+        "size": "Small",
+        "movement": {"walk": 30},
+        "saving_throws": {
+            "str": false,
+            "dex": false,
+            "con": false,
+            "int": false,
+            "wis": false,
+            "cha": false
+        },
+        "senses": ["darkvision 60 ft"],
+        "languages": ["Common", "Goblin"],
+        "special_abilities": [
+            {
+                "name": "Nimble Escape",
+                "description": "The goblin can take the Disengage or Hide action as a bonus action on each of its turns."
+            }
+        ]
+    },
+    {
+        "id": "skeleton_001",
+        "name": "Skeleton",
+        "ac": 13,
+        "hp": 13,
+        "max_hp": 13,
+        "abilities": {
+            "str": 10,
+            "dex": 14,
+            "con": 15,
+            "int": 6,
+            "wis": 8,
+            "cha": 5
+        },
+        "skills": [],
+        "resistances": [],
+        "vulnerabilities": ["bludgeoning"],
+        "immunities": ["poison", "exhaustion"],
+        "actions": [
+            {
+                "name": "Shortsword",
+                "description": "Melee Weapon Attack",
+                "damage": "1d6+2",
+                "attack_bonus": 4
+            },
+            {
+                "name": "Shortbow",
+                "description": "Ranged Weapon Attack",
+                "damage": "1d6+2",
+                "attack_bonus": 4
+            }
+        ],
+        "xp_value": 50,
+        "cr": 0.25,
+        "size": "Medium",
+        "movement": {"walk": 30},
+        "saving_throws": {
+            "str": false,
+            "dex": false,
+            "con": false,
+            "int": false,
+            "wis": false,
+            "cha": false
+        },
+        "senses": ["darkvision 60 ft"],
+        "languages": [],
+        "special_abilities": []
+    },
+    {
+        "id": "wolf_001",
+        "name": "Wolf",
+        "ac": 13,
+        "hp": 11,
+        "max_hp": 11,
+        "abilities": {
+            "str": 12,
+            "dex": 15,
+            "con": 12,
+            "int": 3,
+            "wis": 12,
+            "cha": 6
+        },
+        "skills": ["perception", "stealth"],
+        "resistances": [],
+        "vulnerabilities": [],
+        "immunities": [],
+        "actions": [
+            {
+                "name": "Bite",
+                "description": "Melee Weapon Attack",
+                "damage": "1d6+1",
+                "attack_bonus": 4
+            }
+        ],
+        "xp_value": 50,
+        "cr": 0.25,
+        "size": "Medium",
+        "movement": {"walk": 40},
+        "saving_throws": {
+            "str": false,
+            "dex": false,
+            "con": false,
+            "int": false,
+            "wis": false,
+            "cha": false
+        },
+        "senses": ["darkvision 60 ft", "passive Perception 13"],
+        "languages": [],
+        "special_abilities": [
+            {
+                "name": "Keen Hearing and Smell",
+                "description": "The wolf has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+            },
+            {
+                "name": "Pack Tactics",
+                "description": "The wolf has advantage on attack rolls against a creature if at least one of the wolf's allies is within 5 feet of the creature and the ally isn't incapacitated."
+            }
+        ]
+    },
+    {
+        "id": "giant_rat_001",
+        "name": "Giant Rat",
+        "ac": 12,
+        "hp": 7,
+        "max_hp": 7,
+        "abilities": {
+            "str": 7,
+            "dex": 15,
+            "con": 11,
+            "int": 3,
+            "wis": 10,
+            "cha": 4
+        },
+        "skills": [],
+        "resistances": [],
+        "vulnerabilities": [],
+        "immunities": [],
+        "actions": [
+            {
+                "name": "Bite",
+                "description": "Melee Weapon Attack",
+                "damage": "1d4+2",
+                "attack_bonus": 4
+            }
+        ],
+        "xp_value": 25,
+        "cr": 0.125,
+        "size": "Small",
+        "movement": {"walk": 30},
+        "saving_throws": {
+            "str": false,
+            "dex": false,
+            "con": false,
+            "int": false,
+            "wis": false,
+            "cha": false
+        },
+        "senses": ["darkvision 60 ft"],
+        "languages": [],
+        "special_abilities": [
+            {
+                "name": "Keen Smell",
+                "description": "The giant rat has advantage on Wisdom (Perception) checks that rely on smell."
+            },
+            {
+                "name": "Pack Tactics",
+                "description": "The giant rat has advantage on attack rolls against a creature if at least one of the rat's allies is within 5 feet of the creature and the ally isn't incapacitated."
+            }
+        ]
+    },
+    {
+        "id": "bandit_001",
+        "name": "Bandit",
+        "ac": 12,
+        "hp": 11,
+        "max_hp": 11,
+        "abilities": {
+            "str": 11,
+            "dex": 12,
+            "con": 12,
+            "int": 10,
+            "wis": 10,
+            "cha": 10
+        },
+        "skills": ["perception", "stealth"],
+        "resistances": [],
+        "vulnerabilities": [],
+        "immunities": [],
+        "actions": [
+            {
+                "name": "Scimitar",
+                "description": "Melee Weapon Attack",
+                "damage": "1d6+1",
+                "attack_bonus": 3
+            },
+            {
+                "name": "Light Crossbow",
+                "description": "Ranged Weapon Attack",
+                "damage": "1d8+1",
+                "attack_bonus": 3
+            }
+        ],
+        "xp_value": 25,
+        "cr": 0.125,
+        "size": "Medium",
+        "movement": {"walk": 30},
+        "saving_throws": {
+            "str": false,
+            "dex": false,
+            "con": false,
+            "int": false,
+            "wis": false,
+            "cha": false
+        },
+        "senses": [],
+        "languages": ["Common"],
+        "special_abilities": []
+    }
+]
