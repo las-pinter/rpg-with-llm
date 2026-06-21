@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.character.derived import prepare_base_data, prepare_embedded_data
+from app.character.derived import (
+    prepare_base_data,
+    prepare_derived_data,
+    prepare_embedded_data,
+)
+from app.character.items import Item, ItemType
 from app.character.model import STANDARD_ABILITIES, CharacterRecord
 
 # ---------------------------------------------------------------------------
@@ -62,6 +67,21 @@ def _make_record_unvalidated(
     record.backstory = ""
     record.hooks = []
     return record
+
+
+def _make_item(
+    name: str,
+    item_type: ItemType,
+    weight: float = 0.0,
+    properties: dict | None = None,
+) -> Item:
+    """Create a simple Item for testing."""
+    return Item(
+        name=name,
+        item_type=item_type,
+        weight=weight,
+        properties=properties or {},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -477,3 +497,499 @@ class TestPrepareEmbeddedData:
         original_name = record.name
         prepare_embedded_data(base, record)
         assert record.name == original_name
+
+
+class TestPrepareDerivedData:
+    """Tests for prepare_derived_data — AC, initiative, encumbrance, attack bonuses."""
+
+    def _make_record_with_items(
+        self,
+        abilities: dict[str, int] | None = None,
+        level: int = 1,
+        character_class: str = "Fighter",
+        inventory: list[Item] | None = None,
+        equipped_items: list[str] | None = None,
+        skills: list[str] | None = None,
+        name: str = "Test",
+    ) -> CharacterRecord:
+        """Helper to create a record with inventory."""
+        if abilities is None:
+            abilities = {a: 10 for a in STANDARD_ABILITIES}
+        if inventory is None:
+            inventory = []
+        if equipped_items is None:
+            equipped_items = []
+        record = _make_record(
+            name=name,
+            abilities=abilities,
+            level=level,
+            character_class=character_class,
+            skills=skills or [],
+        )
+        record.inventory = inventory
+        record.equipped_items = equipped_items
+        return record
+
+    def _compute(self, record: CharacterRecord) -> dict:
+        """Run all three pipeline phases and return prepare_derived_data result."""
+        base = prepare_base_data(record)
+        embedded = prepare_embedded_data(base, record)
+        return prepare_derived_data(embedded, base, record)
+
+    # ------------------------------------------------------------------
+    # AC Tests
+    # ------------------------------------------------------------------
+
+    def test_ac_no_armor(self):
+        """Without armor, AC = 10 + DEX modifier."""
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+        )
+        result = self._compute(record)
+        assert result["ac"] == 12  # 10 + 2 (DEX 14)
+
+    def test_ac_light_armor(self):
+        """Light armor adds its armor_bonus and allows full DEX."""
+        armor = _make_item(
+            "Leather Armor",
+            ItemType.ARMOR,
+            weight=10.0,
+            properties={"armor_bonus": 11, "armor_category": "light"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=[armor],
+            equipped_items=[armor.id],
+        )
+        result = self._compute(record)
+        assert result["ac"] == 13  # 11 (Leather) + 2 (DEX)
+
+    def test_ac_medium_armor_caps_dex(self):
+        """Medium armor caps DEX modifier at +2."""
+        armor = _make_item(
+            "Chain Shirt",
+            ItemType.ARMOR,
+            weight=20.0,
+            properties={"armor_bonus": 13, "armor_category": "medium"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 18,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=[armor],
+            equipped_items=[armor.id],
+        )
+        result = self._compute(record)
+        # DEX 18 gives +4, but medium armor caps at +2, so AC = 13 + 2 = 15
+        assert result["ac"] == 15
+
+    def test_ac_heavy_armor_no_dex(self):
+        """Heavy armor does not add DEX modifier."""
+        armor = _make_item(
+            "Chain Mail",
+            ItemType.ARMOR,
+            weight=55.0,
+            properties={"armor_bonus": 16, "armor_category": "heavy"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=[armor],
+            equipped_items=[armor.id],
+        )
+        result = self._compute(record)
+        assert result["ac"] == 16  # Chain Mail is flat 16
+
+    def test_ac_with_shield(self):
+        """Shield adds +2 AC on top of other armor."""
+        body = _make_item(
+            "Chain Mail",
+            ItemType.ARMOR,
+            weight=55.0,
+            properties={"armor_bonus": 16, "armor_category": "heavy"},
+        )
+        shield = _make_item(
+            "Shield",
+            ItemType.ARMOR,
+            weight=6.0,
+            properties={"armor_bonus": 2, "armor_category": "shield"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=[body, shield],
+            equipped_items=[body.id, shield.id],
+        )
+        result = self._compute(record)
+        assert result["ac"] == 18  # 16 (Chain Mail) + 2 (Shield)
+
+    def test_ac_light_armor_with_shield(self):
+        """Light armor + shield = armor AC + DEX + shield."""
+        body = _make_item(
+            "Leather Armor",
+            ItemType.ARMOR,
+            weight=10.0,
+            properties={"armor_bonus": 11, "armor_category": "light"},
+        )
+        shield = _make_item(
+            "Shield",
+            ItemType.ARMOR,
+            weight=6.0,
+            properties={"armor_bonus": 2, "armor_category": "shield"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=[body, shield],
+            equipped_items=[body.id, shield.id],
+        )
+        result = self._compute(record)
+        assert result["ac"] == 15  # 11 + 2 (DEX) + 2 (shield) = 15
+
+    def test_ac_not_equipped_armor_not_counted(self):
+        """Items in inventory but not equipped don't affect AC."""
+        armor = _make_item(
+            "Chain Mail",
+            ItemType.ARMOR,
+            weight=55.0,
+            properties={"armor_bonus": 16, "armor_category": "heavy"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=[armor],
+            equipped_items=[],  # Not equipped!
+        )
+        result = self._compute(record)
+        assert result["ac"] == 10  # Unarmored
+
+    # ------------------------------------------------------------------
+    # Initiative Tests
+    # ------------------------------------------------------------------
+
+    def test_initiative_equals_dex_modifier(self):
+        """Initiative = DEX modifier."""
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+        )
+        result = self._compute(record)
+        assert result["initiative"] == 2
+
+    def test_initiative_negative_dex(self):
+        """Initiative can be negative with low DEX."""
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 6,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+        )
+        result = self._compute(record)
+        assert result["initiative"] == -2
+
+    # ------------------------------------------------------------------
+    # Encumbrance Tests
+    # ------------------------------------------------------------------
+
+    def test_encumbrance_empty_inventory(self):
+        """Empty inventory has 0 weight and 'normal' status."""
+        record = self._make_record_with_items()
+        result = self._compute(record)
+        assert result["encumbrance"]["current"] == 0
+        assert result["encumbrance"]["status"] == "normal"
+
+    def test_encumbrance_normal_load(self):
+        """Weight ≤ STR×5 is 'normal'."""
+        items = [
+            _make_item("Sword", ItemType.WEAPON, weight=3.0),
+            _make_item("Torch", ItemType.TOOL, weight=1.0),
+        ]
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=items,
+        )
+        result = self._compute(record)
+        assert result["encumbrance"]["current"] == 4.0
+        assert result["encumbrance"]["max"] == 150  # STR 10 * 15
+        assert result["encumbrance"]["status"] == "normal"
+
+    def test_encumbrance_encumbered(self):
+        """Weight between STR×5 and STR×10 is 'encumbered'."""
+        items = [_make_item("Heavy Rock", ItemType.MISC, weight=60.0)]
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=items,
+        )
+        result = self._compute(record)
+        assert result["encumbrance"]["status"] == "encumbered"  # 60 > 50
+
+    def test_encumbrance_heavily_encumbered(self):
+        """Weight between STR×10 and STR×15 is 'heavily encumbered'."""
+        items = [_make_item("Very Heavy Rock", ItemType.MISC, weight=120.0)]
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=items,
+        )
+        result = self._compute(record)
+        assert result["encumbrance"]["status"] == "heavily encumbered"
+
+    def test_encumbrance_at_boundary(self):
+        """Exactly at STR×5 is normal, STR×5+1 is encumbered."""
+        # At exactly STR×5 (50 for STR 10): not > 50, so normal
+        items = [_make_item("Boundary Load", ItemType.MISC, weight=50.0)]
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=items,
+        )
+        assert self._compute(record)["encumbrance"]["status"] == "normal"
+
+        # At STR×5 + 1 (51 for STR 10): > 50, so encumbered
+        items2 = [_make_item("Encumbering Load", ItemType.MISC, weight=51.0)]
+        record2 = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            inventory=items2,
+        )
+        assert self._compute(record2)["encumbrance"]["status"] == "encumbered"
+
+    # ------------------------------------------------------------------
+    # Attack Bonus Tests
+    # ------------------------------------------------------------------
+
+    def test_attack_bonus_melee_uses_strength(self):
+        """Melee attack = proficiency_bonus + STR modifier."""
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 16,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            level=1,
+            character_class="Fighter",
+        )
+        result = self._compute(record)
+        assert result["attack_bonus"]["melee"] == 5  # +2 prof + 3 STR
+
+    def test_attack_bonus_ranged_uses_dexterity(self):
+        """Ranged attack = proficiency_bonus + DEX modifier."""
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 16,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            level=1,
+            character_class="Rogue",
+        )
+        result = self._compute(record)
+        assert result["attack_bonus"]["ranged"] == 5  # +2 prof + 3 DEX
+
+    @pytest.mark.parametrize(
+        "char_class,expected_ability,expected_mod",
+        [
+            ("Mage", "INT", 1),  # Mage uses INT (INT 12 → +1)
+            ("Cleric", "WIS", 3),  # Cleric uses WIS (WIS 16 → +3)
+            ("Fighter", "INT", 1),  # Fighter uses INT (INT 12 → +1)
+            ("Rogue", "INT", 1),  # Rogue uses INT (INT 12 → +1)
+        ],
+    )
+    def test_attack_bonus_spell_by_class(
+        self, char_class: str, expected_ability: str, expected_mod: int
+    ):
+        """Spell attack = proficiency_bonus + class-specific ability modifier."""
+        abilities = {
+            "STR": 10,
+            "DEX": 10,
+            "CON": 10,
+            "INT": 12,
+            "WIS": 16,
+            "CHA": 10,
+        }
+        record = self._make_record_with_items(
+            abilities=abilities, level=1, character_class=char_class
+        )
+        result = self._compute(record)
+        # prof bonus (+2) + ability modifier
+        assert result["attack_bonus"]["spell"] == 2 + expected_mod, (
+            f"{char_class} spell attack should use {expected_ability}"
+        )
+
+    def test_attack_bonus_has_all_three_keys(self):
+        """Attack bonus dict has melee, ranged, spell keys."""
+        record = self._make_record_with_items()
+        result = self._compute(record)
+        assert set(result["attack_bonus"].keys()) == {"melee", "ranged", "spell"}
+
+    # ------------------------------------------------------------------
+    # Formula Tests
+    # ------------------------------------------------------------------
+
+    def test_formulas_contains_ac_breakdown(self):
+        """Formulas include AC breakdown string."""
+        record = self._make_record_with_items()
+        result = self._compute(record)
+        assert "ac" in result["formulas"]
+        assert "10 (base)" in result["formulas"]["ac"]
+
+    def test_formulas_contains_initiative(self):
+        """Formulas include initiative breakdown."""
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 10,
+                "DEX": 14,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+        )
+        result = self._compute(record)
+        assert "initiative" in result["formulas"]
+
+    # ------------------------------------------------------------------
+    # Pure function tests
+    # ------------------------------------------------------------------
+
+    def test_deterministic_same_input_same_output(self):
+        """Same input always produces same output."""
+        armor = _make_item(
+            "Leather Armor",
+            ItemType.ARMOR,
+            weight=10.0,
+            properties={"armor_bonus": 11, "armor_category": "light"},
+        )
+        record = self._make_record_with_items(
+            abilities={
+                "STR": 15,
+                "DEX": 14,
+                "CON": 13,
+                "INT": 10,
+                "WIS": 12,
+                "CHA": 8,
+            },
+            level=3,
+            character_class="Rogue",
+            inventory=[armor],
+            equipped_items=[armor.id],
+        )
+        base = prepare_base_data(record)
+        embedded = prepare_embedded_data(base, record)
+        result1 = prepare_derived_data(embedded, base, record)
+        result2 = prepare_derived_data(embedded, base, record)
+        assert result1 == result2
+
+    def test_does_not_mutate_record(self):
+        """Function does not modify the input record."""
+        record = self._make_record_with_items(name="TestHero")
+        base = prepare_base_data(record)
+        embedded = prepare_embedded_data(base, record)
+        original_name = record.name
+        prepare_derived_data(embedded, base, record)
+        assert record.name == original_name
+
+    def test_returns_exactly_five_keys(self):
+        """Result dict has exactly five expected keys."""
+        record = self._make_record_with_items()
+        base = prepare_base_data(record)
+        embedded = prepare_embedded_data(base, record)
+        result = prepare_derived_data(embedded, base, record)
+        assert set(result.keys()) == {
+            "ac",
+            "initiative",
+            "encumbrance",
+            "attack_bonus",
+            "formulas",
+        }
