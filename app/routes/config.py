@@ -12,7 +12,7 @@ import flask as flask
 from flask import jsonify
 
 from app.character.model import (
-    _CLASS_TEMPLATES,
+    _LEGACY_CLASS_TEMPLATES,
     ASSISTED_CREATION_QUESTIONS,
     MAX_POINTS,
     MAX_SCORE,
@@ -44,8 +44,10 @@ def get_character_rules() -> flask.Response:
 
     # Make a shallow copy of class templates so we don't mutate the
     # originals if the caller later tweaks them.
+    # Note: uses _LEGACY_CLASS_TEMPLATES because the frontend expects
+    # hp/ac fields (not Item/ResourceData objects).
     class_templates: dict[str, dict] = {
-        cls: dict(tmpl) for cls, tmpl in _CLASS_TEMPLATES.items()
+        cls: dict(tmpl) for cls, tmpl in _LEGACY_CLASS_TEMPLATES.items()
     }
 
     return jsonify(

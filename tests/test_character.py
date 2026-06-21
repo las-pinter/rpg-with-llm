@@ -14,7 +14,15 @@ from app.character.creation import (
     CharacterGenerationError,
     CharacterStorage,
 )
-from app.character.model import STANDARD_ABILITIES, VALID_CLASSES, Character
+from app.character.items import Item, ItemType
+from app.character.model import (
+    STANDARD_ABILITIES,
+    VALID_CLASSES,
+    Character,
+    CharacterRecord,
+    DerivedSheet,
+)
+from app.character.resources import ResourceData
 
 
 def _make_minimal_character(**overrides: object) -> Character:
@@ -1386,3 +1394,525 @@ class TestAssistedCreation:
         user_content = next(m["content"] for m in messages if m["role"] == "user")
         assert "Thorne Ironveil" in system_content
         assert "Thorne Ironveil" not in user_content
+
+
+# ---------------------------------------------------------------------------
+# CharacterRecord — Task 1.4
+# ---------------------------------------------------------------------------
+
+
+def _make_minimal_record(**overrides: object) -> CharacterRecord:
+    """Build a minimally-valid CharacterRecord for use across tests."""
+    defaults: dict[str, object] = {
+        "name": "Borin",
+        "character_class": "Fighter",
+        "abilities": {a: 10 for a in STANDARD_ABILITIES},
+    }
+    defaults.update(overrides)
+    return CharacterRecord(**defaults)  # type: ignore[arg-type]
+
+
+class TestCharacterRecord:
+    """Tests for the CharacterRecord dataclass."""
+
+    def test_create_with_all_fields(self) -> None:
+        """CharacterRecord must store all player-choice fields."""
+        record = CharacterRecord(
+            name="Zara Moonshadow",
+            character_class="Rogue",
+            level=3,
+            xp=900,
+            abilities={
+                "STR": 10,
+                "DEX": 16,
+                "CON": 13,
+                "INT": 14,
+                "WIS": 12,
+                "CHA": 10,
+            },
+            skills=["Stealth", "Perception", "Sleight of Hand"],
+            gold=50,
+            inventory=[
+                Item(name="Shortsword", item_type=ItemType.WEAPON, weight=2.0),
+            ],
+            equipped_items=["bow_id"],
+            resources={"hp": ResourceData(value=20, max=20)},
+            appearance="Elven, silver hair",
+            personality="Curious",
+            backstory="Grew up in the woods.",
+            hooks=["Find the lost artifact"],
+        )
+        assert record.name == "Zara Moonshadow"
+        assert record.character_class == "Rogue"
+        assert record.level == 3
+        assert record.xp == 900
+        assert record.abilities["DEX"] == 16
+        assert "Stealth" in record.skills
+        assert record.gold == 50
+        assert len(record.inventory) == 1
+        assert isinstance(record.inventory[0], Item)
+        assert record.inventory[0].name == "Shortsword"
+        assert record.equipped_items == ["bow_id"]
+        assert "hp" in record.resources
+        assert isinstance(record.resources["hp"], ResourceData)
+        assert record.resources["hp"].value == 20
+        assert record.appearance == "Elven, silver hair"
+        assert record.personality == "Curious"
+        assert record.backstory == "Grew up in the woods."
+        assert record.hooks == ["Find the lost artifact"]
+
+    def test_defaults(self) -> None:
+        """CharacterRecord must have sensible defaults for all fields."""
+        record = CharacterRecord(
+            name="TestHero",
+            abilities={a: 10 for a in STANDARD_ABILITIES},
+        )
+        assert isinstance(record.id, str) and len(record.id) > 0
+        assert record.name == "TestHero"
+        assert record.character_class == "Fighter"
+        assert record.level == 1
+        assert record.xp == 0
+        assert record.abilities == {a: 10 for a in STANDARD_ABILITIES}
+        assert record.skills == []
+        assert record.gold == 0
+        assert record.inventory == []
+        assert record.equipped_items == []
+        assert record.resources == {}
+        assert record.appearance == ""
+        assert record.personality == ""
+        assert record.backstory == ""
+        assert record.hooks == []
+
+    def test_does_not_store_ac_hp_max_hp(self) -> None:
+        """CharacterRecord must NOT have ac, hp, or max_hp fields."""
+        record = _make_minimal_record()
+        assert not hasattr(record, "ac")
+        assert not hasattr(record, "hp")
+        assert not hasattr(record, "max_hp")
+
+    def test_inventory_is_list_of_items(self) -> None:
+        """CharacterRecord.inventory must be a list[Item], not list[str]."""
+        record = _make_minimal_record()
+        assert record.inventory == []
+        record.inventory.append(Item(name="Test Sword", item_type=ItemType.WEAPON))
+        assert len(record.inventory) == 1
+        assert isinstance(record.inventory[0], Item)
+
+    def test_resources_is_dict_of_resource_data(self) -> None:
+        """CharacterRecord.resources must be a dict[str, ResourceData]."""
+        record = _make_minimal_record()
+        assert record.resources == {}
+        record.resources["hp"] = ResourceData(value=15, max=15)
+        assert isinstance(record.resources["hp"], ResourceData)
+
+    @pytest.mark.parametrize("class_name", sorted(VALID_CLASSES))
+    def test_create_default_for_each_class(self, class_name: str) -> None:
+        """CharacterRecord.create_default must work for all four classes."""
+        record = CharacterRecord.create_default("TestHero", class_name)
+        assert record.name == "TestHero"
+        assert record.character_class == class_name
+        assert record.level == 1
+        assert record.xp == 0
+        assert len(record.abilities) == 6
+        assert all(a in record.abilities for a in STANDARD_ABILITIES)
+        assert len(record.skills) >= 1
+        assert record.gold >= 0
+        assert len(record.inventory) >= 1
+        assert all(isinstance(item, Item) for item in record.inventory)
+        assert "hp" in record.resources
+        assert isinstance(record.resources["hp"], ResourceData)
+        assert record.resources["hp"].value > 0
+        assert record.resources["hp"].max is not None  # max can be int or str
+        if isinstance(record.resources["hp"].max, int):
+            assert record.resources["hp"].max > 0
+
+    @pytest.mark.parametrize(
+        "class_name, expected_abilities",
+        [
+            (
+                "Fighter",
+                {"STR": 15, "DEX": 13, "CON": 14, "WIS": 12, "INT": 10, "CHA": 8},
+            ),
+            (
+                "Rogue",
+                {"STR": 8, "DEX": 15, "CON": 13, "INT": 14, "WIS": 12, "CHA": 10},
+            ),
+            (
+                "Mage",
+                {"STR": 8, "DEX": 13, "CON": 14, "INT": 15, "WIS": 12, "CHA": 10},
+            ),
+            (
+                "Cleric",
+                {"STR": 13, "DEX": 8, "CON": 14, "INT": 10, "WIS": 15, "CHA": 12},
+            ),
+        ],
+    )
+    def test_create_default_abilities(
+        self,
+        class_name: str,
+        expected_abilities: dict[str, int],
+    ) -> None:
+        """Each class must produce the correct ability score array."""
+        record = CharacterRecord.create_default("Test", class_name)
+        assert record.abilities == expected_abilities
+
+    @pytest.mark.parametrize(
+        "class_name, expected_skills",
+        [
+            ("Fighter", ["Athletics", "Perception"]),
+            ("Rogue", ["Stealth", "Sleight of Hand", "Perception"]),
+            ("Mage", ["Arcana", "Investigation"]),
+            ("Cleric", ["Religion", "Medicine"]),
+        ],
+    )
+    def test_create_default_skills(
+        self,
+        class_name: str,
+        expected_skills: list[str],
+    ) -> None:
+        """Each class must produce the correct skill proficiencies."""
+        record = CharacterRecord.create_default("Test", class_name)
+        assert record.skills == expected_skills
+
+    @pytest.mark.parametrize(
+        "class_name, expected_gold",
+        [
+            ("Fighter", 10),
+            ("Rogue", 15),
+            ("Mage", 20),
+            ("Cleric", 10),
+        ],
+    )
+    def test_create_default_gold(self, class_name: str, expected_gold: int) -> None:
+        """Each class must start with the correct gold."""
+        record = CharacterRecord.create_default("Test", class_name)
+        assert record.gold == expected_gold
+
+    def test_create_default_level_and_xp(self) -> None:
+        """create_default must set level=1 and xp=0 for all classes."""
+        for cls_name in VALID_CLASSES:
+            record = CharacterRecord.create_default("Test", cls_name)
+            assert record.level == 1
+            assert record.xp == 0
+
+    def test_create_default_invalid_class_raises_value_error(self) -> None:
+        """create_default with an invalid class must raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid character class"):
+            CharacterRecord.create_default("Test", "Barbarian")
+
+    def test_to_dict_returns_dict_with_all_fields(self) -> None:
+        """to_dict must return a dictionary with all expected keys."""
+        record = CharacterRecord.create_default("Lirael", "Mage")
+        data = record.to_dict()
+        assert isinstance(data, dict)
+        for field_name in (
+            "id",
+            "name",
+            "appearance",
+            "personality",
+            "backstory",
+            "hooks",
+            "character_class",
+            "level",
+            "xp",
+            "abilities",
+            "skills",
+            "gold",
+            "inventory",
+            "equipped_items",
+            "resources",
+        ):
+            assert field_name in data, f"Field {field_name!r} missing from to_dict()"
+        # AC, HP, max_hp must NOT appear
+        assert "ac" not in data
+        assert "hp" not in data
+        assert "max_hp" not in data
+
+    def test_to_dict_serializes_items(self) -> None:
+        """Inventory items in to_dict must be serialized dicts, not Item objects."""
+        record = CharacterRecord.create_default("Korg", "Fighter")
+        data = record.to_dict()
+        assert isinstance(data["inventory"], list)
+        if data["inventory"]:
+            assert isinstance(data["inventory"][0], dict)
+            assert "name" in data["inventory"][0]
+            assert "item_type" in data["inventory"][0]
+
+    def test_to_dict_serializes_resources(self) -> None:
+        """Resources in to_dict must be serialized dicts."""
+        record = CharacterRecord.create_default("Korg", "Fighter")
+        data = record.to_dict()
+        assert isinstance(data["resources"], dict)
+        if data["resources"]:
+            hp_data = data["resources"].get("hp", {})
+            assert isinstance(hp_data, dict)
+            assert "value" in hp_data
+            assert "max" in hp_data
+
+    def test_to_dict_abilities_are_correct_values(self) -> None:
+        """The abilities sub-dict in to_dict must be intact."""
+        record = CharacterRecord.create_default("Korg", "Fighter")
+        data = record.to_dict()
+        assert data["abilities"]["STR"] == 15
+        assert data["abilities"]["DEX"] == 13
+
+    def test_from_dict_round_trips_correctly(self) -> None:
+        """from_dict(to_dict()) must produce an identical character record."""
+        original = CharacterRecord.create_default("Elara", "Rogue")
+        restored = CharacterRecord.from_dict(original.to_dict())
+        assert restored.name == original.name
+        assert restored.character_class == original.character_class
+        assert restored.level == original.level
+        assert restored.xp == original.xp
+        assert restored.abilities == original.abilities
+        assert restored.skills == original.skills
+        assert restored.gold == original.gold
+        assert len(restored.inventory) == len(original.inventory)
+        for r_item, o_item in zip(restored.inventory, original.inventory):
+            assert r_item.name == o_item.name
+            assert r_item.item_type == o_item.item_type
+            assert r_item.weight == o_item.weight
+            assert r_item.value == o_item.value
+        assert restored.resources.keys() == original.resources.keys()
+        for key in original.resources:
+            assert restored.resources[key].value == original.resources[key].value
+            assert restored.resources[key].max == original.resources[key].max
+        assert restored.equipped_items == original.equipped_items
+        assert restored.hooks == original.hooks
+        assert restored is not original
+
+    def test_from_dict_with_extra_fields_forward_compatibility(self) -> None:
+        """Extra keys in the dict must be silently ignored."""
+        data = CharacterRecord.create_default("Fenris", "Cleric").to_dict()
+        data["favourite_color"] = "red"
+        data["version"] = 2
+        record = CharacterRecord.from_dict(data)
+        assert record.name == "Fenris"
+        assert record.character_class == "Cleric"
+
+    def test_from_dict_missing_optional_fields_uses_defaults(self) -> None:
+        """Omitting optional fields must result in their default values."""
+        data: dict[str, object] = {
+            "name": "Ash",
+            "character_class": "Fighter",
+            "abilities": {a: 10 for a in STANDARD_ABILITIES},
+        }
+        record = CharacterRecord.from_dict(data)
+        assert record.appearance == ""
+        assert record.personality == ""
+        assert record.backstory == ""
+        assert record.hooks == []
+        assert record.skills == []
+        assert record.inventory == []
+        assert record.equipped_items == []
+        assert record.resources == {}
+        assert record.level == 1
+        assert record.xp == 0
+        assert record.gold == 0
+
+    def test_from_dict_minimal_only_name_and_class(self) -> None:
+        """from_dict with only name and class must create a valid record."""
+        data: dict[str, object] = {
+            "name": "Min",
+            "character_class": "Mage",
+            "abilities": {a: 10 for a in STANDARD_ABILITIES},
+        }
+        record = CharacterRecord.from_dict(data)
+        assert record.name == "Min"
+        assert record.character_class == "Mage"
+
+    def test_from_dict_restores_item_objects(self) -> None:
+        """Items from from_dict must be Item instances, not plain dicts."""
+        original = CharacterRecord.create_default("Glimli", "Fighter")
+        restored = CharacterRecord.from_dict(original.to_dict())
+        for item in restored.inventory:
+            assert isinstance(item, Item)
+            assert isinstance(item.item_type, ItemType)
+
+    def test_from_dict_restores_resource_data_objects(self) -> None:
+        """Resources from from_dict must be ResourceData instances."""
+        original = CharacterRecord.create_default("Glimli", "Fighter")
+        restored = CharacterRecord.from_dict(original.to_dict())
+        for key in restored.resources:
+            assert isinstance(restored.resources[key], ResourceData)
+
+    def test_from_dict_string_numbers_coerced_to_int(self) -> None:
+        """String representations of numbers must be coerced to int."""
+        data: dict[str, object] = {
+            "name": "Coerce",
+            "character_class": "Fighter",
+            "abilities": {a: 10 for a in STANDARD_ABILITIES},
+            "level": "3",
+            "xp": "150",
+            "gold": "25",
+        }
+        record = CharacterRecord.from_dict(data)
+        assert record.level == 3
+        assert isinstance(record.level, int)
+        assert record.xp == 150
+        assert isinstance(record.xp, int)
+        assert record.gold == 25
+        assert isinstance(record.gold, int)
+
+    def test_from_dict_empty_dict_raises_value_error(self) -> None:
+        """An empty dict cannot produce a valid record (missing required name)."""
+        with pytest.raises(ValueError):
+            CharacterRecord.from_dict({})
+
+    def test_from_dict_missing_abilities_uses_defaults(self) -> None:
+        """Omitting abilities entirely must default to all scores of 10."""
+        data: dict[str, object] = {
+            "name": "NoAbilities",
+            "character_class": "Fighter",
+        }
+        record = CharacterRecord.from_dict(data)
+        for abil in STANDARD_ABILITIES:
+            assert record.abilities[abil] == 10, (
+                f"Ability {abil} should default to 10 when abilities dict is missing"
+            )
+
+    # --- Validation tests ---
+
+    def test_empty_name_raises_value_error(self) -> None:
+        """An empty-string name must raise ValueError."""
+        with pytest.raises(ValueError, match="non-empty"):
+            CharacterRecord(
+                name="",
+                character_class="Fighter",
+                abilities={a: 10 for a in STANDARD_ABILITIES},
+            )
+
+    def test_whitespace_only_name_raises_value_error(self) -> None:
+        """A name composed only of whitespace must raise ValueError."""
+        with pytest.raises(ValueError, match="non-empty"):
+            _make_minimal_record(name="   \t  ")
+
+    def test_invalid_class_raises_value_error(self) -> None:
+        """An unrecognised character_class must raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid character class"):
+            _make_minimal_record(character_class="Paladin")
+
+    @pytest.mark.parametrize("valid_class", sorted(VALID_CLASSES))
+    def test_valid_classes_accepted(self, valid_class: str) -> None:
+        """Each class in VALID_CLASSES must be accepted by the constructor."""
+        record = _make_minimal_record(character_class=valid_class)
+        assert record.character_class == valid_class
+
+    def test_missing_ability_score_raises_value_error(self) -> None:
+        """Omitting one of the six abilities must raise ValueError."""
+        incomplete = {a: 10 for a in STANDARD_ABILITIES if a != "CHA"}
+        with pytest.raises(ValueError, match="Missing ability"):
+            CharacterRecord(
+                name="Test",
+                character_class="Fighter",
+                abilities=incomplete,
+            )
+
+    def test_ability_score_below_3_raises_value_error(self) -> None:
+        """An ability score of 2 must raise ValueError."""
+        bad = {a: 10 for a in STANDARD_ABILITIES}
+        bad["STR"] = 2
+        with pytest.raises(ValueError, match="out of range"):
+            CharacterRecord(name="Test", character_class="Fighter", abilities=bad)
+
+    def test_ability_score_above_18_raises_value_error(self) -> None:
+        """An ability score of 19 must raise ValueError."""
+        bad = {a: 10 for a in STANDARD_ABILITIES}
+        bad["DEX"] = 19
+        with pytest.raises(ValueError, match="out of range"):
+            CharacterRecord(name="Test", character_class="Fighter", abilities=bad)
+
+    def test_level_zero_raises_value_error(self) -> None:
+        """Level 0 must raise ValueError."""
+        with pytest.raises(ValueError, match="Level must be >= 1"):
+            _make_minimal_record(level=0)
+
+    def test_negative_xp_raises_value_error(self) -> None:
+        """Negative XP must raise ValueError."""
+        with pytest.raises(ValueError, match="XP must be >= 0"):
+            _make_minimal_record(xp=-1)
+
+
+# ---------------------------------------------------------------------------
+# DerivedSheet — Task 1.4
+# ---------------------------------------------------------------------------
+
+
+class TestDerivedSheet:
+    """Tests for the DerivedSheet dataclass."""
+
+    def test_defaults(self) -> None:
+        """DerivedSheet must have sensible defaults."""
+        sheet = DerivedSheet()
+        assert sheet.ability_modifiers == {}
+        assert sheet.proficiency_bonus == 2
+        assert sheet.ac == 10
+        assert sheet.initiative == 0
+        assert sheet.speed == 30
+        assert sheet.skill_modifiers == {}
+        assert sheet.saving_throw_modifiers == {}
+        assert sheet.passive_perception == 10
+        assert sheet.attack_bonus == {}
+        assert sheet.encumbrance == {}
+        assert sheet.hit_dice == ""
+        assert sheet.resistances == []
+        assert sheet.vulnerabilities == []
+        assert sheet.formulas == {}
+
+    def test_to_dict_returns_all_fields(self) -> None:
+        """to_dict must return a dict with all fields."""
+        sheet = DerivedSheet(
+            ability_modifiers={"STR": 3, "DEX": 1},
+            proficiency_bonus=3,
+            ac=18,
+            initiative=2,
+            skill_modifiers={"Athletics": 5, "Perception": 3},
+            saving_throw_modifiers={"STR": 5, "CON": 4},
+            passive_perception=13,
+            attack_bonus={"Longsword": 5},
+            encumbrance={"current": 45.0, "max": 150.0},
+            hit_dice="1d10",
+            resistances=["fire"],
+            vulnerabilities=["cold"],
+            formulas={"hp": "12+CON", "ac": "10+DEX"},
+        )
+        data = sheet.to_dict()
+        assert isinstance(data, dict)
+        assert data["ability_modifiers"]["STR"] == 3
+        assert data["proficiency_bonus"] == 3
+        assert data["ac"] == 18
+        assert data["initiative"] == 2
+        assert data["skill_modifiers"]["Athletics"] == 5
+        assert data["saving_throw_modifiers"]["STR"] == 5
+        assert data["passive_perception"] == 13
+        assert data["attack_bonus"]["Longsword"] == 5
+        assert data["encumbrance"]["current"] == 45.0
+        assert data["hit_dice"] == "1d10"
+        assert data["resistances"] == ["fire"]
+        assert data["vulnerabilities"] == ["cold"]
+        assert data["formulas"]["hp"] == "12+CON"
+
+    def test_to_dict_round_trip_with_constructor(self) -> None:
+        """to_dict output must be usable to reconstruct via constructor."""
+        original = DerivedSheet(
+            ac=15,
+            proficiency_bonus=4,
+            ability_modifiers={"STR": 2, "DEX": 3},
+        )
+        data = original.to_dict()
+        restored = DerivedSheet(**data)
+        assert restored.ac == 15
+        assert restored.proficiency_bonus == 4
+        assert restored.ability_modifiers == {"STR": 2, "DEX": 3}
+
+    def test_no_from_dict_method(self) -> None:
+        """DerivedSheet must NOT have a from_dict method — it's never persisted."""
+        assert not hasattr(DerivedSheet, "from_dict")
+
+    def test_default_ac_is_10(self) -> None:
+        """Default AC must be 10."""
+        assert DerivedSheet().ac == 10
+
+    def test_default_proficiency_bonus_is_2(self) -> None:
+        """Default proficiency bonus must be 2 for level 1."""
+        assert DerivedSheet().proficiency_bonus == 2
