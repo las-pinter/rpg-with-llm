@@ -14,16 +14,20 @@ from __future__ import annotations
 
 import json
 import logging
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.character.items import Item, ItemType
 from app.character.model import (
     ASSISTED_CREATION_QUESTIONS,
     STANDARD_ABILITIES,
     VALID_CLASSES,
     Character,
+    CharacterRecord,
 )
+from app.character.resources import ResourceData
 from app.llm.base import LLMProvider
 from app.utils import atomic_write
 
@@ -503,6 +507,44 @@ class AssistedCreation:
             return None
 
 
+def _convert_legacy_character(data: dict) -> dict:
+    """Convert a legacy Character dict to CharacterRecord format.
+
+    Maps:
+    - hp/max_hp → resources.hp ResourceData
+    - ac → dropped (computed by derivation pipeline)
+    - inventory: list[str] → inventory: list[Item dicts] (as MISC items)
+    - Adds equipped_items: [] (legacy didn't track this)
+
+    This is a courtesy helper for dev testing with old save files.
+    """
+    converted = dict(data)
+
+    # Remove legacy derived fields
+    converted.pop("ac", None)
+    hp = converted.pop("hp", 10)
+    max_hp = converted.pop("max_hp", 10)
+
+    # Convert inventory from list[str] to list[dict]
+    old_inventory = converted.get("inventory", [])
+    if old_inventory and isinstance(old_inventory[0], str):
+        new_inventory = []
+        for item_name in old_inventory:
+            item = Item(name=item_name, item_type=ItemType.MISC, weight=0.0)
+            new_inventory.append(item.to_dict())
+        converted["inventory"] = new_inventory
+
+    # Add equipped_items if missing
+    if "equipped_items" not in converted:
+        converted["equipped_items"] = []
+
+    # Add resources with hp ResourceData
+    if "resources" not in converted or not converted["resources"]:
+        converted["resources"] = {"hp": ResourceData(value=hp, max=max_hp).to_dict()}
+
+    return converted
+
+
 class CharacterStorage:
     """Persist and restore Character objects as JSON files on disk.
 
@@ -555,7 +597,9 @@ class CharacterStorage:
     # Save
     # ------------------------------------------------------------------
 
-    def save(self, character: Character, name: str | None = None) -> str:
+    def save(
+        self, character: CharacterRecord | Character, name: str | None = None
+    ) -> str:
         """Atomically persist *character* under the given *name*.
 
         If *name* is ``None``, the character's own ``.name`` field is
@@ -569,7 +613,16 @@ class CharacterStorage:
         self.characters_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = _timestamp_now()
-        data: dict[str, Any] = character.to_dict()
+
+        if isinstance(character, Character):
+            warnings.warn(
+                "Character is deprecated, use CharacterRecord instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            data = _convert_legacy_character(character.to_dict())
+        else:
+            data = character.to_dict()
 
         final_path = self.characters_dir / f"{name}.json"
         atomic_write(final_path, data, indent=2)
@@ -588,15 +641,16 @@ class CharacterStorage:
     # Load
     # ------------------------------------------------------------------
 
-    def load(self, name: str) -> Character:
-        """Load and return a Character previously saved under *name*.
+    def load(self, name: str) -> CharacterRecord:
+        """Load and return a CharacterRecord previously saved under *name*.
 
         Raises
         ------
         FileNotFoundError
             If no character file exists for *name*.
         ValueError
-            If the file exists but contains corrupt or invalid JSON.
+            If the file exists but contains corrupt or invalid JSON, or if
+            the file uses the legacy Character format.
         """
         self._validate_name(name)
         final_path = self.characters_dir / f"{name}.json"
@@ -614,7 +668,16 @@ class CharacterStorage:
                 f"Character file '{name}' is corrupt -- expected a JSON "
                 f"object (dict) but got {type(data).__name__}"
             )
-        return Character.from_dict(data)
+
+        # Detect legacy format (has flat hp/max_hp/ac fields)
+        if "hp" in data or "max_hp" in data:
+            raise ValueError(
+                f"Character file {name!r} uses the legacy Character format. "
+                "This format is no longer supported. "
+                "Use _convert_legacy_character() to migrate old saves."
+            )
+
+        return CharacterRecord.from_dict(data)
 
     # ------------------------------------------------------------------
     # List characters
@@ -681,7 +744,7 @@ class CharacterStorage:
     # Load / Delete by ID
     # ------------------------------------------------------------------
 
-    def load_by_id(self, char_id: str) -> Character:
+    def load_by_id(self, char_id: str) -> CharacterRecord:
         """Load a character by its UUID ``id`` field.
 
         Scans all saved character JSON files until it finds one whose
@@ -693,7 +756,8 @@ class CharacterStorage:
         FileNotFoundError
             If no character with *char_id* exists.
         ValueError
-            If the matching file contains corrupt data.
+            If the matching file contains corrupt data, or if the file
+            uses the legacy Character format.
         """
         if not char_id:
             raise ValueError("Character id must be non-empty")
@@ -705,7 +769,14 @@ class CharacterStorage:
                 with open(file_path, encoding="utf-8") as f:
                     data: Any = json.load(f)
                 if isinstance(data, dict) and data.get("id") == char_id:
-                    return Character.from_dict(data)
+                    # Detect legacy format
+                    if "hp" in data or "max_hp" in data:
+                        raise ValueError(
+                            f"Character file {file_path.name!r} uses the legacy "
+                            "Character format. This format is no longer supported. "
+                            "Use _convert_legacy_character() to migrate old saves."
+                        )
+                    return CharacterRecord.from_dict(data)
             except (json.JSONDecodeError, OSError):
                 continue
 
