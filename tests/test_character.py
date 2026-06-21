@@ -1065,9 +1065,7 @@ _VALID_CHARACTER_JSON = json.dumps(
         "level": 1,
         "abilities": {"STR": 15, "DEX": 13, "CON": 14, "WIS": 12, "INT": 10, "CHA": 8},
         "skills": ["Athletics", "Perception"],
-        "hp": 12,
-        "max_hp": 12,
-        "ac": 18,
+        "resources": {"hp": {"value": 12, "max": 12}},
         "appearance": "Stocky dwarf with a braided beard and a scar over one eye.",
         "backstory": (
             "A blacksmith's apprentice who took up arms when orcs raided his village."
@@ -1098,20 +1096,21 @@ class TestAssistedCreation:
 
     def test_assisted_creation_generates_character(self) -> None:
         """With valid answers and a mock LLM returning valid JSON,
-        a Character must be created."""
+        a CharacterRecord must be created."""
         mock_llm = _make_mock_llm(_VALID_CHARACTER_JSON)
         creation = AssistedCreation(mock_llm)
 
         char = creation.generate_character(_VALID_ANSWERS)
 
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
         assert char.name == "Rurik Stoneheart"
         assert char.character_class == "Fighter"
         assert char.abilities["STR"] == 15
         assert char.abilities["DEX"] == 13
         assert "Athletics" in char.skills
-        assert char.hp == 12
-        assert char.ac == 18
+        assert char.resources["hp"].value == 12
+        assert char.resources["hp"].max == 12
+        assert any(item.name == "Longsword" for item in char.inventory)
 
     def test_assisted_creation_retries_on_bad_json(self) -> None:
         """If the first LLM response is invalid JSON, the system must
@@ -1142,7 +1141,7 @@ class TestAssistedCreation:
 
         char = creation.generate_character(_VALID_ANSWERS)
 
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
         assert char.name == "Rurik Stoneheart"
         assert mock_llm.call.call_count == 2
 
@@ -1169,9 +1168,7 @@ class TestAssistedCreation:
                 "level": 1,
                 "abilities": {a: 10 for a in STANDARD_ABILITIES},
                 "skills": [],
-                "hp": 10,
-                "max_hp": 10,
-                "ac": 10,
+                "resources": {"hp": {"value": 10, "max": 10}},
                 "appearance": "",
                 "backstory": "",
             }
@@ -1199,9 +1196,7 @@ class TestAssistedCreation:
                     "CHA": 8,
                 },
                 "skills": ["Athletics"],
-                "hp": 12,
-                "max_hp": 12,
-                "ac": 18,
+                "resources": {"hp": {"value": 12, "max": 12}},
                 "appearance": "",
                 "backstory": "",
             }
@@ -1243,9 +1238,7 @@ class TestAssistedCreation:
                 "level": 1,
                 "abilities": {a: 10 for a in STANDARD_ABILITIES},
                 "skills": [],
-                "hp": 10,
-                "max_hp": 10,
-                "ac": 10,
+                "resources": {"hp": {"value": 10, "max": 10}},
                 "appearance": "",
                 "backstory": "",
                 "inventory": [],
@@ -1260,7 +1253,7 @@ class TestAssistedCreation:
     def test_assisted_creation_with_missing_numeric_fields_triggers_retry(
         self,
     ) -> None:
-        """If hp/max_hp/ac are missing from the JSON, validation must
+        """If resources.hp is missing from the JSON, validation must
         return None and trigger a retry."""
         bad_json = json.dumps(
             {
@@ -1291,9 +1284,7 @@ class TestAssistedCreation:
                 "level": 1,
                 "abilities": "not_a_dict",
                 "skills": [],
-                "hp": 10,
-                "max_hp": 10,
-                "ac": 10,
+                "resources": {"hp": {"value": 10, "max": 10}},
                 "appearance": "",
                 "backstory": "",
                 "inventory": [],
@@ -1318,9 +1309,7 @@ class TestAssistedCreation:
                 "abilities": {a: 10 for a in STANDARD_ABILITIES},
                 "skills": "not_a_list",
                 "inventory": None,
-                "hp": 8,
-                "max_hp": 8,
-                "ac": 12,
+                "resources": {"hp": {"value": 8, "max": 8}},
                 "appearance": "",
                 "backstory": "",
             }
@@ -1355,9 +1344,7 @@ class TestAssistedCreation:
                 "level": -1,
                 "abilities": {a: 10 for a in STANDARD_ABILITIES},
                 "skills": [],
-                "hp": 10,
-                "max_hp": 10,
-                "ac": 10,
+                "resources": {"hp": {"value": 10, "max": 10}},
                 "appearance": "",
                 "backstory": "",
                 "inventory": [],
@@ -1389,9 +1376,7 @@ class TestAssistedCreation:
                 "level": 1,
                 "abilities": abilities,
                 "skills": ["Athletics", "Perception"],
-                "hp": 14,
-                "max_hp": 14,
-                "ac": 18,
+                "resources": {"hp": {"value": 14, "max": 14}},
                 "appearance": (
                     "A towering figure with broad shoulders and corded muscle. "
                     "His arms are thick as tree trunks from years of lifting "
@@ -1412,7 +1397,7 @@ class TestAssistedCreation:
 
         char = creation.generate_character(_VALID_ANSWERS, abilities=abilities)
 
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
         assert char.name == "Grom Ironfist"
         assert char.abilities["STR"] == 18
         assert (
@@ -1430,7 +1415,7 @@ class TestAssistedCreation:
 
         char = creation.generate_character(_VALID_ANSWERS)
 
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
         assert char.name == "Rurik Stoneheart"
 
     def test_assisted_creation_abilities_passed_to_user_message(self) -> None:
@@ -1444,7 +1429,7 @@ class TestAssistedCreation:
 
         # Verify the call was made (LLM was invoked)
         assert mock_llm.call.called
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
         assert char.name == "Rurik Stoneheart"
 
     # ------------------------------------------------------------------
@@ -1474,9 +1459,7 @@ class TestAssistedCreation:
                 "level": 1,
                 "abilities": {a: 10 for a in STANDARD_ABILITIES},
                 "skills": [],
-                "hp": 10,
-                "max_hp": 10,
-                "ac": 10,
+                "resources": {"hp": {"value": 10, "max": 10}},
                 "appearance": "",
                 "backstory": "",
                 "inventory": [],
@@ -1498,7 +1481,7 @@ class TestAssistedCreation:
         char = creation.generate_character(_VALID_ANSWERS)
 
         assert char.name == "Rurik Stoneheart"
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
 
     def test_assisted_creation_empty_name_treated_as_none(self) -> None:
         """An empty-string name must behave identically to no name —
@@ -1509,7 +1492,7 @@ class TestAssistedCreation:
         char = creation.generate_character(_VALID_ANSWERS, name="")
 
         assert char.name == "Rurik Stoneheart"
-        assert isinstance(char, Character)
+        assert isinstance(char, CharacterRecord)
 
     def test_assisted_creation_name_included_in_prompt_system_message(
         self,
