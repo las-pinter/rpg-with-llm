@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.agents.dm import DungeonMaster
+from app.character.model import Character, CharacterRecord
 from app.character.model import Character
 
 # ---------------------------------------------------------------------------
@@ -25,17 +26,9 @@ def _default_abilities() -> dict[str, int]:
     return {"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10}
 
 
-def _make_fighter() -> Character:
+def _make_fighter() -> CharacterRecord:
     """Create a default level 1 Fighter for impossible-action tests."""
-    return Character(
-        name="Test Fighter",
-        character_class="Fighter",
-        level=1,
-        hp=12,
-        max_hp=12,
-        ac=18,
-        abilities=_default_abilities(),
-    )
+    return CharacterRecord.create_default("Test Fighter", "Fighter")
 
 
 # ---------------------------------------------------------------------------

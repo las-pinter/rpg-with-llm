@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
+from app.character.model import CharacterRecord
 from app.world.model import DMNotes, WorldState
 from app.world.persistence import WorldStorage
 
@@ -1559,17 +1560,10 @@ class TestPlausibilityNotes:
         """When auto-classification yields ``implausible``, a note is injected."""
         from unittest.mock import patch
 
-        from app.character.model import Character
+        char = CharacterRecord.create_default("Thorn", "Fighter")
+        # Override level to 3 (default is 1)
+        char.level = 3  # type: ignore[attr-defined]
 
-        char = Character(
-            name="Thorn",
-            character_class="Fighter",
-            level=3,
-            hp=24,
-            max_hp=30,
-            ac=18,
-            abilities=_default_abilities(),
-        )
         dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
 
         with patch("app.agents.context_builder.classify_action") as mock_classify:
@@ -1590,17 +1584,10 @@ class TestPlausibilityNotes:
         """When auto-classification yields ``ambitious``, a note is injected."""
         from unittest.mock import patch
 
-        from app.character.model import Character
+        char = CharacterRecord.create_default("Thorn", "Fighter")
+        # Override level to 3 (default is 1)
+        char.level = 3  # type: ignore[attr-defined]
 
-        char = Character(
-            name="Thorn",
-            character_class="Fighter",
-            level=3,
-            hp=24,
-            max_hp=30,
-            ac=18,
-            abilities=_default_abilities(),
-        )
         dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
 
         with patch("app.agents.context_builder.classify_action") as mock_classify:
@@ -1620,17 +1607,9 @@ class TestPlausibilityNotes:
         """When auto-classification yields ``plausible``, no note is injected."""
         from unittest.mock import patch
 
-        from app.character.model import Character
-
-        char = Character(
-            name="Thorn",
-            character_class="Fighter",
-            level=3,
-            hp=24,
-            max_hp=30,
-            ac=18,
-            abilities=_default_abilities(),
-        )
+        char = CharacterRecord.create_default("Thorn", "Fighter")
+        # Override level to 3 (default is 1)
+        char.level = 3  # type: ignore[attr-defined]
         dm = DungeonMaster(llm_provider=None, world_state=None, character=char)
 
         with patch("app.agents.context_builder.classify_action") as mock_classify:

@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.character.model import Character
+from app.character.model import CharacterRecord
 
 logger = logging.getLogger(__name__)
 
@@ -133,13 +133,13 @@ CLASS_BLACKLIST: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 
-def classify_action(character: Character, action: str) -> dict[str, Any]:
+def classify_action(character: CharacterRecord, action: str) -> dict[str, Any]:
     """Classify a player action by plausibility for the given character.
 
     Parameters
     ----------
-    character : Character
-        The player character.
+    character : CharacterRecord
+        The player character record.
     action : str
         A description of what the player is trying to do.
 
@@ -400,13 +400,13 @@ def classify_action(character: Character, action: str) -> dict[str, Any]:
     }
 
 
-def suggest_dc(character: Character, category: str) -> dict[str, Any]:
+def suggest_dc(character: CharacterRecord, category: str) -> dict[str, Any]:
     """Suggest a DC for a given plausibility category, adjusted by level.
 
     Parameters
     ----------
-    character : Character
-        The player character.
+    character : CharacterRecord
+        The player character record.
     category : str
         One of ``trivial``, ``plausible``, ``ambitious``, ``implausible``,
         ``impossible``.
