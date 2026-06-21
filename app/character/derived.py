@@ -10,13 +10,20 @@ Current functions
 -----------------
 - ``prepare_base_data(record)`` — produces ability_modifiers, proficiency_bonus,
   hit_dice, and speed from a ``CharacterRecord``.
+- ``prepare_embedded_data(base, record)`` — produces skill_modifiers,
+  saving_throw_modifiers, and passive_perception.
+- ``prepare_derived_data(embedded, base, record)`` — produces ac, initiative,
+  encumbrance, attack_bonus, and formulas.
+- ``compute_derived_sheet(record)`` — orchestrator that runs all three phases
+  and returns a fully populated ``DerivedSheet``.
 """
 
 from __future__ import annotations
 
 import math
 
-from app.character.model import STANDARD_ABILITIES, CharacterRecord
+from app.character.model import STANDARD_ABILITIES, CharacterRecord, DerivedSheet
+from app.character.resources import ResourceData
 from app.rules.checks import SKILL_ABILITY_MAP
 
 # ---------------------------------------------------------------------------
@@ -163,6 +170,111 @@ def prepare_embedded_data(base: dict, record: CharacterRecord) -> dict:
         "saving_throw_modifiers": saving_throw_modifiers,
         "passive_perception": passive_perception,
     }
+
+
+# ---------------------------------------------------------------------------
+# ResourceData max formula resolution
+# ---------------------------------------------------------------------------
+
+
+def _resolve_resource_max(
+    resource: ResourceData, ability_modifiers: dict[str, int]
+) -> tuple[int, str]:
+    """Resolve a ResourceData max value to an integer.
+
+    If max is already an int, return it unchanged with a simple formula string.
+    If max is a string like "12+CON", replace ability abbreviations with their
+    modifier values and evaluate the expression.
+
+    Returns:
+        Tuple of (resolved_max_value, formula_string)
+    """
+    import re
+
+    max_val = resource.max
+    if isinstance(max_val, int):
+        return max_val, str(max_val)
+
+    # String formula like "12+CON"
+    formula = max_val
+
+    def _replace_ability(match: re.Match) -> str:
+        abil = match.group(1)
+        mod = ability_modifiers.get(abil, 0)
+        return str(mod)
+
+    # Replace ability abbreviations (STR, DEX, CON, INT, WIS, CHA) with modifier values
+    resolved_expr = re.sub(r"(STR|DEX|CON|INT|WIS|CHA)", _replace_ability, formula)
+
+    try:
+        result = eval(resolved_expr, {"__builtins__": {}}, {})
+        result = int(result)
+    except Exception:
+        result = 10  # fallback
+
+    # Build formula string for display
+    formula_parts = []
+    remaining = formula
+    for abil in ["STR", "DEX", "CON", "INT", "WIS", "CHA"]:
+        if abil in remaining:
+            mod = ability_modifiers.get(abil, 0)
+            formula_parts.append(f"{abil}({mod:+d})")
+            remaining = remaining.replace(abil, str(mod))
+    formula_str = formula
+    for abil in ["STR", "DEX", "CON", "INT", "WIS", "CHA"]:
+        mod = ability_modifiers.get(abil, 0)
+        formula_str = formula_str.replace(abil, f"{abil}({mod:+d})")
+    formula_str = f"{formula_str} = {result}"
+
+    return result, formula_str
+
+
+def compute_derived_sheet(record: CharacterRecord) -> DerivedSheet:
+    """Compute a fully populated DerivedSheet from a CharacterRecord.
+
+    Runs all three pipeline phases in sequence, resolves ResourceData max
+    string formulas, and constructs a ``DerivedSheet`` instance.
+
+    This is the main entry point for the derivation pipeline. Pure function —
+    no side effects, deterministic output for the same input.
+
+    Args:
+        record: The source CharacterRecord (player choices only)
+
+    Returns:
+        DerivedSheet with all computed stats populated
+    """
+
+    # Phase 1-3: Run the pipeline
+    base = prepare_base_data(record)
+    embedded = prepare_embedded_data(base, record)
+    derived = prepare_derived_data(embedded, base, record)
+
+    ability_modifiers = base["ability_modifiers"]
+
+    # Resolve ResourceData max string formulas
+    formulas = dict(derived["formulas"])  # Copy to avoid mutation
+    for resource_name, resource in record.resources.items():
+        resolved_max, formula_str = _resolve_resource_max(resource, ability_modifiers)
+        formulas[f"{resource_name}_max"] = formula_str
+
+    # Build and return the DerivedSheet
+    sheet = DerivedSheet(
+        ability_modifiers=ability_modifiers,
+        proficiency_bonus=base["proficiency_bonus"],
+        ac=derived["ac"],
+        initiative=derived["initiative"],
+        speed=base["speed"],
+        skill_modifiers=embedded["skill_modifiers"],
+        saving_throw_modifiers=embedded["saving_throw_modifiers"],
+        passive_perception=embedded["passive_perception"],
+        attack_bonus=derived["attack_bonus"],
+        encumbrance=derived["encumbrance"],
+        hit_dice=base["hit_dice"],
+        formulas=formulas,
+    )
+
+    return sheet
 
 
 # ---------------------------------------------------------------------------
