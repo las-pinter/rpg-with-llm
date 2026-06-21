@@ -62,7 +62,7 @@ what the player wrote.
 Assign ability scores (STR, DEX, CON, INT, WIS, CHA) between 3 and 18, with \
 a reasonable distribution for the chosen class.
 Pick 2-4 skills appropriate for the class and backstory.
-Set HP, AC, and starting inventory appropriate for the class.
+Set HP as a resource (value and max) appropriate for the class.
 
 {NAME_INSTRUCTION}
 
@@ -117,9 +117,7 @@ Return ONLY valid JSON — no explanation, no markdown formatting, no code fence
     "level": 1,
     "abilities": {{"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10}},
     "skills": ["Skill1", "Skill2"],
-    "hp": 10,
-    "max_hp": 10,
-    "ac": 12,
+    "resources": {{"hp": {{"value": 10, "max": 10}}}},
     "appearance": "Vivid description grounded in the story answers.",
     "backstory": "Rich narrative drawn from the journal chapters (3-5 paragraphs).",
     "inventory": ["Item1", "Item2"]
@@ -163,9 +161,9 @@ class AssistedCreation:
         abilities: dict[str, int] | None = None,
         name: str | None = None,
         character_class: str | None = None,
-    ) -> Character:
+    ) -> CharacterRecord:
         """Send up to 7 narrative answers to the LLM and parse the response
-        into a complete Character object.
+        into a complete CharacterRecord.
 
         Parameters
         ----------
@@ -187,8 +185,8 @@ class AssistedCreation:
 
         Returns
         -------
-        Character
-            A fully populated Character generated from the player's
+        CharacterRecord
+            A fully populated CharacterRecord generated from the player's
             answers.
 
         Raises
@@ -333,8 +331,8 @@ class AssistedCreation:
 
     def _try_parse(
         self, raw: str, requested_class: str | None = None
-    ) -> Character | None:
-        """Try to parse *raw* LLM output into a Character.
+    ) -> CharacterRecord | None:
+        """Try to parse *raw* LLM output into a CharacterRecord.
 
         Parameters
         ----------
@@ -346,7 +344,7 @@ class AssistedCreation:
 
         Returns
         -------
-        Character | None
+        CharacterRecord | None
             ``None`` if parsing or validation fails.
         """
         data = self._extract_json(raw)
@@ -404,8 +402,8 @@ class AssistedCreation:
     @staticmethod
     def _validate_and_build(
         data: dict[str, Any], requested_class: str | None = None
-    ) -> Character | None:
-        """Validate parsed JSON data and build a Character.
+    ) -> CharacterRecord | None:
+        """Validate parsed JSON data and build a CharacterRecord.
 
         Parameters
         ----------
@@ -419,15 +417,20 @@ class AssistedCreation:
 
         Returns
         -------
-        Character | None
+        CharacterRecord | None
             ``None`` if any validation check fails.
         """
-        # Required fields
+        from app.character.items import Item as ItemModel
+        from app.character.items import ItemType as ItemTypeEnum
+        from app.character.resources import ResourceData
+
+        # --- Name ---
         name = data.get("name")
         if not isinstance(name, str) or not name.strip():
             logger.debug("_validate_and_build: name is empty")
             return None
 
+        # --- Class ---
         char_class = data.get("character_class")
         if char_class not in VALID_CLASSES:
             logger.debug(
@@ -444,9 +447,10 @@ class AssistedCreation:
             )
             return None
 
-        # Abilities
+        # --- Abilities ---
         abilities = data.get("abilities")
         if not isinstance(abilities, dict):
+            logger.debug("_validate_and_build: abilities not a dict")
             return None
         for abil in STANDARD_ABILITIES:
             val = abilities.get(abil)
@@ -458,47 +462,72 @@ class AssistedCreation:
                 )
                 return None
 
-        # Numeric fields
-        hp = data.get("hp")
-        max_hp = data.get("max_hp")
-        ac = data.get("ac")
-        if (
-            not isinstance(hp, int)
-            or not isinstance(max_hp, int)
-            or not isinstance(ac, int)
-        ):
+        # --- Resources (hp) ---
+        resources_data = data.get("resources")
+        if not isinstance(resources_data, dict):
+            logger.debug("_validate_and_build: resources not a dict")
+            return None
+        hp_data = resources_data.get("hp")
+        if not isinstance(hp_data, dict):
+            logger.debug("_validate_and_build: hp resource not a dict")
+            return None
+        hp_value = hp_data.get("value")
+        hp_max = hp_data.get("max")
+        if not isinstance(hp_value, int) or not isinstance(hp_max, int):
             logger.debug(
-                "_validate_and_build: non-int field — hp=%s, max_hp=%s, ac=%s",
-                type(hp).__name__,
-                type(max_hp).__name__,
-                type(ac).__name__,
+                "_validate_and_build: hp value/max not ints — value=%s, max=%s",
+                type(hp_value).__name__,
+                type(hp_max).__name__,
+            )
+            return None
+        if hp_value < 0 or hp_max <= 0 or hp_value > hp_max:
+            logger.debug(
+                "_validate_and_build: hp out of range — value=%d, max=%d",
+                hp_value,
+                hp_max,
             )
             return None
 
-        # Skills & inventory (must be lists)
+        # --- Skills ---
         skills = data.get("skills")
-        inventory = data.get("inventory")
         if not isinstance(skills, list):
             skills = []
-        if not isinstance(inventory, list):
-            inventory = []
 
+        # --- Inventory (convert list[str] to list[Item]) ---
+        raw_inventory = data.get("inventory")
+        if not isinstance(raw_inventory, list):
+            raw_inventory = []
+
+        inventory = []
+        for item_name in raw_inventory:
+            if isinstance(item_name, str) and item_name.strip():
+                inventory.append(
+                    ItemModel(
+                        name=item_name.strip(),
+                        item_type=ItemTypeEnum.MISC,
+                    )
+                )
+
+        # --- Appearance & backstory ---
         appearance = data.get("appearance", "")
         backstory = data.get("backstory", "")
+        if not isinstance(appearance, str):
+            appearance = ""
+        if not isinstance(backstory, str):
+            backstory = ""
 
+        # --- Build CharacterRecord ---
         try:
-            return Character(
+            return CharacterRecord(
                 name=name.strip(),
                 character_class=char_class,
                 level=data.get("level", 1),
                 abilities=abilities,
                 skills=skills,
-                hp=hp,
-                max_hp=max_hp,
-                ac=ac,
-                appearance=appearance if isinstance(appearance, str) else "",
-                backstory=backstory if isinstance(backstory, str) else "",
+                appearance=appearance,
+                backstory=backstory,
                 inventory=inventory,
+                resources={"hp": ResourceData(value=hp_value, max=hp_max)},
             )
         except (ValueError, TypeError) as e:
             logger.debug(
