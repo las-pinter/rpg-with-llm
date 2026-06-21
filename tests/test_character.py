@@ -13,6 +13,7 @@ from app.character.creation import (
     AssistedCreation,
     CharacterGenerationError,
     CharacterStorage,
+    _convert_legacy_character,
 )
 from app.character.items import Item, ItemType
 from app.character.model import (
@@ -580,14 +581,14 @@ class TestCharacterPersistence:
     def test_save_creates_file(self, tmp_path: Path) -> None:
         """Saving a character must create the expected JSON file."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="save_test")
         assert (store.characters_dir / "save_test.json").is_file()
 
     def test_save_returns_timestamp(self, tmp_path: Path) -> None:
         """The return value of save() must be a timestamp string."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         ts = store.save(char, name="ts_test")
         assert isinstance(ts, str)
         assert len(ts) >= 15
@@ -595,18 +596,26 @@ class TestCharacterPersistence:
     def test_save_file_contains_valid_json(self, tmp_path: Path) -> None:
         """The contents of the saved JSON file must be parseable."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="json_test")
         with open(store.characters_dir / "json_test.json") as f:
             data = json.load(f)
         assert isinstance(data, dict)
         assert data["name"] == "Glimli"
         assert data["character_class"] == "Fighter"
+        # New format must NOT include legacy flat fields
+        assert "hp" not in data
+        assert "max_hp" not in data
+        assert "ac" not in data
+        # New format must include record-specific fields
+        assert "inventory" in data
+        assert "resources" in data
+        assert "equipped_items" in data
 
     def test_save_and_load_round_trip(self, tmp_path: Path) -> None:
-        """Round-trip: save then load must yield an identical Character."""
+        """Round-trip: save then load must yield an identical CharacterRecord."""
         store = CharacterStorage(tmp_path)
-        original = Character.create_default("Glimli", "Fighter")
+        original = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(original, name="roundtrip")
         restored = store.load("roundtrip")
         assert restored.name == original.name
@@ -615,18 +624,26 @@ class TestCharacterPersistence:
         assert restored.xp == original.xp
         assert restored.abilities == original.abilities
         assert restored.skills == original.skills
-        assert restored.hp == original.hp
-        assert restored.max_hp == original.max_hp
-        assert restored.ac == original.ac
-        assert restored.inventory == original.inventory
         assert restored.gold == original.gold
+        # Compare inventory items
+        assert len(restored.inventory) == len(original.inventory)
+        for r_item, o_item in zip(restored.inventory, original.inventory):
+            assert r_item.name == o_item.name
+            assert r_item.item_type == o_item.item_type
+            assert r_item.weight == o_item.weight
+            assert r_item.value == o_item.value
+        # Compare resources
+        assert restored.resources.keys() == original.resources.keys()
+        for key in original.resources:
+            assert restored.resources[key].value == original.resources[key].value
+        assert restored.equipped_items == original.equipped_items
         assert restored.hooks == original.hooks
         assert restored is not original
 
     def test_save_with_custom_name(self, tmp_path: Path) -> None:
         """Saving with an explicit custom name must use that name for the file."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="custom_save")
         assert store.character_exists("custom_save")
         assert not store.character_exists("Glimli")
@@ -634,14 +651,14 @@ class TestCharacterPersistence:
     def test_save_with_none_name_uses_character_name(self, tmp_path: Path) -> None:
         """Saving with name=None must use the character's own .name field."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char)
         assert store.character_exists("Glimli")
 
     def test_load_after_multiple_saves(self, tmp_path: Path) -> None:
         """Saving the same character under different names — both must load."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="save_one")
         store.save(char, name="save_two")
         one = store.load("save_one")
@@ -658,7 +675,7 @@ class TestCharacterPersistence:
     def test_list_contains_saved_character(self, tmp_path: Path) -> None:
         """After saving, list_characters must include the metadata entry."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="list_me")
         entries = store.list_characters()
         assert len(entries) == 1
@@ -671,7 +688,7 @@ class TestCharacterPersistence:
     def test_list_multiple_saves(self, tmp_path: Path) -> None:
         """Multiple saves must all appear in the listing."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="char_a")
         store.save(char, name="char_b")
         store.save(char, name="char_c")
@@ -680,7 +697,7 @@ class TestCharacterPersistence:
     def test_delete_removes_file_from_disk(self, tmp_path: Path) -> None:
         """Deleting a character must remove its JSON file."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="delete_me")
         file_path = store.characters_dir / "delete_me.json"
         assert file_path.is_file()
@@ -690,7 +707,7 @@ class TestCharacterPersistence:
     def test_delete_removes_from_index(self, tmp_path: Path) -> None:
         """Deleting a character must remove it from the index."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="gone_soon")
         assert len(store.list_characters()) == 1
         store.delete("gone_soon")
@@ -705,7 +722,7 @@ class TestCharacterPersistence:
     def test_save_exists_returns_true_when_saved(self, tmp_path: Path) -> None:
         """character_exists must return True for a saved character."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="check_me")
         assert store.character_exists("check_me") is True
 
@@ -742,8 +759,8 @@ class TestCharacterPersistence:
     def test_overwrite_existing_save_updates_data(self, tmp_path: Path) -> None:
         """Saving again with the same name must overwrite the data."""
         store = CharacterStorage(tmp_path)
-        char1 = Character.create_default("OldName", "Fighter")
-        char2 = Character.create_default("NewName", "Rogue")
+        char1 = CharacterRecord.create_default("OldName", "Fighter")
+        char2 = CharacterRecord.create_default("NewName", "Rogue")
         store.save(char1, name="overwrite")
         store.save(char2, name="overwrite")
         loaded = store.load("overwrite")
@@ -753,7 +770,7 @@ class TestCharacterPersistence:
     def test_overwrite_updates_timestamp(self, tmp_path: Path) -> None:
         """Overwriting a save must produce a newer timestamp."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Test", "Fighter")
+        char = CharacterRecord.create_default("Test", "Fighter")
         ts1 = store.save(char, name="ts_update")
         ts2 = store.save(char, name="ts_update")
         assert ts2 >= ts1
@@ -831,7 +848,7 @@ class TestCharacterPersistence:
     def test_index_is_rebuilt_on_corrupt_index(self, tmp_path: Path) -> None:
         """A corrupt index file must not break subsequent save operations."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="survivor")
         idx_path = store.characters_dir / "index.json"
         idx_path.write_text("{{{corrupt}}}", encoding="utf-8")
@@ -844,7 +861,7 @@ class TestCharacterPersistence:
         import shutil
 
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         shutil.rmtree(store.characters_dir)
         assert not store.characters_dir.exists()
         store.save(char, name="after_deletion")
@@ -857,7 +874,7 @@ class TestCharacterPersistence:
     ) -> None:
         """If JSON file is deleted manually, delete() must still clean index."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         store.save(char, name="manually_gone")
         assert len(store.list_characters()) == 1
         save_path = store.characters_dir / "manually_gone.json"
@@ -868,7 +885,7 @@ class TestCharacterPersistence:
     def test_tmp_file_cleaned_up_on_save_failure(self, tmp_path: Path) -> None:
         """If saving fails, temp .tmp file must not linger."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         original_mode = store.characters_dir.stat().st_mode
         try:
             store.characters_dir.chmod(0o444)
@@ -882,7 +899,7 @@ class TestCharacterPersistence:
     def test_atomic_write_uses_tmp_file(self, tmp_path: Path) -> None:
         """During save, a .tmp file must be used before renaming to final path."""
         store = CharacterStorage(tmp_path)
-        char = Character.create_default("Glimli", "Fighter")
+        char = CharacterRecord.create_default("Glimli", "Fighter")
         original_replace = os.replace
         tmp_paths: list[Path] = []
 
@@ -903,6 +920,122 @@ class TestCharacterPersistence:
             os.replace = original_replace
         assert (store.characters_dir / "atomic_test.json").exists()
         assert not (store.characters_dir / "atomic_test.json.tmp").exists()
+
+    # ------------------------------------------------------------------
+    # Legacy format handling
+    # ------------------------------------------------------------------
+
+    def test_save_accepts_character_with_deprecation(self, tmp_path: Path) -> None:
+        """save() accepts Character but shows deprecation warning."""
+        store = CharacterStorage(tmp_path)
+        char = _make_char()
+        with pytest.warns(DeprecationWarning, match="Character is deprecated"):
+            store.save(char, name="DeprecatedGuy")
+        assert store.character_exists("DeprecatedGuy")
+
+    def test_load_legacy_format_raises_error(self, tmp_path: Path) -> None:
+        """Loading an old Character file raises ValueError with migration message."""
+        store = CharacterStorage(tmp_path)
+        legacy_data: dict[str, object] = {
+            "name": "Gimli",
+            "character_class": "Fighter",
+            "level": 1,
+            "hp": 12,
+            "max_hp": 12,
+            "ac": 16,
+            "abilities": {
+                "STR": 15,
+                "DEX": 13,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 12,
+                "CHA": 8,
+            },
+            "skills": ["Athletics"],
+            "inventory": ["Longsword", "Chain Mail"],
+        }
+        path = store.characters_dir / "Gimli.json"
+        with open(path, "w") as f:
+            json.dump(legacy_data, f)
+        store._update_index(
+            "Gimli",
+            {
+                "id": "test-id",
+                "name": "Gimli",
+                "timestamp": "1",
+                "class": "Fighter",
+                "level": 1,
+            },
+        )
+
+        with pytest.raises(ValueError, match="legacy"):
+            store.load("Gimli")
+
+    def test_convert_legacy_character(self) -> None:
+        """_convert_legacy_character converts old format to new."""
+        old: dict[str, object] = {
+            "name": "Gimli",
+            "character_class": "Fighter",
+            "level": 1,
+            "hp": 12,
+            "max_hp": 12,
+            "ac": 16,
+            "abilities": {
+                "STR": 15,
+                "DEX": 13,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 12,
+                "CHA": 8,
+            },
+            "skills": ["Athletics"],
+            "inventory": ["Longsword", "Chain Mail"],
+        }
+        converted = _convert_legacy_character(old)
+        # Legacy fields must be removed
+        assert "ac" not in converted
+        assert "hp" not in converted
+        assert "max_hp" not in converted
+        # New fields must be added
+        assert "equipped_items" in converted
+        assert converted["equipped_items"] == []
+        assert "resources" in converted
+        assert "hp" in converted["resources"]
+        assert converted["resources"]["hp"]["value"] == 12
+        assert converted["resources"]["hp"]["max"] == 12
+        # Inventory must be list of dicts
+        assert len(converted["inventory"]) == 2
+        assert isinstance(converted["inventory"][0], dict)
+        assert converted["inventory"][0]["name"] == "Longsword"
+
+    def test_load_legacy_by_id_raises_error(self, tmp_path: Path) -> None:
+        """load_by_id on a legacy file must raise ValueError."""
+        store = CharacterStorage(tmp_path)
+        legacy_data: dict[str, object] = {
+            "id": "legacy-id-123",
+            "name": "Gimli",
+            "character_class": "Fighter",
+            "level": 1,
+            "hp": 12,
+            "max_hp": 12,
+            "ac": 16,
+            "abilities": {
+                "STR": 15,
+                "DEX": 13,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 12,
+                "CHA": 8,
+            },
+            "skills": ["Athletics"],
+            "inventory": ["Longsword", "Chain Mail"],
+        }
+        path = store.characters_dir / "Gimli_with_id.json"
+        with open(path, "w") as f:
+            json.dump(legacy_data, f)
+
+        with pytest.raises(ValueError, match="legacy"):
+            store.load_by_id("legacy-id-123")
 
 
 # ---------------------------------------------------------------------------
