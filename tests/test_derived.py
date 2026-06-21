@@ -5,12 +5,14 @@ from __future__ import annotations
 import pytest
 
 from app.character.derived import (
+    compute_derived_sheet,
     prepare_base_data,
     prepare_derived_data,
     prepare_embedded_data,
 )
 from app.character.items import Item, ItemType
 from app.character.model import STANDARD_ABILITIES, CharacterRecord
+from app.character.resources import ResourceData
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -993,3 +995,289 @@ class TestPrepareDerivedData:
             "attack_bonus",
             "formulas",
         }
+
+
+class TestComputeDerivedSheet:
+    """Integration tests for the full derivation pipeline orchestrator."""
+
+    def _make_full_record(
+        self,
+        name="TestHero",
+        character_class="Fighter",
+        level=1,
+        abilities=None,
+        skills=None,
+        inventory=None,
+        equipped_items=None,
+        resources=None,
+    ):
+        """Create a CharacterRecord fully populated for integration tests."""
+        if abilities is None:
+            abilities = {
+                "STR": 15,
+                "DEX": 13,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 12,
+                "CHA": 8,
+            }
+        if skills is None:
+            skills = ["Athletics", "Perception"]
+        if resources is None:
+            resources = {"hp": ResourceData(value=12, max=12)}
+
+        record = _make_record(
+            name=name,
+            abilities=abilities,
+            level=level,
+            character_class=character_class,
+            skills=skills,
+            resources=resources,
+        )
+
+        if inventory:
+            record.inventory = inventory
+        if equipped_items:
+            record.equipped_items = equipped_items
+
+        return record
+
+    # ------------------------------------------------------------------
+    # Happy path — each class at level 1
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "class_name,exp_prof,exp_hd,exp_ac_base",
+        [
+            ("Fighter", 2, "1d10", 11),  # DEX 13 -> +1, unarmored -> 10 + 1 = 11
+            ("Rogue", 2, "1d8", 11),  # DEX 13 -> +1
+            ("Mage", 2, "1d6", 11),  # DEX 13 -> +1
+            ("Cleric", 2, "1d8", 11),  # DEX 13 -> +1
+        ],
+    )
+    def test_class_at_level_1(self, class_name, exp_prof, exp_hd, exp_ac_base):
+        """Full DerivedSheet for each class at level 1 has correct base values."""
+        sheet = compute_derived_sheet(
+            self._make_full_record(character_class=class_name)
+        )
+
+        assert sheet.proficiency_bonus == exp_prof
+        assert sheet.hit_dice == exp_hd
+        assert sheet.speed == 30
+
+        # Ability mods: STR +2, DEX +1, CON +2, INT 0, WIS +1, CHA -1
+        assert sheet.ability_modifiers["STR"] == 2
+        assert sheet.ability_modifiers["DEX"] == 1
+        assert sheet.ability_modifiers["CON"] == 2
+        assert sheet.ability_modifiers["INT"] == 0
+        assert sheet.ability_modifiers["WIS"] == 1
+        assert sheet.ability_modifiers["CHA"] == -1
+
+        # AC: unarmored = 10 + DEX(+1) = 11
+        assert sheet.ac == exp_ac_base
+
+        # Initiative: DEX modifier
+        assert sheet.initiative == 1
+
+    def test_fighter_level_1_skills(self):
+        """Fighter with Athletics and Perception has correct skill modifiers."""
+        sheet = compute_derived_sheet(
+            self._make_full_record(
+                character_class="Fighter",
+                skills=["Athletics", "Perception"],
+            )
+        )
+        # Athletics: STR 15 (+2) + prof (2) = 4
+        assert sheet.skill_modifiers["athletics"] == 4
+        # Perception: WIS 12 (+1) + prof (2) = 3
+        assert sheet.skill_modifiers["perception"] == 3
+        # Stealth: untrained, DEX 13 (+1) only = 1
+        assert sheet.skill_modifiers["stealth"] == 1
+        # Arcana: untrained, INT 10 (0) only = 0
+        assert sheet.skill_modifiers["arcana"] == 0
+
+    def test_fighter_level_1_saving_throws(self):
+        """Fighter has proficient STR and CON saves."""
+        sheet = compute_derived_sheet(self._make_full_record(character_class="Fighter"))
+        # STR save: STR 15 (+2) + prof (2) = 4
+        assert sheet.saving_throw_modifiers["STR"] == 4
+        # CON save: CON 14 (+2) + prof (2) = 4
+        assert sheet.saving_throw_modifiers["CON"] == 4
+        # INT save: untrained, INT 10 (0) only = 0
+        assert sheet.saving_throw_modifiers["INT"] == 0
+
+    def test_fighter_level_1_passive_perception(self):
+        """Fighter with Perception training has passive perception 13."""
+        sheet = compute_derived_sheet(
+            self._make_full_record(
+                character_class="Fighter",
+                skills=["Athletics", "Perception"],
+            )
+        )
+        # 10 + perception_mod (WIS +1 + prof +2 = 3) = 13
+        assert sheet.passive_perception == 13
+
+    # ------------------------------------------------------------------
+    # Level-up scenario
+    # ------------------------------------------------------------------
+
+    def test_level_up_increases_proficiency(self):
+        """Level 1->5 increases proficiency bonus from +2 to +3."""
+        record_l1 = self._make_full_record(level=1)
+        record_l5 = self._make_full_record(level=5)
+
+        sheet_l1 = compute_derived_sheet(record_l1)
+        sheet_l5 = compute_derived_sheet(record_l5)
+
+        assert sheet_l1.proficiency_bonus == 2
+        assert sheet_l5.proficiency_bonus == 3
+
+    def test_level_up_increases_skill_modifiers(self):
+        """Proficiency bonus increase at level 5 boosts trained skills."""
+        record_l1 = self._make_full_record(level=1, skills=["Athletics"])
+        record_l5 = self._make_full_record(level=5, skills=["Athletics"])
+
+        sheet_l1 = compute_derived_sheet(record_l1)
+        sheet_l5 = compute_derived_sheet(record_l5)
+
+        # Athletics at level 1: STR 15 (+2) + prof 2 = 4
+        assert sheet_l1.skill_modifiers["athletics"] == 4
+        # Athletics at level 5: STR 15 (+2) + prof 3 = 5
+        assert sheet_l5.skill_modifiers["athletics"] == 5
+
+    def test_level_up_increases_saving_throws(self):
+        """Proficiency bonus increase at level 5 boosts proficient saves."""
+        record_l1 = self._make_full_record(level=1, character_class="Fighter")
+        record_l5 = self._make_full_record(level=5, character_class="Fighter")
+
+        sheet_l1 = compute_derived_sheet(record_l1)
+        sheet_l5 = compute_derived_sheet(record_l5)
+
+        # STR save at level 1: +2 + 2 = 4; at level 5: +2 + 3 = 5
+        assert sheet_l1.saving_throw_modifiers["STR"] == 4
+        assert sheet_l5.saving_throw_modifiers["STR"] == 5
+
+    def test_level_up_attack_bonus_increases(self):
+        """Proficiency bonus increase improves attack bonuses."""
+        record_l1 = self._make_full_record(level=1, character_class="Fighter")
+        record_l5 = self._make_full_record(level=5, character_class="Fighter")
+
+        sheet_l1 = compute_derived_sheet(record_l1)
+        sheet_l5 = compute_derived_sheet(record_l5)
+
+        # Melee at level 1: prof 2 + STR 2 = 4; at level 5: prof 3 + STR 2 = 5
+        assert sheet_l1.attack_bonus["melee"] == 4
+        assert sheet_l5.attack_bonus["melee"] == 5
+
+    # ------------------------------------------------------------------
+    # ResourceData max formula resolution
+    # ------------------------------------------------------------------
+
+    def test_resource_max_int_resolved(self):
+        """ResourceData with int max is resolved to same value."""
+        record = self._make_full_record(
+            resources={
+                "hp": ResourceData(value=12, max=12),
+            }
+        )
+        sheet = compute_derived_sheet(record)
+        assert "hp_max" in sheet.formulas
+
+    def test_resource_max_string_formula_resolved(self):
+        """ResourceData with '12+CON' formula is resolved using CON modifier."""
+        record = self._make_full_record(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            resources={"hp": ResourceData(value=10, max="12+CON")},
+        )
+        sheet = compute_derived_sheet(record)
+        # CON 14 -> +2 modifier -> 12 + 2 = 14
+        assert "hp_max" in sheet.formulas
+        assert (
+            "14" in sheet.formulas["hp_max"]
+            or "12 + CON(+2) = 14" in sheet.formulas["hp_max"]
+        )
+
+    def test_resource_multiple_resources_resolved(self):
+        """Multiple resources each have their max resolved."""
+        record = self._make_full_record(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 14,
+                "INT": 12,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            resources={
+                "hp": ResourceData(value=10, max="12+CON"),
+                "mana": ResourceData(value=5, max="5+INT"),
+            },
+        )
+        sheet = compute_derived_sheet(record)
+        assert "hp_max" in sheet.formulas
+        assert "mana_max" in sheet.formulas
+
+    # ------------------------------------------------------------------
+    # Armor integration (full pipeline with items)
+    # ------------------------------------------------------------------
+
+    def test_fighter_with_chain_mail_and_shield(self):
+        """Equipped armor correctly affects AC through full pipeline."""
+        body = _make_item(
+            "Chain Mail",
+            ItemType.ARMOR,
+            weight=55.0,
+            properties={"armor_bonus": 16, "armor_category": "heavy"},
+        )
+        shield = _make_item(
+            "Shield",
+            ItemType.ARMOR,
+            weight=6.0,
+            properties={"armor_bonus": 2, "armor_category": "shield"},
+        )
+
+        # Fighter with STR 15, DEX 13, CON 14
+        record = self._make_full_record(
+            character_class="Fighter",
+            abilities={"STR": 15, "DEX": 13, "CON": 14, "INT": 10, "WIS": 12, "CHA": 8},
+            inventory=[body, shield],
+            equipped_items=[body.id, shield.id],
+        )
+        sheet = compute_derived_sheet(record)
+        # Chain Mail 16 + Shield 2 = 18 (heavy, no DEX)
+        assert sheet.ac == 18
+
+    # ------------------------------------------------------------------
+    # Pure function tests
+    # ------------------------------------------------------------------
+
+    def test_deterministic_same_input_same_output(self):
+        """Same record always produces same DerivedSheet."""
+        record = self._make_full_record(level=3, character_class="Rogue")
+        sheet1 = compute_derived_sheet(record)
+        sheet2 = compute_derived_sheet(record)
+        assert sheet1 == sheet2
+
+    def test_does_not_mutate_record(self):
+        """compute_derived_sheet does not modify the input record."""
+        record = self._make_full_record(name="Unchanged")
+        original_name = record.name
+        original_level = record.level
+        compute_derived_sheet(record)
+        assert record.name == original_name
+        assert record.level == original_level
+
+    def test_returns_derived_sheet_instance(self):
+        """Returns a DerivedSheet instance, not a dict."""
+        record = self._make_full_record()
+        sheet = compute_derived_sheet(record)
+        from app.character.model import DerivedSheet
+
+        assert isinstance(sheet, DerivedSheet)
