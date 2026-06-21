@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.character.derived import prepare_base_data
+from app.character.derived import prepare_base_data, prepare_embedded_data
 from app.character.model import STANDARD_ABILITIES, CharacterRecord
 
 # ---------------------------------------------------------------------------
@@ -276,3 +276,204 @@ class TestPrepareBaseData:
         assert record.abilities == original_abilities
         assert record.level == 1
         assert record.character_class == "Fighter"
+
+
+class TestPrepareEmbeddedData:
+    """Tests for prepare_embedded_data — skill/save/passive perception computation."""
+
+    @pytest.mark.parametrize(
+        "character_class,expected_save_profs",
+        [
+            ("Fighter", ["STR", "CON"]),
+            ("Rogue", ["DEX", "INT"]),
+            ("Mage", ["INT", "WIS"]),
+            ("Cleric", ["WIS", "CHA"]),
+        ],
+    )
+    def test_saving_throw_proficiencies_by_class(
+        self, character_class, expected_save_profs
+    ):
+        """Each class gets correct saving throw proficiencies per D&D 5e SRD."""
+        record = _make_record(
+            character_class=character_class,
+            abilities={
+                "STR": 14,
+                "DEX": 14,
+                "CON": 14,
+                "INT": 14,
+                "WIS": 14,
+                "CHA": 14,
+            },
+        )
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        st = result["saving_throw_modifiers"]
+        for abil in expected_save_profs:
+            assert st[abil] == 4, (
+                f"{character_class} should be proficient in {abil} (+2 ability +2 prof)"
+            )
+        non_prof = [
+            a
+            for a in ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
+            if a not in expected_save_profs
+        ]
+        for abil in non_prof:
+            assert st[abil] == 2, (
+                f"{character_class} not proficient in {abil} (only +2 ability)"
+            )
+
+    def test_all_six_saving_throws_present(self):
+        """All 6 ability saving throws are present in result."""
+        record = _make_record()
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        assert set(result["saving_throw_modifiers"].keys()) == {
+            "STR",
+            "DEX",
+            "CON",
+            "INT",
+            "WIS",
+            "CHA",
+        }
+
+    @pytest.mark.parametrize(
+        "skill_key,expected_ability",
+        [
+            ("acrobatics", "DEX"),
+            ("animal_handling", "WIS"),
+            ("arcana", "INT"),
+            ("athletics", "STR"),
+            ("deception", "CHA"),
+            ("history", "INT"),
+            ("insight", "WIS"),
+            ("intimidation", "CHA"),
+            ("investigation", "INT"),
+            ("medicine", "WIS"),
+            ("nature", "INT"),
+            ("perception", "WIS"),
+            ("performance", "CHA"),
+            ("persuasion", "CHA"),
+            ("religion", "INT"),
+            ("sleight_of_hand", "DEX"),
+            ("stealth", "DEX"),
+            ("survival", "WIS"),
+        ],
+    )
+    def test_untrained_skill_uses_ability_modifier_only(
+        self, skill_key, expected_ability
+    ):
+        """Untrained skills get only ability modifier (no proficiency bonus)."""
+        record = _make_record(
+            abilities={"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10}
+        )
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        assert result["skill_modifiers"][skill_key] == 0, (
+            f"{skill_key} untrained should be 0"
+        )
+
+    def test_trained_skill_adds_proficiency_bonus(self):
+        """A trained skill gets ability modifier + proficiency bonus."""
+        record = _make_record(
+            abilities={
+                "STR": 14,
+                "DEX": 10,
+                "CON": 10,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            skills=["Athletics"],
+        )
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        # STR 14 -> +2 modifier, level 1 -> +2 prof bonus -> total 4
+        assert result["skill_modifiers"]["athletics"] == 4
+
+    def test_title_case_skill_with_spaces_matches_snake_case(self):
+        """'Sleight of Hand' correctly maps to 'sleight_of_hand' in skill map."""
+        record = _make_record(skills=["Sleight of Hand"])
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        assert (
+            result["skill_modifiers"]["sleight_of_hand"] == 2
+        )  # DEX 10 (0) + prof(2) = 2
+
+    def test_passive_perception_without_training(self):
+        """Passive perception = 10 + perception modifier when untrained."""
+        record = _make_record()
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        assert result["passive_perception"] == 10  # perception skill modifier is 0
+
+    def test_passive_perception_with_training(self):
+        """Passive perception includes proficiency bonus when trained."""
+        record = _make_record(skills=["Perception"])
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        assert result["passive_perception"] == 12  # 10 + 0 (WIS 10) + 2 (prof) = 12
+
+    def test_all_18_skill_modifiers_present(self):
+        """All 18 skill keys from SKILL_ABILITY_MAP are present in result."""
+        record = _make_record()
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        expected_skills = {
+            "acrobatics",
+            "animal_handling",
+            "arcana",
+            "athletics",
+            "deception",
+            "history",
+            "insight",
+            "intimidation",
+            "investigation",
+            "medicine",
+            "nature",
+            "perception",
+            "performance",
+            "persuasion",
+            "religion",
+            "sleight_of_hand",
+            "stealth",
+            "survival",
+        }
+        assert set(result["skill_modifiers"].keys()) == expected_skills
+
+    def test_returns_exactly_three_keys(self):
+        """Result dict has exactly three expected keys."""
+        record = _make_record()
+        base = prepare_base_data(record)
+        result = prepare_embedded_data(base, record)
+        assert set(result.keys()) == {
+            "skill_modifiers",
+            "saving_throw_modifiers",
+            "passive_perception",
+        }
+
+    def test_deterministic_same_input_same_output(self):
+        """Same input always produces same output."""
+        record = _make_record(
+            abilities={"STR": 15, "DEX": 12, "CON": 14, "INT": 8, "WIS": 10, "CHA": 13},
+            skills=["Athletics", "Perception"],
+        )
+        base = prepare_base_data(record)
+        result1 = prepare_embedded_data(base, record)
+        result2 = prepare_embedded_data(base, record)
+        assert result1 == result2
+
+    def test_does_not_mutate_base_dict(self):
+        """The function does not modify the input base dict."""
+        record = _make_record()
+        base = prepare_base_data(record)
+        original = dict(base)
+        prepare_embedded_data(base, record)
+        assert base == original
+
+    def test_does_not_mutate_record(self):
+        """The function does not modify the input record."""
+        record = _make_record(name="TestHero")
+        base = prepare_base_data(record)
+        original_name = record.name
+        prepare_embedded_data(base, record)
+        assert record.name == original_name
