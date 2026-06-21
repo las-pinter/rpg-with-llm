@@ -14,6 +14,7 @@ import pytest
 from app.agents.dm import DungeonMaster
 from app.agents.entity_persistence import EntityStorage
 from app.agents.record_keeper import RecordKeeperAgent
+from app.character.model import CharacterRecord, DerivedSheet
 from app.world.model import WorldState
 
 
@@ -26,8 +27,9 @@ class TestDMCache:
 
         _dm_cache.clear()
 
-        character = {"id": "hero_01", "name": "Thorn"}
-        character_id = character.get("id") or ""
+        character = CharacterRecord.create_default("Thorn", "Fighter")
+        character.id = "hero_01"  # type: ignore[attr-defined]
+        character_id = character.id
 
         dm = DungeonMaster(
             llm_provider=None,
@@ -46,8 +48,9 @@ class TestDMCache:
 
         _dm_cache.clear()
 
-        character = {"id": "hero_02", "name": "Lyra"}
-        character_id = character.get("id") or ""
+        character = CharacterRecord.create_default("Lyra", "Rogue")
+        character.id = "hero_02"  # type: ignore[attr-defined]
+        character_id = character.id
 
         original_dm = DungeonMaster(
             llm_provider=None,
@@ -70,20 +73,20 @@ class TestDMCache:
         dm1 = DungeonMaster(
             llm_provider=None,
             world_state=WorldState(character_id="hero_a"),
-            character={"id": "hero_a", "name": "A"},
+            character=CharacterRecord.create_default("A", "Fighter"),
         )
         dm2 = DungeonMaster(
             llm_provider=None,
             world_state=WorldState(character_id="hero_b"),
-            character={"id": "hero_b", "name": "B"},
+            character=CharacterRecord.create_default("B", "Rogue"),
         )
 
-        _dm_cache["hero_a"] = dm1
-        _dm_cache["hero_b"] = dm2
+        _dm_cache[dm1.character.id] = dm1  # type: ignore[attr-defined]
+        _dm_cache[dm2.character.id] = dm2  # type: ignore[attr-defined]
 
-        assert _dm_cache["hero_a"] is dm1
-        assert _dm_cache["hero_b"] is dm2
-        assert _dm_cache["hero_a"] is not _dm_cache["hero_b"]
+        assert _dm_cache[dm1.character.id] is dm1  # type: ignore[attr-defined]
+        assert _dm_cache[dm2.character.id] is dm2  # type: ignore[attr-defined]
+        assert _dm_cache[dm1.character.id] is not _dm_cache[dm2.character.id]  # type: ignore[attr-defined]
 
     def test_cache_empty_for_none_character_id(self) -> None:
         """When character_id is None, no caching happens."""
@@ -110,10 +113,12 @@ class TestDMCacheCleanup:
         _dm_cache.clear()
 
         for i in range(5):
+            char = CharacterRecord.create_default(f"H{i}", "Fighter")
+            char.id = f"hero_{i}"  # type: ignore[attr-defined]
             _dm_cache[f"hero_{i}"] = DungeonMaster(
                 llm_provider=None,
                 world_state=WorldState(),
-                character={"id": f"hero_{i}", "name": f"H{i}"},
+                character=char,
             )
 
         _cleanup_stale_dms()
@@ -134,10 +139,12 @@ class TestDMCacheCleanup:
         game_mod._dm_cache_cleanup_time = -game_mod._DM_CACHE_CLEANUP_INTERVAL
 
         for i in range(55):
+            char = CharacterRecord.create_default(f"H{i}", "Fighter")
+            char.id = f"hero_{i}"  # type: ignore[attr-defined]
             _dm_cache[f"hero_{i}"] = DungeonMaster(
                 llm_provider=None,
                 world_state=WorldState(),
-                character={"id": f"hero_{i}", "name": f"H{i}"},
+                character=char,
             )
 
         _cleanup_stale_dms()
@@ -176,6 +183,72 @@ class TestDMProcessTurnStreamHistory:
             list(dm.process_turn_stream(f"Action {i}"))
 
         assert len(dm.history.recent_turns) == 3
+
+
+# ---------------------------------------------------------------------------
+# DerivedSheet integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestDMDerivedSheet:
+    """Tests that DM computes and caches DerivedSheet correctly."""
+
+    def test_derived_sheet_is_computed(self) -> None:
+        """DM should compute a non-None derived_sheet for CharacterRecord."""
+        character = CharacterRecord.create_default("Thorn", "Fighter")
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=WorldState(),
+            character=character,
+        )
+
+        assert dm.derived_sheet is not None
+        assert isinstance(dm.derived_sheet, DerivedSheet)
+
+    def test_derived_sheet_has_expected_fields(self) -> None:
+        """DerivedSheet should have key computed fields populated."""
+        character = CharacterRecord.create_default("Lyra", "Rogue")
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=WorldState(),
+            character=character,
+        )
+
+        sheet = dm.derived_sheet
+        assert sheet is not None
+
+        # Ability modifiers should be computed from ability scores
+        assert isinstance(sheet.ability_modifiers, dict)
+        for abil in ("STR", "DEX", "CON", "INT", "WIS", "CHA"):
+            assert abil in sheet.ability_modifiers
+
+        # Proficiency bonus should be set (level 1 = +2)
+        assert sheet.proficiency_bonus == 2
+
+        # AC should have a computed value
+        assert isinstance(sheet.ac, int)
+        assert sheet.ac > 0
+
+        # Skill modifiers should exist for proficient skills (snake_case keys)
+        if character.skills:  # type: ignore[attr-defined]
+            for skill in character.skills:
+                normalized = skill.lower().replace(" ", "_")
+                assert normalized in sheet.skill_modifiers, (
+                    f"{normalized} not in {list(sheet.skill_modifiers.keys())}"
+                )
+
+    def test_derived_sheet_none_for_legacy_character(self) -> None:
+        """Legacy Character objects should get None derived_sheet."""
+        from app.character.model import Character
+
+        legacy = Character.create_default("OldHero", "Fighter")
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=WorldState(),
+            character=legacy,
+        )
+
+        assert dm.derived_sheet is None
 
 
 # ---------------------------------------------------------------------------
@@ -272,3 +345,20 @@ class TestDMWithRecordKeeper:
         messages = dm._build_context("hello")
         rk_messages = [m for m in messages if "RECORD-KEEPER" in m.get("content", "")]
         assert len(rk_messages) == 0
+
+    def test_dm_with_character_and_record_keeper_builds_context(
+        self, record_keeper: RecordKeeperAgent
+    ) -> None:
+        """DM with CharacterRecord and record keeper builds context without crashing."""
+        character = CharacterRecord.create_default("TestHero", "Fighter")
+        dm = DungeonMaster(
+            llm_provider=None,
+            world_state=WorldState(),
+            character=character,
+            record_keeper=record_keeper,
+        )
+        messages = dm._build_context("I enter the tavern")
+        # Should have system message with character info and at least DM prompt
+        assert len(messages) >= 2
+        # First message should be the DM system prompt
+        assert "Dungeon Master" in messages[0]["content"]

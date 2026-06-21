@@ -12,7 +12,7 @@ import flask as flask
 from flask import Response, jsonify, request, stream_with_context
 
 from app.agents.dm import DungeonMaster
-from app.character.model import Character
+from app.character.model import Character, CharacterRecord
 from app.llm.base import (
     LLMProvider,  # noqa: F401 — used in type hint for _build_provider_from_dict
 )
@@ -194,7 +194,7 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
     character_data = (
         body.get("character") if isinstance(body.get("character"), dict) else None
     )
-    character = Character.from_dict(character_data) if character_data else None
+    character = CharacterRecord.from_dict(character_data) if character_data else None
 
     # If starting a new game (no prior state was provided), seed the world
     # state inventory and gold from the character's starting equipment.

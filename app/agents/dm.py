@@ -13,32 +13,27 @@ import concurrent.futures
 import json
 import logging
 import re
+import warnings
 from collections.abc import Generator
 from datetime import datetime, timezone
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.world.persistence import WorldStorage
     from app.agents.record_keeper import RecordKeeperAgent
-
-from app.save_engine.envelope import SaveEnvelope
-from app.utils.atomic_write import atomic_write
+    from app.world.persistence import WorldStorage
 
 from app.agents.context_builder import build_context
 from app.agents.history import SessionHistory
 from app.agents.npc import NPCAgent, compress_text
 from app.agents.parser import parse_dm_response
-from app.agents.record_keeper_schemas import (
-    NPCRecord,
-    PlaceRecord,
-    ItemRecord,
-    EntityChangeLog,
-)
 from app.agents.summarizer import summarize_meta, summarize_story, summarize_turns
 from app.agents.tools import dispatch_tool
-from app.character.model import Character
+from app.character.derived import compute_derived_sheet
+from app.character.model import Character, CharacterRecord
 from app.llm.base import LLMProvider
 from app.rules.plausibility import classify_action
+from app.save_engine.envelope import SaveEnvelope
+from app.utils.atomic_write import atomic_write
 from app.world.model import WorldState
 from app.world.validator import apply_changes, validate_state_changes
 
@@ -604,7 +599,7 @@ class DungeonMaster:
         self,
         llm_provider: LLMProvider | None,
         world_state: WorldState | None,
-        character: Character | None,
+        character: CharacterRecord | Character | dict[str, Any] | None,
         npc_provider: LLMProvider | None = None,
         summarizer_provider: LLMProvider | None = None,
         storage: WorldStorage | None = None,
@@ -645,12 +640,21 @@ class DungeonMaster:
         )
         self.world_state = world_state
 
-        # Accept both Character objects and plain dicts (from JSON).
-        # Convert dicts to Character objects so downstream code can use
-        # attribute access (e.g. character.character_class).
         if isinstance(character, dict):
-            character = Character.from_dict(character)
-        self.character = character
+            character = CharacterRecord.from_dict(character)
+        self.character = character  # type: ignore[assignment]
+
+        # Compute DerivedSheet and cache it for the turn (only for new-style records)
+        if isinstance(self.character, CharacterRecord):
+            self.derived_sheet = compute_derived_sheet(self.character)
+        else:
+            warnings.warn(
+                "DungeonMaster received a legacy Character object. "
+                "Use CharacterRecord instead; legacy support will be removed.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.derived_sheet = None
         self.turn_count: int = 0
         self._retried_parse: bool = False
         self.token_usage: dict[str, int] = {
@@ -672,6 +676,8 @@ class DungeonMaster:
         # Per-turn narrative persistence
         self._storage: WorldStorage | None = storage
         self._save_slug: str | None = save_slug
+
+        # Derived sheet is computed above when character is set
 
         # Record-Keeper agent for entity memory & narrative analysis
         self.record_keeper = record_keeper
@@ -1149,6 +1155,10 @@ class DungeonMaster:
             is set.  For plausible actions, both are ``None``.
         """
         if self.character is None:
+            return False, None, None
+
+        # Plausibility check only works with new-style CharacterRecord
+        if not isinstance(self.character, CharacterRecord):
             return False, None, None
 
         classification = classify_action(self.character, player_input)

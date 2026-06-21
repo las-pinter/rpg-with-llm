@@ -67,18 +67,21 @@ def build_context(
 
     # Auto-classify if no note was provided and we have a character
     if plausibility_note is None and dm.character is not None:
-        classification = classify_action(dm.character, player_input)
-        category = classification.get("category", "plausible")
-        if category in ("implausible", "ambitious"):
-            reason = classification.get("reason", "")
-            suggested_dc = classification.get("dc", "N/A")
-            plausibility_note = (
-                f"[PLAUSIBILITY NOTE: The player attempts something "
-                f"{category}. {reason} "
-                f"Suggested DC: {suggested_dc}. "
-                f"The player must roll for this — set an appropriately "
-                f"high DC and describe the stakes before the roll.]"
-            )
+        from app.character.model import CharacterRecord
+
+        if isinstance(dm.character, CharacterRecord):
+            classification = classify_action(dm.character, player_input)
+            category = classification.get("category", "plausible")
+            if category in ("implausible", "ambitious"):
+                reason = classification.get("reason", "")
+                suggested_dc = classification.get("dc", "N/A")
+                plausibility_note = (
+                    f"[PLAUSIBILITY NOTE: The player attempts something "
+                    f"{category}. {reason} "
+                    f"Suggested DC: {suggested_dc}. "
+                    f"The player must roll for this — set an appropriately "
+                    f"high DC and describe the stakes before the roll.]"
+                )
 
     # Inject plausibility note early if provided
     if plausibility_note:
@@ -124,31 +127,106 @@ def build_context(
 
     # Incorporate character summary (if available)
     if dm.character is not None:
-        # Build ability scores string
-        abilities = getattr(dm.character, "abilities", {})
-        abilities_str = ", ".join(f"{k}={v}" for k, v in sorted(abilities.items()))
-        # Build skills string
-        skills = getattr(dm.character, "skills", [])
+        from app.character.model import CharacterRecord
+
+        record = dm.character
+        sheet = getattr(dm, "derived_sheet", None)
+
+        abilities_str = ", ".join(
+            f"{k}={v}" for k, v in sorted(record.abilities.items())
+        )
+        skills = getattr(record, "skills", [])
         skills_str = ", ".join(skills) if skills else "none"
-        # Build inventory string
-        inventory = getattr(dm.character, "inventory", [])
-        inventory_str = ", ".join(inventory) if inventory else "empty"
-        # Gold
-        gold = getattr(dm.character, "gold", 0)
+        inventory = getattr(record, "inventory", [])
+        # Handle both list[str] (legacy Character) and list[Item] (CharacterRecord)
+        if inventory and isinstance(inventory[0], str):
+            inventory_str = ", ".join(inventory)
+        elif inventory:
+            inventory_str = ", ".join(item.name for item in inventory)
+        else:
+            inventory_str = "empty"
+        gold = getattr(record, "gold", 0)
+
+        # Build derived stats display if available
+        ability_mods_str = ""
+        skill_mods_str = ""
+        proficiency_bonus_str = "?"
+        passive_perception_str = "?"
+        save_str = "?/?/?/?/?/?"
+        attack_str = "?/?/?"
+        ac_formula_str = "unknown"
+
+        if sheet:
+            ability_mods_str = ", ".join(
+                f"{k}{v:+d}" for k, v in sorted(sheet.ability_modifiers.items())
+            )
+
+            key_skills = [
+                "perception",
+                "stealth",
+                "investigation",
+                "athletics",
+                "acrobatics",
+            ]
+            skill_mods_str = ", ".join(
+                f"{k}={sheet.skill_modifiers.get(k, '?')}"
+                for k in key_skills
+                if k in sheet.skill_modifiers
+            )
+
+            proficiency_bonus_str = str(sheet.proficiency_bonus)
+            passive_perception_str = str(sheet.passive_perception)
+
+            save_mods = sheet.saving_throw_modifiers
+            save_str = f"{save_mods.get('STR', '?')}/{save_mods.get('DEX', '?')}/{save_mods.get('CON', '?')}/{save_mods.get('INT', '?')}/{save_mods.get('WIS', '?')}/{save_mods.get('CHA', '?')}"
+
+            atk = sheet.attack_bonus
+            attack_str = f"{atk.get('melee', '?')}/{atk.get('ranged', '?')}/{atk.get('spell', '?')}"
+
+            ac_formula_str = (
+                sheet.formulas.get("ac", "unknown") if sheet.formulas else "unknown"
+            )
+
+        # Get HP from resources (CharacterRecord) or legacy hp/max_hp fields
+        if isinstance(record, CharacterRecord) and record.resources:
+            hp_res = record.resources.get("hp")
+            hp_current = str(hp_res.value) if hp_res else "?"
+            hp_max = str(hp_res.max) if hp_res else "?"
+        elif hasattr(record, "max_hp"):
+            # Legacy Character compat
+            hp_current = str(getattr(record, "hp", "?"))
+            hp_max = str(getattr(record, "max_hp", "?"))
+        else:
+            hp_current = "?"
+            hp_max = "?"
 
         messages.append(
             {
                 "role": "system",
                 "content": (
                     f"Player character:\n"
-                    f"  Name: {dm.character.name}\n"
-                    f"  Class: {dm.character.character_class} "
-                    f"(level {dm.character.level})\n"
-                    f"  HP: {dm.character.hp}/{dm.character.max_hp}\n"
-                    f"  AC: {dm.character.ac}\n"
+                    f"  Name: {record.name}\n"
+                    f"  Class: {record.character_class} "
+                    f"(level {record.level})\n"
+                    f"  HP: {hp_current}/{hp_max}\n"
+                    f"  AC: {sheet.ac if sheet else getattr(record, 'ac', '?')} "
+                    f"({ac_formula_str})\n"
                     f"  Abilities: {abilities_str}\n"
+                    f"  Ability Modifiers: ({ability_mods_str})\n"
                     f"  Skills: {skills_str}\n"
-                    f"  XP: {dm.character.xp}\n"
+                    f"  Key Skill Mods: ({skill_mods_str})\n"
+                    f"  Proficiency Bonus: +{proficiency_bonus_str}\n"
+                    f"  Passive Perception: {passive_perception_str}\n"
+                    f"  Saves - STR: {save_str.split('/')[0]}, "
+                    f"DEX: {save_str.split('/')[1]}, "
+                    f"CON: {save_str.split('/')[2]}, "
+                    f"INT: {save_str.split('/')[3]}, "
+                    f"WIS: {save_str.split('/')[4]}, "
+                    f"CHA: {save_str.split('/')[5]}\n"
+                    f"  Attack Bonus - Melee: {attack_str.split('/')[0]}, "
+                    f"Ranged: {attack_str.split('/')[1]}, "
+                    f"Spell: {attack_str.split('/')[2]}\n"
+                    f"  XP: {record.xp}\n"
                     f"  Gold: {gold} GP\n"
                     f"  Inventory: {inventory_str}\n"
                 ),
