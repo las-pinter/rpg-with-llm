@@ -9,6 +9,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useGameStore } from '../../stores/gameStore'
 import { useCharacterStore } from '../../stores/characterStore'
+import type { Item, ItemType, DerivedSheet } from '../../api/types'
+import CharacterDetailsModal from './CharacterDetailsModal'
 import styles from './GameStatusSidebar.module.css'
 
 // ---------------------------------------------------------------------------
@@ -26,6 +28,27 @@ const ABILITY_LOWER: Record<string, string> = {
   int: 'INT',
   wis: 'WIS',
   cha: 'CHA',
+}
+
+/** Key skills to display in the skills section. */
+const KEY_SKILLS = [
+  'Perception',
+  'Stealth',
+  'Investigation',
+  'Insight',
+  'Athletics',
+  'Acrobatics',
+]
+
+/** Mapping from ItemType to display icon/emoji. */
+const ITEM_TYPE_ICON: Record<string, string> = {
+  WEAPON: '\u2694\uFE0F',
+  ARMOR: '\uD83D\uDEE1\uFE0F',
+  CONSUMABLE: '\uD83E\uDDEA',
+  TOOL: '\uD83D\uDD27',
+  CONTAINER: '\uD83D\uDCE6',
+  QUEST: '\u2B50',
+  MISC: '\uD83D\uDCDC',
 }
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'
@@ -57,15 +80,27 @@ function resolveAbilityKey(key: string): string {
   return ABILITY_LOWER[key] ?? key.toUpperCase()
 }
 
+/** Format an ability modifier with sign prefix. */
+function formatModifier(mod: number): string {
+  return mod >= 0 ? `+${mod}` : `${mod}`
+}
+
+/** Get display icon for an item type. */
+function getItemTypeIcon(itemType: string): string {
+  return ITEM_TYPE_ICON[itemType] ?? ITEM_TYPE_ICON.MISC
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Read-only abilities grid — 3x2 matching AbilityGrid styling. */
+/** Read-only abilities grid — 3x2 matching AbilityGrid styling, with modifiers. */
 function AbilitiesGrid({
   abilities,
+  modifiers,
 }: {
   abilities: Record<string, number>
+  modifiers?: Record<string, number> | null
 }) {
   const keys = ABILITY_KEYS.filter((k) => k in abilities)
 
@@ -78,34 +113,142 @@ function AbilitiesGrid({
 
     return (
       <div className={styles.abilitiesGrid}>
-        {lowerKeys.map((abil) => (
-          <div key={abil} className={styles.abilityCard}>
-            <span className={styles.abilityLabel}>{abil}</span>
-            <span className={styles.abilityScore}>
-              {abilities[abil.toLowerCase()] ?? '-'}
-            </span>
-          </div>
-        ))}
+        {lowerKeys.map((abil) => {
+          const mod = modifiers?.[abil.toLowerCase()] ?? modifiers?.[abil]
+          return (
+            <div key={abil} className={styles.abilityCard}>
+              <span className={styles.abilityLabel}>{abil}</span>
+              <span className={styles.abilityScore}>
+                {abilities[abil.toLowerCase()] ?? '-'}
+              </span>
+              {mod !== undefined && (
+                <span
+                  className={`${styles.abilityModifier} ${mod >= 0 ? styles.modPositive : styles.modNegative}`}
+                >
+                  {formatModifier(mod)}
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
     )
   }
 
   return (
     <div className={styles.abilitiesGrid}>
-      {keys.map((abil) => (
-        <div key={abil} className={styles.abilityCard}>
-          <span className={styles.abilityLabel}>{abil}</span>
-          <span className={styles.abilityScore}>
-            {abilities[abil] ?? '-'}
-          </span>
-        </div>
-      ))}
+      {keys.map((abil) => {
+        const mod = modifiers?.[abil]
+        return (
+          <div key={abil} className={styles.abilityCard}>
+            <span className={styles.abilityLabel}>{abil}</span>
+            <span className={styles.abilityScore}>
+              {abilities[abil] ?? '-'}
+            </span>
+            {mod !== undefined && (
+              <span
+                className={`${styles.abilityModifier} ${mod >= 0 ? styles.modPositive : styles.modNegative}`}
+              >
+                {formatModifier(mod)}
+              </span>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-/** Item list with bullet-pointed entries. */
-function InventoryList({ items }: { items: string[] }) {
+/** Saving throws section with proficiency indicators. */
+function SavingThrowsSection({
+  saves,
+  abilityMods,
+  proficiencyBonus,
+}: {
+  saves: Record<string, number>
+  abilityMods?: Record<string, number> | null
+  proficiencyBonus?: number
+}) {
+  const entries = Object.entries(saves)
+  if (entries.length === 0) return null
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Saving Throws</h3>
+      <div className={styles.savesGrid}>
+        {entries.map(([key, mod]) => {
+          const abilityMod = abilityMods?.[key] ?? abilityMods?.[key.toUpperCase()] ?? 0
+          const isProficient =
+            proficiencyBonus !== undefined &&
+            mod === abilityMod + proficiencyBonus
+
+          return (
+            <div key={key} className={styles.saveRow}>
+              <span className={styles.saveLabel}>
+                {isProficient && (
+                  <span
+                    className={styles.saveProficient}
+                    title="Proficient"
+                  >
+                    ●
+                  </span>
+                )}
+                {key.toUpperCase().slice(0, 3)}
+              </span>
+              <span
+                className={`${styles.saveMod} ${mod >= 0 ? styles.modPositive : styles.modNegative}`}
+              >
+                {formatModifier(mod)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Skills section showing key skill modifiers. */
+function SkillsSection({
+  skills,
+  keys,
+}: {
+  skills: Record<string, number>
+  keys: string[]
+}) {
+  const entries = keys
+    .filter((k) => skills[k] !== undefined)
+    .map((k) => [k, skills[k]] as [string, number])
+
+  if (entries.length === 0) return null
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Skills</h3>
+      <div className={styles.skillsList}>
+        {entries.map(([name, mod]) => (
+          <div key={name} className={styles.skillRow}>
+            <span className={styles.skillLabel}>{name}</span>
+            <span
+              className={`${styles.skillMod} ${mod >= 0 ? styles.modPositive : styles.modNegative}`}
+            >
+              {formatModifier(mod)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Item list with type icons and equipped indicators. */
+function InventoryList({
+  items,
+  equippedIds,
+}: {
+  items: Item[]
+  equippedIds: string[]
+}) {
   if (items.length === 0) {
     return <p className={styles.emptySmall}>Nothing</p>
   }
@@ -113,8 +256,17 @@ function InventoryList({ items }: { items: string[] }) {
   return (
     <ul className={styles.itemList}>
       {items.map((item, i) => (
-        <li key={`${item}-${i}`} className={styles.itemEntry}>
-          {item}
+        <li key={`${item.id}-${i}`} className={styles.itemEntry}>
+          <span className={styles.itemIcon} aria-hidden="true">
+            {getItemTypeIcon(item.item_type)}
+          </span>
+          <span className={styles.itemName}>{item.name}</span>
+          {item.quantity > 1 && (
+            <span className={styles.itemQty}>x{item.quantity}</span>
+          )}
+          {equippedIds.includes(item.id) && (
+            <span className={styles.equippedIndicator}>[E]</span>
+          )}
         </li>
       ))}
     </ul>
@@ -159,8 +311,10 @@ export default function GameStatusSidebar() {
   const totalCompletion = useGameStore((s) => s.tokenUsage.total.completion_tokens)
   const showTokens = useGameStore((s) => s.showTokens)
   const currentCharacter = useCharacterStore((s) => s.currentCharacter)
+  const derivedSheet = useCharacterStore((s) => s.derivedSheet)
 
   const [collapsed, setCollapsed] = useState(false)
+  const [showSheet, setShowSheet] = useState(false)
 
   // On mobile/small screens, collapse by default
   useEffect(() => {
@@ -183,6 +337,14 @@ export default function GameStatusSidebar() {
     setCollapsed((c) => !c)
   }, [])
 
+  const handleOpenSheet = useCallback(() => {
+    setShowSheet(true)
+  }, [])
+
+  const handleCloseSheet = useCallback(() => {
+    setShowSheet(false)
+  }, [])
+
   // Extract data from world state
   const character = worldState?._character as
     | Record<string, unknown>
@@ -200,10 +362,18 @@ export default function GameStatusSidebar() {
       : null
   const level =
     typeof character?.level === 'number' ? character.level : 1
-  const hp = typeof character?.hp === 'number' ? character.hp : 0
-  const maxHp =
-    typeof character?.max_hp === 'number' ? character.max_hp : 1
-  const ac = typeof character?.ac === 'number' ? character.ac : null
+
+  // Read HP from resources.hp.value / resources.hp.max
+  const resources = character?.resources as
+    | Record<string, { value: number; max: number }>
+    | undefined
+  const hp = resources?.hp?.value ?? 0
+  const maxHp = resources?.hp?.max ?? 1
+
+  // Read AC from derived sheet with fallback to world state
+  const rawAc = typeof character?.ac === 'number' ? character.ac : null
+  const ac = derivedSheet?.ac ?? rawAc
+
   const xp = typeof character?.xp === 'number' ? character.xp : null
   const abilities = character?.abilities as
     | Record<string, number>
@@ -215,9 +385,19 @@ export default function GameStatusSidebar() {
     typeof worldState?.current_location === 'string'
       ? worldState.current_location
       : null
-  const inventory = Array.isArray(worldState?.inventory)
-    ? (worldState.inventory as string[])
+
+  // Read inventory from character object (Item[]) with fallback
+  const inventoryItems: Item[] = Array.isArray(character?.inventory)
+    ? (character.inventory as Item[])
+    : (Array.isArray(worldState?.inventory)
+        ? (worldState.inventory as Item[])
+        : [])
+
+  // Read equipped items
+  const equippedItemIds: string[] = Array.isArray(character?.equipped_items)
+    ? (character.equipped_items as string[])
     : []
+
   const activeNpcs = (worldState?.active_npcs as Record<
     string,
     { name: string; last_seen_turn: number }
@@ -285,6 +465,15 @@ export default function GameStatusSidebar() {
           <span className={styles.collapsedLevel}>
             {charClass ?? `Lv${level}`}
           </span>
+          {/* Collapsed derived stats summary */}
+          <div className={styles.collapsedDerivedStats}>
+            <span className={styles.collapsedStat} title={`${hp}/${maxHp} HP`}>
+              ❤️{hp}/{maxHp}
+            </span>
+            <span className={styles.collapsedStat} title={`AC ${ac}`}>
+              🛡️{ac ?? '?'}
+            </span>
+          </div>
         </div>
       </aside>
     )
@@ -337,7 +526,10 @@ export default function GameStatusSidebar() {
         </div>
         <div className={styles.charMeta}>
           {ac !== null && (
-            <span className={styles.charMetaItem}>
+            <span
+              className={styles.charMetaItem}
+              title={derivedSheet?.formulas?.ac ?? ''}
+            >
               AC <span className={styles.charMetaValue}>{ac}</span>
             </span>
           )}
@@ -349,15 +541,49 @@ export default function GameStatusSidebar() {
         </div>
       </div>
 
+      {/* Character Sheet button */}
+      <div className={styles.sheetBtnWrapper}>
+        <button
+          type="button"
+          className={styles.charSheetBtn}
+          onClick={handleOpenSheet}
+          aria-label="Open character sheet"
+        >
+          📋 Character Sheet
+        </button>
+      </div>
+
       {/* Scrollable body */}
       <div className={styles.body}>
         {/* Abilities */}
         {resolvedAbilities && (
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>Abilities</h3>
-            <AbilitiesGrid abilities={resolvedAbilities} />
+            <AbilitiesGrid
+              abilities={resolvedAbilities}
+              modifiers={derivedSheet?.ability_modifiers}
+            />
           </div>
         )}
+
+        {/* Saving Throws */}
+        {derivedSheet?.saving_throw_modifiers &&
+          Object.keys(derivedSheet.saving_throw_modifiers).length > 0 && (
+            <SavingThrowsSection
+              saves={derivedSheet.saving_throw_modifiers}
+              abilityMods={derivedSheet.ability_modifiers}
+              proficiencyBonus={derivedSheet.proficiency_bonus}
+            />
+          )}
+
+        {/* Skills */}
+        {derivedSheet?.skill_modifiers &&
+          Object.keys(derivedSheet.skill_modifiers).length > 0 && (
+            <SkillsSection
+              skills={derivedSheet.skill_modifiers}
+              keys={KEY_SKILLS}
+            />
+          )}
 
         {/* Gold & Location */}
         <div className={styles.section}>
@@ -384,7 +610,10 @@ export default function GameStatusSidebar() {
         {/* Inventory */}
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>Inventory</h3>
-          <InventoryList items={inventory} />
+          <InventoryList
+            items={inventoryItems}
+            equippedIds={equippedItemIds}
+          />
         </div>
 
         {/* NPCs */}
@@ -411,6 +640,12 @@ export default function GameStatusSidebar() {
           </span>
         </div>
       )}
+
+      {/* Character Details Modal */}
+      <CharacterDetailsModal
+        isOpen={showSheet}
+        onClose={handleCloseSheet}
+      />
     </aside>
   )
 }
