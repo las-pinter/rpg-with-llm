@@ -1070,9 +1070,9 @@ class TestCharacterGenerateEndpoint:
                         "CHA": 8,
                     },
                     "skills": ["Athletics", "Perception"],
-                    "hp": 12,
-                    "max_hp": 12,
-                    "ac": 18,
+                    "resources": {
+                        "hp": {"value": 12, "max": 12},
+                    },
                     "appearance": "A sturdy dwarf.",
                     "backstory": "Blacksmith turned warrior.",
                     "inventory": ["Longsword", "Chain Mail"],
@@ -1242,9 +1242,9 @@ class TestCharacterGenerateEndpoint:
                         "CHA": 8,
                     },
                     "skills": ["Athletics", "Perception"],
-                    "hp": 12,
-                    "max_hp": 12,
-                    "ac": 18,
+                    "resources": {
+                        "hp": {"value": 12, "max": 12},
+                    },
                     "appearance": "A sturdy dwarf.",
                     "backstory": "Blacksmith turned warrior.",
                     "inventory": ["Longsword", "Chain Mail"],
@@ -1308,9 +1308,9 @@ class TestCharacterGenerateEndpoint:
                         "CHA": 8,
                     },
                     "skills": ["Athletics", "Perception"],
-                    "hp": 12,
-                    "max_hp": 12,
-                    "ac": 18,
+                    "resources": {
+                        "hp": {"value": 12, "max": 12},
+                    },
                     "appearance": "A sturdy dwarf.",
                     "backstory": "Blacksmith turned warrior.",
                     "inventory": ["Longsword", "Chain Mail"],
@@ -1580,6 +1580,149 @@ class TestCharacterIdEndpoint:
         data = resp.get_json()
         assert data["ok"] is False
         assert "not found" in data["error"].lower() or "not found" in data["error"]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/character/<id>/sheet
+# ---------------------------------------------------------------------------
+
+
+class TestCharacterSheetEndpoint:
+    """Tests for GET /api/character/<id>/sheet."""
+
+    def test_get_sheet_success(self, client):
+        """GET /api/character/<id>/sheet returns derived sheet."""
+        # Create a character first
+        resp = client.post(
+            "/api/character/create",
+            json={
+                "name": "SheetHero",
+                "character_class": "Fighter",
+            },
+        )
+        assert resp.status_code == 200
+        char_id = resp.get_json()["character"]["id"]
+        assert char_id != ""
+
+        # Get the derived sheet
+        resp = client.get(f"/api/character/{char_id}/sheet")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert "sheet" in data
+
+        sheet = data["sheet"]
+        # Sheet must contain key derived fields
+        assert "ability_modifiers" in sheet
+        assert "proficiency_bonus" in sheet
+        assert "ac" in sheet
+        assert "initiative" in sheet
+        assert "skill_modifiers" in sheet
+        assert "saving_throw_modifiers" in sheet
+        assert "passive_perception" in sheet
+        assert "hit_dice" in sheet
+
+        # Fighter-specific checks
+        assert sheet["hit_dice"] == "1d10"
+        assert sheet["proficiency_bonus"] == 2
+        # Fighter with STR 15 → modifier +2, chain mail AC 16 + shield +2 = 18
+        assert sheet["ac"] >= 10
+
+    def test_get_sheet_not_found(self, client):
+        """GET /api/character/<nonexistent>/sheet returns 404."""
+        resp = client.get("/api/character/nonexistent-uuid/sheet")
+        assert resp.status_code == 404
+        data = resp.get_json()
+        assert data["ok"] is False
+        assert "not found" in data["error"].lower()
+
+    def test_get_sheet_computed_values(self, client):
+        """GET /api/character/<id>/sheet returns correct derived values."""
+        # Create a Mage
+        resp = client.post(
+            "/api/character/create",
+            json={
+                "name": "WiseMage",
+                "character_class": "Mage",
+            },
+        )
+        assert resp.status_code == 200
+        char_id = resp.get_json()["character"]["id"]
+
+        resp = client.get(f"/api/character/{char_id}/sheet")
+        assert resp.status_code == 200
+        sheet = resp.get_json()["sheet"]
+
+        # Mage has INT 15 → modifier +2
+        assert sheet["ability_modifiers"]["INT"] == 2
+        # Mage proficiency bonus at level 1
+        assert sheet["proficiency_bonus"] == 2
+        # Mage hit dice
+        assert sheet["hit_dice"] == "1d6"
+        # Skill modifiers should be present
+        assert "arcana" in sheet["skill_modifiers"]
+        assert "investigation" in sheet["skill_modifiers"]
+        # Saving throws — Mage proficient in INT and WIS
+        assert sheet["saving_throw_modifiers"]["INT"] >= 2
+        assert sheet["saving_throw_modifiers"]["WIS"] >= 2
+
+    def test_get_sheet_after_generated_character(self, client):
+        """GET /api/character/<id>/sheet works for LLM-generated characters."""
+        mock_provider = MagicMock()
+        mock_provider.call.return_value = {
+            "content": json.dumps(
+                {
+                    "name": "LLMSheetHero",
+                    "character_class": "Rogue",
+                    "level": 1,
+                    "abilities": {
+                        "STR": 8,
+                        "DEX": 15,
+                        "CON": 13,
+                        "INT": 14,
+                        "WIS": 12,
+                        "CHA": 10,
+                    },
+                    "skills": ["Stealth", "Sleight of Hand", "Perception"],
+                    "resources": {
+                        "hp": {"value": 9, "max": 9},
+                    },
+                    "appearance": "Shadowy figure.",
+                    "backstory": "Spy turned adventurer.",
+                    "inventory": ["Shortsword", "Leather Armor"],
+                }
+            ),
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+        }
+
+        with patch("app.routes.characters.create_provider", return_value=mock_provider):
+            resp = client.post(
+                "/api/character/generate",
+                json={
+                    "answers": {
+                        "0": "Grew up in the slums.",
+                        "1": "Stole from the wrong person.",
+                        "2": "Fled to start a new life.",
+                    },
+                    "provider": {
+                        "base_url": "http://localhost:11434",
+                        "model": "llama3.2",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        char_id = resp.get_json()["character"]["id"]
+
+        resp = client.get(f"/api/character/{char_id}/sheet")
+        assert resp.status_code == 200
+        sheet = resp.get_json()["sheet"]
+        # Rogue with DEX 15 → modifier +2
+        assert sheet["ability_modifiers"]["DEX"] == 2
+        assert sheet["hit_dice"] == "1d8"
+        # Stealth should be proficient
+        assert sheet["skill_modifiers"]["stealth"] >= 2
 
 
 # ---------------------------------------------------------------------------
