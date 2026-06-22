@@ -10,7 +10,7 @@ from __future__ import annotations
 from app.dice.parser import parse
 from app.dice.roller import roll
 
-from .checks import get_ability_modifier
+from .checks import _is_derived_sheet, get_ability_modifier
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -31,8 +31,10 @@ def attack_roll(
     (normal roll).
 
     Args:
-        attacker_stats: Character stat dict (must contain ``strength``,
-            ``proficiency_bonus``).
+        attacker_stats: Character stat dict.  Accepts either an old-style
+            dict (must contain ``strength``, ``proficiency_bonus``) **or** a
+            DerivedSheet-style dict (containing ``ability_modifiers`` with
+            an ``"STR"`` key).
         defender_ac: Armour class of the target.
         advantage: Whether the attacker has advantage.
         disadvantage: Whether the attacker has disadvantage.
@@ -58,8 +60,12 @@ def attack_roll(
     result = roll(parse(notation))
 
     # Attack modifier: proficiency + strength (default melee)
-    prof = attacker_stats.get("proficiency_bonus", 0)
-    str_mod = get_ability_modifier(attacker_stats.get("strength", 10))
+    if _is_derived_sheet(attacker_stats):
+        str_mod = attacker_stats["ability_modifiers"]["STR"]
+        prof = attacker_stats.get("proficiency_bonus", 0)
+    else:
+        prof = attacker_stats.get("proficiency_bonus", 0)
+        str_mod = get_ability_modifier(attacker_stats.get("strength", 10))
     modifier = prof + str_mod
 
     total = result["total"] + modifier
@@ -138,7 +144,9 @@ def calculate_damage(
 
     Args:
         damage_dice: Dice notation string (e.g. ``"1d8"``, ``"2d6"``).
-        attacker_stats: Character stat dict (must contain ``strength``).
+        attacker_stats: Character stat dict.  Accepts either an old-style
+            dict (must contain ``strength``) **or** a DerivedSheet-style dict
+            (containing ``ability_modifiers`` with an ``"STR"`` key).
         damage_type: The type of damage dealt.
 
     Returns:
@@ -149,7 +157,10 @@ def calculate_damage(
     """
     result = roll(parse(damage_dice))
 
-    str_mod = get_ability_modifier(attacker_stats.get("strength", 10))
+    if _is_derived_sheet(attacker_stats):
+        str_mod = attacker_stats["ability_modifiers"]["STR"]
+    else:
+        str_mod = get_ability_modifier(attacker_stats.get("strength", 10))
     total = max(0, result["total"] + str_mod)
 
     return {

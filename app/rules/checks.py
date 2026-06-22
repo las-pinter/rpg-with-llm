@@ -15,6 +15,31 @@ from app.dice.roller import roll
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# DerivedSheet detection
+# ---------------------------------------------------------------------------
+
+
+def _is_derived_sheet(stats: dict) -> bool:
+    """Check whether *stats* is a DerivedSheet-style dict (new format).
+
+    A DerivedSheet-style dict contains an ``"ability_modifiers"`` key.
+    Old-style stat dicts do not have this key.
+    """
+    return isinstance(stats, dict) and "ability_modifiers" in stats
+
+
+# Ability name → abbreviation mapping for DerivedSheet lookups
+# DerivedSheet.ability_modifiers uses UPPERCASE abbreviated keys ("STR", "DEX")
+ABILITY_NAME_TO_ABBR: dict[str, str] = {
+    "strength": "STR",
+    "dexterity": "DEX",
+    "constitution": "CON",
+    "intelligence": "INT",
+    "wisdom": "WIS",
+    "charisma": "CHA",
+}
+
+# ---------------------------------------------------------------------------
 # Skill-to-ability mapping (D&D 5e standard)
 # ---------------------------------------------------------------------------
 
@@ -72,12 +97,14 @@ def skill_check(
     """Roll a skill check: 1d20 + ability modifier + proficiency (if trained).
 
     Args:
-        stats: Character stat dictionary (must contain ability scores,
-            ``proficiency_bonus``, and ``skills``).
+        stats: Character stat dictionary.  Accepts either an old-style dict
+            (containing ability scores, ``proficiency_bonus``, and ``skills``)
+            **or** a DerivedSheet-style dict (containing ``skill_modifiers``).
         skill: Skill name (e.g. ``"perception"``, ``"stealth"``).
         dc: Difficulty class (target number).
         ability: Ability to use. If ``None``, inferred from
-            :data:`SKILL_ABILITY_MAP`.
+            :data:`SKILL_ABILITY_MAP` (old-style only — ignored when
+            ``stats`` is a DerivedSheet-style dict).
 
     Returns:
         A dict with:
@@ -87,23 +114,33 @@ def skill_check(
         - **modifier** (``int``): Total modifier applied.
         - **margin** (``int``): ``total - dc`` (negative means failure).
     """
-    if ability is None:
-        ability = SKILL_ABILITY_MAP.get(skill, "intelligence")
+    if _is_derived_sheet(stats):
+        modifier = stats["skill_modifiers"][skill]
+        logger.debug(
+            "checks.skill_check(derived): skill=%s dc=%d mod=%d",
+            skill,
+            dc,
+            modifier,
+        )
+    else:
+        if ability is None:
+            ability = SKILL_ABILITY_MAP.get(skill, "intelligence")
 
-    ability_mod = get_ability_modifier(stats.get(ability, 10))
-    trained = stats.get("skills", {}).get(skill, False)
-    prof = stats.get("proficiency_bonus", 0) if trained else 0
-    modifier = ability_mod + prof
+        ability_mod = get_ability_modifier(stats.get(ability, 10))
+        trained = stats.get("skills", {}).get(skill, False)
+        prof = stats.get("proficiency_bonus", 0) if trained else 0
+        modifier = ability_mod + prof
 
-    logger.debug(
-        "checks.skill_check: skill=%s ability=%s dc=%d mod=%d (prof=%d, trained=%s)",
-        skill,
-        ability,
-        dc,
-        modifier,
-        prof,
-        trained,
-    )
+        logger.debug(
+            "checks.skill_check:"
+            " skill=%s ability=%s dc=%d mod=%d (prof=%d, trained=%s)",
+            skill,
+            ability,
+            dc,
+            modifier,
+            prof,
+            trained,
+        )
 
     result = roll(parse("1d20"))
     total = result["total"] + modifier
@@ -128,8 +165,10 @@ def saving_throw(stats: dict, ability: str, dc: int) -> dict:
     """Roll a saving throw: 1d20 + ability modifier + proficiency (if proficient).
 
     Args:
-        stats: Character stat dictionary (must contain ability scores,
-            ``proficiency_bonus``, and ``saving_throws``).
+        stats: Character stat dictionary.  Accepts either an old-style dict
+            (containing ability scores, ``proficiency_bonus``, and
+            ``saving_throws``) **or** a DerivedSheet-style dict (containing
+            ``saving_throw_modifiers``).
         ability: Ability name (e.g. ``"strength"``, ``"dexterity"``).
         dc: Difficulty class (target number).
 
@@ -141,18 +180,27 @@ def saving_throw(stats: dict, ability: str, dc: int) -> dict:
         - **modifier** (``int``): Total modifier applied.
         - **margin** (``int``): ``total - dc`` (negative means failure).
     """
-    ability_mod = get_ability_modifier(stats.get(ability, 10))
-    proficient = stats.get("saving_throws", {}).get(ability, False)
-    prof = stats.get("proficiency_bonus", 0) if proficient else 0
-    modifier = ability_mod + prof
+    if _is_derived_sheet(stats):
+        modifier = stats["saving_throw_modifiers"][ability]
+        logger.debug(
+            "checks.saving_throw(derived): ability=%s dc=%d mod=%d",
+            ability,
+            dc,
+            modifier,
+        )
+    else:
+        ability_mod = get_ability_modifier(stats.get(ability, 10))
+        proficient = stats.get("saving_throws", {}).get(ability, False)
+        prof = stats.get("proficiency_bonus", 0) if proficient else 0
+        modifier = ability_mod + prof
 
-    logger.debug(
-        "checks.saving_throw: ability=%s dc=%d mod=%d (proficient=%s)",
-        ability,
-        dc,
-        modifier,
-        proficient,
-    )
+        logger.debug(
+            "checks.saving_throw: ability=%s dc=%d mod=%d (proficient=%s)",
+            ability,
+            dc,
+            modifier,
+            proficient,
+        )
 
     result = roll(parse("1d20"))
     total = result["total"] + modifier
@@ -177,7 +225,9 @@ def ability_check(stats: dict, ability: str, dc: int) -> dict:
     """Roll a pure ability check (no proficiency): 1d20 + ability modifier.
 
     Args:
-        stats: Character stat dictionary (must contain ability scores).
+        stats: Character stat dictionary.  Accepts either an old-style dict
+            (containing ability scores) **or** a DerivedSheet-style dict
+            (containing ``ability_modifiers`` with **uppercase** keys).
         ability: Ability name (e.g. ``"strength"``, ``"charisma"``).
         dc: Difficulty class (target number).
 
@@ -189,7 +239,12 @@ def ability_check(stats: dict, ability: str, dc: int) -> dict:
         - **modifier** (``int``): Ability modifier applied.
         - **margin** (``int``): ``total - dc`` (negative means failure).
     """
-    modifier = get_ability_modifier(stats.get(ability, 10))
+    if _is_derived_sheet(stats):
+        # DerivedSheet uses UPPERCASE abbreviated keys (e.g. "STR", "DEX")
+        abbr = ABILITY_NAME_TO_ABBR.get(ability, ability.upper()[:3])
+        modifier = stats["ability_modifiers"][abbr]
+    else:
+        modifier = get_ability_modifier(stats.get(ability, 10))
 
     logger.debug("checks.ability_check: ability=%s dc=%d mod=%d", ability, dc, modifier)
 
