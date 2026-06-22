@@ -250,9 +250,9 @@ class TestSaveEndpoint:
         # Character should be extracted and passed to the character bucket
         assert "character" in buckets_data
         char_obj = buckets_data["character"]
-        from app.character.model import Character
+        from app.character.model import CharacterRecord
 
-        assert isinstance(char_obj, Character)
+        assert isinstance(char_obj, CharacterRecord)
         assert char_obj.name == "LegacyHero"
         # WorldState should NOT have _character embedded
         assert buckets_data["world_state"]._character is None
@@ -317,9 +317,9 @@ class TestLoadEndpoint:
     def test_load_success_with_character(self, client):
         """POST returns both state and character when character is present."""
         real_state = WorldState(current_location="forest")
-        from app.character.model import Character
+        from app.character.model import CharacterRecord
 
-        mock_char = Character.from_dict({"name": "Hero", "id": "char-1"})
+        mock_char = CharacterRecord.from_dict({"name": "Hero", "id": "char-1"})
         with patch(
             "app.routes.saves._save_manager.load",
             return_value={"world_state": real_state, "character": mock_char},

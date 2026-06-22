@@ -12,7 +12,7 @@ external state.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 # Registry: (schema_name, from_version) -> (to_version, callable)
 # callable signature: (payload: dict) -> dict
@@ -177,3 +177,69 @@ def _migrate_character_v1_to_v1_1(payload: dict) -> dict:
 # Register the example migration at import time so it is available whenever
 # the migration module is loaded.
 register_migration("character", "1.0.0", "1.1.0", _migrate_character_v1_to_v1_1)
+
+
+# ---------------------------------------------------------------------------
+# Migration: character schema v1.1.0 -> v1.2.0 (Character → CharacterRecord)
+# ---------------------------------------------------------------------------
+
+
+def _migrate_character_v1_1_to_v1_2(payload: dict) -> dict:
+    """Migrate legacy Character format to CharacterRecord format.
+
+    Converts:
+    - ``hp`` / ``max_hp`` (removed) → ``resources.hp`` ResourceData
+    - ``ac`` (removed) — dropped entirely (computed by derivation pipeline)
+    - ``inventory`` from ``list[str]`` → ``list[dict]`` (Item format)
+    - Adds ``equipped_items: []`` if missing
+    - Adds ``resources`` with an ``hp`` entry if ``resources`` is missing
+    """
+    # Remove legacy derived fields
+    payload.pop("ac", None)
+    hp = payload.pop("hp", 10)
+    max_hp = payload.pop("max_hp", 10)
+
+    # Convert inventory from list[str] to list[Item dicts]
+    old_inventory = payload.get("inventory", [])
+    if (
+        isinstance(old_inventory, list)
+        and old_inventory
+        and isinstance(old_inventory[0], str)
+    ):
+        import uuid
+
+        new_inventory = []
+        for item_name in old_inventory:
+            new_inventory.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": item_name,
+                    "quantity": 1,
+                    "item_type": "misc",
+                    "properties": {},
+                    "description": "",
+                    "weight": 0.0,
+                    "value": 0,
+                }
+            )
+        payload["inventory"] = new_inventory
+
+    # Add equipped_items if missing
+    if "equipped_items" not in payload:
+        payload["equipped_items"] = []
+
+    # Add resources in CharacterRecord format
+    if "resources" not in payload or not payload["resources"]:
+        payload["resources"] = {
+            "hp": {
+                "value": hp,
+                "max": max_hp,
+                "short_rest_recovery": "none",
+                "long_rest_recovery": "full",
+            }
+        }
+
+    return payload
+
+
+register_migration("character", "1.1.0", "1.2.0", _migrate_character_v1_1_to_v1_2)

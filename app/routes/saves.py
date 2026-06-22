@@ -16,9 +16,10 @@ from pathlib import Path
 import flask as flask
 from flask import jsonify, request
 
+from app.character.derived import compute_derived_sheet
+from app.character.model import CharacterRecord
 from app.save_engine.envelope import SaveEnvelope
 from app.save_engine.manager import SaveGameManager
-from app.character.model import Character
 from app.utils import atomic_write
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
@@ -111,7 +112,7 @@ def save_game() -> tuple[flask.Response, int] | flask.Response:
         }
 
         if character_dict is not None and isinstance(character_dict, dict):
-            buckets_data["character"] = Character.from_dict(character_dict)
+            buckets_data["character"] = CharacterRecord.from_dict(character_dict)
 
         narrative_entries = data.get("narrative_entries")
         if (
@@ -200,10 +201,21 @@ def load_game(slug: str) -> tuple[flask.Response, int] | flask.Response:
     try:
         result = _save_manager.load(slug)
         world_state: WorldState | None = result.get("world_state")
-        character: Character | None = result.get("character")
+        character: CharacterRecord | None = result.get("character")
 
         state_dict = world_state.to_dict() if world_state else {}
-        char_dict = character.to_dict() if character else None
+
+        char_dict: dict | None = None
+        sheet_dict: dict | None = None
+        if character is not None:
+            char_dict = character.to_dict()
+            try:
+                sheet = compute_derived_sheet(character)
+                sheet_dict = sheet.to_dict()
+            except Exception:
+                logger.warning(
+                    "Failed to compute derived sheet for '%s'", slug, exc_info=True
+                )
 
         logger.debug(
             "Loaded game '%s' — location=%s, turn=%d",
@@ -226,6 +238,8 @@ def load_game(slug: str) -> tuple[flask.Response, int] | flask.Response:
     response: dict[str, object] = {"ok": True, "state": state_dict}
     if char_dict is not None:
         response["character"] = char_dict
+    if sheet_dict is not None:
+        response["sheet"] = sheet_dict
     return jsonify(response)
 
 

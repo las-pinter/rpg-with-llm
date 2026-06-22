@@ -1,16 +1,16 @@
 import json
 import logging
-from typing import Any
 from pathlib import Path
-from app.save_engine.schemas import validate_payload
-from app.save_engine.migration import MigrationError, run_migration
+from typing import Any
 
+from app.character.model import CharacterRecord
 from app.save_engine.bucket import Bucket
 from app.save_engine.envelope import SaveEnvelope
-from app.world.persistence import WorldStorage
-from app.world.model import WorldState
-from app.character.model import Character
+from app.save_engine.migration import MigrationError, run_migration
+from app.save_engine.schemas import validate_payload
 from app.utils import atomic_write
+from app.world.model import WorldState
+from app.world.persistence import WorldStorage
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,7 @@ class SaveGameManager:
         self.register_bucket(
             Bucket(
                 "character",
-                "1.1.0",
+                "1.2.0",
                 {
                     "type": "object",
                     "properties": {
@@ -221,16 +221,18 @@ class SaveGameManager:
                         "xp": {"type": "integer"},
                         "abilities": {"type": "object"},
                         "skills": {"type": "array", "items": {"type": "string"}},
-                        "hp": {"type": "integer"},
-                        "max_hp": {"type": "integer"},
-                        "ac": {"type": "integer"},
-                        "inventory": {"type": "array", "items": {"type": "string"}},
                         "gold": {"type": "integer"},
+                        "inventory": {"type": "array", "items": {"type": "object"}},
+                        "equipped_items": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "resources": {"type": "object"},
                     },
                     "required": ["id", "name"],
                 },
-                Character.to_dict,
-                Character.from_dict,
+                CharacterRecord.to_dict,
+                CharacterRecord.from_dict,
             )
         )
 

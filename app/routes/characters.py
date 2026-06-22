@@ -14,7 +14,8 @@ from app.character.creation import (
     CharacterGenerationError,
     CharacterStorage,
 )
-from app.character.model import VALID_CLASSES, Character
+from app.character.derived import compute_derived_sheet
+from app.character.model import VALID_CLASSES, CharacterRecord
 from app.llm.config import ProviderConfig, create_provider
 
 logger = logging.getLogger(__name__)
@@ -271,9 +272,9 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
                 if field in data and isinstance(data[field], list):
                     char_data[field] = data[field]
 
-            character = Character.from_dict(char_data)
+            character = CharacterRecord.from_dict(char_data)
         else:
-            character = Character.create_default(name.strip(), character_class)
+            character = CharacterRecord.create_default(name.strip(), character_class)
             appearance = data.get("appearance", "")
             backstory = data.get("backstory", "")
             if appearance and isinstance(appearance, str):
@@ -420,6 +421,59 @@ def load_character_by_id(
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
     return jsonify({"ok": True, "character": character.to_dict()})
+
+
+@bp.route("/character/<char_id>/sheet", methods=["GET"])
+def get_character_sheet(
+    char_id: str,
+) -> tuple[flask.Response, int] | flask.Response:
+    """Return the derived sheet for a character.
+
+    Loads the character record, computes the derived sheet (AC, ability
+    modifiers, skill modifiers, saving throws, etc.), and returns it.
+
+    Parameters
+    ----------
+    char_id : str
+        The character's UUID string.
+
+    Returns
+    -------
+    JSON with ``ok`` and ``sheet`` (DerivedSheet dict) on success.
+
+    Errors
+    ------
+    404
+        If no character with the given *char_id* exists.
+    500
+        If an internal error occurs.
+    """
+    try:
+        record = _character_storage.load_by_id(char_id)
+    except FileNotFoundError:
+        return (
+            jsonify({"ok": False, "error": f"Character with id '{char_id}' not found"}),
+            404,
+        )
+    except ValueError:
+        logger.warning(
+            "Invalid or corrupt character data for id '%s'", char_id, exc_info=True
+        )
+        return (
+            jsonify({"ok": False, "error": "Invalid or corrupt character data"}),
+            400,
+        )
+    except Exception:
+        logger.exception("Failed to load character by id '%s'", char_id)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    try:
+        sheet = compute_derived_sheet(record)
+    except Exception:
+        logger.exception("Failed to compute derived sheet for id '%s'", char_id)
+        return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+    return jsonify({"ok": True, "sheet": sheet.to_dict()})
 
 
 @bp.route("/character/id/<char_id>", methods=["DELETE"])

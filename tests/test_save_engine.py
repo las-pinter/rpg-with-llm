@@ -4,7 +4,7 @@ from pathlib import Path
 from app.save_engine.manager import SaveGameManager
 from app.save_engine.bucket import Bucket
 from app.world.model import WorldState
-from app.character.model import Character
+from app.character.model import CharacterRecord
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def test_roundtrip_save_load(temp_data_dir):
 
     # Create sample data
     world_state = WorldState(character_name="Hero", character_id="hero1")
-    character = Character.create_default("Hero", "Fighter")
+    character = CharacterRecord.create_default("Hero", "Fighter")
 
     buckets_data = {
         "world_state": world_state,
