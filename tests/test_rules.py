@@ -59,6 +59,44 @@ BASE_STATS = {
     "skills": {"perception": True, "stealth": True, "investigation": True},
 }
 
+# DerivedSheet-style fixture — matches BASE_STATS but with DerivedSheet keys
+DERIVED_SHEET_STATS = {
+    "ability_modifiers": {
+        "STR": 2,  # strength 14 -> +2
+        "DEX": 1,  # dexterity 12 -> +1
+        "CON": 2,  # constitution 15 -> +2
+        "INT": 0,  # intelligence 10 -> 0
+        "WIS": -1,  # wisdom 8 -> -1
+        "CHA": 1,  # charisma 13 -> +1
+    },
+    "proficiency_bonus": 2,
+    "ac": 14,
+    "initiative": 1,
+    "speed": 30,
+    "skill_modifiers": {
+        "perception": 1,  # wis -1 + prof 2 = 1 (trained)
+        "stealth": 3,  # dex 1 + prof 2 = 3 (trained)
+        "investigation": 2,  # int 0 + prof 2 = 2 (trained)
+        "arcana": 0,  # int 0, untrained
+        "athletics": 2,  # str 2, untrained
+    },
+    "saving_throw_modifiers": {
+        "strength": 4,  # str 2 + prof 2 = 4 (proficient)
+        "dexterity": 1,  # dex 1, not proficient
+        "constitution": 4,  # con 2 + prof 2 = 4 (proficient)
+        "intelligence": 0,
+        "wisdom": -1,
+        "charisma": 1,
+    },
+    "passive_perception": 11,
+    "attack_bonus": {},
+    "encumbrance": {},
+    "hit_dice": "",
+    "resistances": [],
+    "vulnerabilities": [],
+    "formulas": {},
+}
+
 
 # ===========================================================================
 # Checks tests
@@ -268,6 +306,290 @@ class TestChecksEdgeCases:
         # DC 3 <= min possible 3
         result = ability_check(BASE_STATS, "strength", 3)
         assert result["success"] is True
+
+
+# ===========================================================================
+# DerivedSheet integration tests
+# ===========================================================================
+
+
+class TestSkillCheckDerivedSheet:
+    """Skill check with DerivedSheet-style dict."""
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_empty_dict_falls_back_to_old_style(self, mock_parse, mock_roll):
+        """Fall back to old-style lookup for partial/empty dict."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # Empty dict → old-style path, strength defaults to 10 → mod 0, no prof
+        result = skill_check({}, "perception", 10, ability="strength")
+        assert result["modifier"] == 0
+        assert result["total"] == 10
+        assert result["success"] is True
+        assert result["margin"] == 0
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_trained_skill_reads_modifier_directly(self, mock_parse, mock_roll):
+        """Trained skill should use pre-computed modifier from DerivedSheet."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # perception_mod = 1 (wis -1 + prof 2)
+        result = skill_check(DERIVED_SHEET_STATS, "perception", 10)
+        assert result["modifier"] == 1
+        assert result["total"] == 11
+        assert result["success"] is True
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_untrained_skill_no_proficiency(self, mock_parse, mock_roll):
+        """Untrained skill modifier from DerivedSheet already excludes prof."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # arcana_mod = 0 (int 0, not trained)
+        result = skill_check(DERIVED_SHEET_STATS, "arcana", 10)
+        assert result["modifier"] == 0
+        assert result["total"] == 10
+        assert result["success"] is True
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_derived_ability_parameter_ignored(self, mock_parse, mock_roll):
+        """When DerivedSheet is used, the ability parameter should be ignored."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # ability="strength" would normally change the lookup, but with
+        # DerivedSheet the pre-computed skill_modifiers dict is used directly.
+        result = skill_check(DERIVED_SHEET_STATS, "perception", 10, ability="strength")
+        assert result["modifier"] == 1  # still perception modifier, not strength
+
+
+class TestSavingThrowDerivedSheet:
+    """Saving throw with DerivedSheet-style dict."""
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_empty_dict_falls_back_to_old_style(self, mock_parse, mock_roll):
+        """Fall back to old-style lookup for partial/empty dict."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # Empty dict → old-style path, strength defaults to 10 → mod 0, not proficient
+        result = saving_throw({}, "strength", 10)
+        assert result["modifier"] == 0
+        assert result["total"] == 10
+        assert result["success"] is True
+        assert result["margin"] == 0
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_proficient_save(self, mock_parse, mock_roll):
+        """Proficient save uses pre-computed modifier from DerivedSheet."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # strength_save = 4 (str 2 + prof 2)
+        result = saving_throw(DERIVED_SHEET_STATS, "strength", 14)
+        assert result["modifier"] == 4
+        assert result["total"] == 14
+        assert result["success"] is True
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_non_proficient_save(self, mock_parse, mock_roll):
+        """Non-proficient save uses pre-computed modifier (no prof added)."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # dexterity_save = 1 (dex 1, not proficient)
+        result = saving_throw(DERIVED_SHEET_STATS, "dexterity", 11)
+        assert result["modifier"] == 1
+        assert result["total"] == 11
+        assert result["success"] is True
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_saving_throw_failure(self, mock_parse, mock_roll):
+        """When total < DC, success should be False."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=5)
+
+        result = saving_throw(DERIVED_SHEET_STATS, "strength", 20)
+        assert result["success"] is False
+
+
+class TestAbilityCheckDerivedSheet:
+    """Ability check with DerivedSheet-style dict."""
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_empty_dict_falls_back_to_old_style(self, mock_parse, mock_roll):
+        """Fall back to old-style lookup for partial/empty dict."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # Empty dict → old-style path, strength defaults to 10 → mod 0
+        result = ability_check({}, "strength", 10)
+        assert result["modifier"] == 0
+        assert result["total"] == 10
+        assert result["success"] is True
+        assert result["margin"] == 0
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_uses_uppercase_ability_key(self, mock_parse, mock_roll):
+        """DerivedSheet ability_modifiers use UPPERCASE keys (STR, DEX, etc.)."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # strength=14 -> +2
+        result = ability_check(DERIVED_SHEET_STATS, "strength", 12)
+        assert result["modifier"] == 2
+        assert result["total"] == 12
+        assert result["success"] is True
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_check_failure(self, mock_parse, mock_roll):
+        """When total < DC, success should be False."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=3)
+
+        result = ability_check(DERIVED_SHEET_STATS, "charisma", 20)
+        assert result["success"] is False
+
+    @patch("app.rules.checks.roll")
+    @patch("app.rules.checks.parse")
+    def test_margin_returned(self, mock_parse, mock_roll):
+        """ability_check should still return margin field."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=12)
+
+        result = ability_check(DERIVED_SHEET_STATS, "strength", 10)
+        assert result["margin"] == 4  # 12 + 2 - 10
+
+
+class TestAttackRollDerivedSheet:
+    """Attack roll with DerivedSheet-style dict."""
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_empty_dict_falls_back_to_old_style(self, mock_parse, mock_roll):
+        """Fall back to old-style lookup for partial/empty dict."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=10)
+
+        # Empty dict → old-style path, strength=10 → mod 0, no prof → modifier=0
+        result = attack_roll({}, 10)
+        assert result["modifier"] == 0
+        assert result["total"] == 10
+        assert result["hit"] is True  # 10 >= AC 10
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_hit_with_derived_stats(self, mock_parse, mock_roll):
+        """DerivedSheet attack should use STR modifier + proficiency."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=12)
+
+        # STR mod=2, prof=2 -> modifier=4, roll=12 -> total=16, AC=15
+        result = attack_roll(DERIVED_SHEET_STATS, 15)
+        assert result["hit"] is True
+        assert result["modifier"] == 4
+        assert result["total"] == 16
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_miss_with_derived_stats(self, mock_parse, mock_roll):
+        """Roll + modifier < AC should be a miss."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=5)
+
+        result = attack_roll(DERIVED_SHEET_STATS, 15)
+        assert result["hit"] is False
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_natural_20_always_hits(self, mock_parse, mock_roll):
+        """Natural 20 always hits regardless of stats format."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=20)
+
+        result = attack_roll(
+            {"ability_modifiers": {"STR": 0}, "proficiency_bonus": 0}, 99
+        )
+        assert result["hit"] is True
+        assert result["critical"] is True
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_natural_1_always_misses(self, mock_parse, mock_roll):
+        """Natural 1 always misses regardless of stats format."""
+        mock_parse.return_value = DiceExpression(count=1, sides=20)
+        mock_roll.return_value = _mock_roll(total=1)
+
+        result = attack_roll(
+            {"ability_modifiers": {"STR": 10}, "proficiency_bonus": 10}, 2
+        )
+        assert result["hit"] is False
+        assert result["critical"] is False
+
+
+class TestCalculateDamageDerivedSheet:
+    """Damage calculation with DerivedSheet-style dict."""
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_empty_dict_falls_back_to_old_style(self, mock_parse, mock_roll):
+        """Fall back to old-style lookup for partial/empty dict."""
+        mock_parse.return_value = DiceExpression(count=1, sides=8)
+        mock_roll.return_value = _mock_roll(total=5, sides=8, formula="1d8")
+
+        # Empty dict → old-style path, strength=10 → mod 0, roll=5 → total=5
+        result = calculate_damage("1d8", {})
+        assert result["total"] == 5
+        assert result["damage_type"] == "slashing"
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_damage_with_str_modifier(self, mock_parse, mock_roll):
+        """Damage should use STR modifier from DerivedSheet."""
+        mock_parse.return_value = DiceExpression(count=1, sides=8)
+        mock_roll.return_value = _mock_roll(total=5, sides=8, formula="1d8")
+
+        # STR mod=2, roll=5 -> total=7
+        result = calculate_damage("1d8", DERIVED_SHEET_STATS)
+        assert result["total"] == 7
+        assert result["damage_type"] == "slashing"
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_damage_minimum_zero(self, mock_parse, mock_roll):
+        """Damage should be floored at 0 even with DerivedSheet."""
+        mock_parse.return_value = DiceExpression(count=1, sides=4)
+        mock_roll.return_value = _mock_roll(total=1, sides=4, formula="1d4")
+
+        # STR mod=-3, roll=1 -> would be -2, floored to 0
+        weak_derived = {
+            "ability_modifiers": {"STR": -3},
+        }
+        result = calculate_damage("1d4", weak_derived)
+        assert result["total"] == 0
+
+    @patch("app.rules.combat.roll")
+    @patch("app.rules.combat.parse")
+    def test_custom_damage_type(self, mock_parse, mock_roll):
+        """Custom damage type should be reflected in the result."""
+        mock_parse.return_value = DiceExpression(count=1, sides=6)
+        mock_roll.return_value = _mock_roll(total=4, sides=6, formula="1d6")
+
+        result = calculate_damage("1d6", DERIVED_SHEET_STATS, damage_type="fire")
+        assert result["damage_type"] == "fire"
 
 
 # ===========================================================================
