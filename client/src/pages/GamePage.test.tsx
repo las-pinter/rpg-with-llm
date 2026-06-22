@@ -21,8 +21,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { useGameStore } from '../stores/gameStore'
 import { useCharacterStore } from '../stores/characterStore'
 import * as endpoints from '../api/endpoints'
-import type { Character } from '../api/types'
-import type { SavesListResponse, LoadResponse } from '../api/types'
+import type { Character, SavesListResponse, LoadResponse } from '../api/types'
+import { ItemType } from '../api/types'
 import GamePage from './GamePage'
 
 // ---------------------------------------------------------------------------
@@ -74,15 +74,18 @@ const sampleCharacter: Character = {
   character_class: 'Fighter',
   level: 1,
   abilities: { STR: 15, DEX: 13, CON: 14, INT: 10, WIS: 12, CHA: 8 },
-  hp: 12,
-  max_hp: 12,
-  ac: 18,
   skills: ['Athletics', 'Intimidation'],
   backstory: 'A brave warrior from the northern reaches.',
   appearance: 'Tall and broad-shouldered with a weathered cloak.',
   personality: 'Courageous and loyal to a fault.',
   hooks: ['Searching for a lost family heirloom'],
-  inventory: ['Longsword', 'Shield', 'Rations'],
+  inventory: [
+    { id: 'item-1', name: 'Longsword', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 3, value: 15 },
+    { id: 'item-2', name: 'Shield', quantity: 1, item_type: ItemType.ARMOR, properties: {}, description: '', weight: 6, value: 10 },
+    { id: 'item-3', name: 'Rations', quantity: 3, item_type: ItemType.CONSUMABLE, properties: {}, description: '', weight: 2, value: 5 },
+  ],
+  equipped_items: [],
+  resources: { hp: { value: 12, max: 12, short_rest_recovery: '1d10', long_rest_recovery: 'full' } },
   gold: 15,
   xp: 0,
   created_at: '2026-01-01T00:00:00Z',

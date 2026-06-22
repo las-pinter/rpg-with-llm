@@ -14,6 +14,7 @@ import { useCharacterStore } from '../../stores/characterStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { generateCharacter } from '../../api/endpoints'
 import type { Character } from '../../api/types'
+import { ItemType } from '../../api/types'
 import ReviewSheet from './ReviewSheet'
 
 // ---------------------------------------------------------------------------
@@ -40,15 +41,19 @@ const sampleCharacter: Character = {
   character_class: 'Rogue',
   level: 1,
   abilities: { STR: 10, DEX: 15, CON: 12, INT: 13, WIS: 8, CHA: 14 },
-  hp: 10,
-  max_hp: 10,
-  ac: 15,
   skills: ['Stealth', 'Sleight of Hand', 'Deception'],
   backstory: 'Raised in the shadowy streets of Waterdeep…',
   appearance: 'Slender with sharp green eyes.',
   personality: 'Cunning and quick-witted.',
   hooks: ['Seeks a lost artifact.'],
-  inventory: ['Rapier', 'Shortbow', 'Thieves\' Tools', 'Dark Cloak'],
+  inventory: [
+    { id: 'item-1', name: 'Rapier', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 2, value: 25 },
+    { id: 'item-2', name: 'Shortbow', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 2, value: 25 },
+    { id: 'item-3', name: "Thieves' Tools", quantity: 1, item_type: ItemType.TOOL, properties: {}, description: '', weight: 1, value: 25 },
+    { id: 'item-4', name: 'Dark Cloak', quantity: 1, item_type: ItemType.ARMOR, properties: {}, description: '', weight: 3, value: 10 },
+  ],
+  equipped_items: [],
+  resources: { hp: { value: 10, max: 10, short_rest_recovery: '1d8', long_rest_recovery: 'full' } },
   gold: 50,
   xp: 0,
   created_at: '2026-01-01T00:00:00Z',
@@ -599,8 +604,10 @@ describe('ReviewSheet — edge cases', () => {
   it('renders HP/max_hp split when different', () => {
     const charDamaged: Character = {
       ...sampleCharacter,
-      hp: 5,
-      max_hp: 10,
+      resources: {
+        ...sampleCharacter.resources,
+        hp: { ...sampleCharacter.resources.hp, value: 5, max: 10 },
+      },
     }
     useCharacterStore.getState().setGeneratedCharacter(charDamaged)
     renderPage()

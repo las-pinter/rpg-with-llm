@@ -8,12 +8,14 @@ import type {
   CharacterListItem,
   CharactersListResponse,
   SavesListResponse,
+  DerivedSheet,
 } from '../api/types'
 import {
   listCharacters,
   listSaves,
   loadCharacterById as apiLoadCharacterById,
   deleteCharacterById as apiDeleteCharacterById,
+  getCharacterSheet as apiGetCharacterSheet,
   loadGame,
   deleteSave,
 } from '../api/endpoints'
@@ -26,6 +28,8 @@ import { useGameStore, type NarrativeEntry } from './gameStore'
 export interface CharacterState {
   /** Currently loaded/selected character for gameplay, or null. */
   currentCharacter: Character | null
+  /** Derived sheet for the current character (computed stats). */
+  derivedSheet: DerivedSheet | null
   /** List of saved characters (metadata only). */
   savedCharacters: CharacterListItem[]
   /** List of saved games. */
@@ -97,6 +101,7 @@ export interface CharacterActions {
   // ---- Simple setters ----
 
   setCurrentCharacter: (character: Character | null) => void
+  setDerivedSheet: (sheet: DerivedSheet | null) => void
   setSavedCharacters: (characters: CharacterListItem[]) => void
   setSavedGames: (saves: SaveMeta[]) => void
   setLoading: (loading: boolean) => void
@@ -159,6 +164,8 @@ export interface CharacterActions {
   fetchSaves: () => Promise<SavesListResponse>
   /** Load a character by ID and set it as currentCharacter. */
   loadCharacterById: (id: string) => Promise<void>
+  /** Fetch the derived sheet for a character and store it. */
+  fetchCharacterSheet: (id: string) => Promise<void>
   /** Delete a character by ID and refresh the list. */
   deleteCharacterById: (id: string) => Promise<void>
   /** Load a saved game by slug. */
@@ -181,6 +188,7 @@ export type CharacterStore = CharacterState & CharacterActions
 
 const initialState: CharacterState = {
   currentCharacter: null,
+  derivedSheet: null,
   savedCharacters: [],
   savedGames: [],
   loading: false,
@@ -211,7 +219,8 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
 
   // ---- Simple setters ----
 
-  setCurrentCharacter: (currentCharacter) => set({ currentCharacter }),
+  setCurrentCharacter: (currentCharacter) => set({ currentCharacter, derivedSheet: null }),
+  setDerivedSheet: (derivedSheet) => set({ derivedSheet }),
   setSavedCharacters: (savedCharacters) => set({ savedCharacters }),
   setSavedGames: (savedGames) => set({ savedGames }),
   setLoading: (loading) => set({ loading }),
@@ -417,7 +426,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
     try {
       const response = await apiLoadCharacterById(id)
       if (response.ok) {
-        set({ currentCharacter: response.character, loading: false })
+        set({ currentCharacter: response.character, derivedSheet: null, loading: false })
       } else {
         set({ error: 'Failed to load character', loading: false })
       }
@@ -426,6 +435,17 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
         error: err instanceof Error ? err.message : 'Failed to load character',
         loading: false,
       })
+    }
+  },
+
+  fetchCharacterSheet: async (id) => {
+    try {
+      const response = await apiGetCharacterSheet(id)
+      if (response.ok) {
+        set({ derivedSheet: response.sheet })
+      }
+    } catch {
+      // Silently fail — derived sheet is non-critical
     }
   },
 

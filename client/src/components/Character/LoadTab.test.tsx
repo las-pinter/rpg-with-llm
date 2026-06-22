@@ -20,6 +20,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { useCharacterStore } from '../../stores/characterStore'
 import type { CharacterListItem, SaveMeta } from '../../api/types'
+import { ItemType } from '../../api/types'
 import LoadTab from './LoadTab'
 
 // ---------------------------------------------------------------------------
@@ -214,15 +215,14 @@ describe('LoadTab — character load action', () => {
         character_class: 'Fighter',
         level: 1,
         abilities: { STR: 15, DEX: 12, CON: 14, INT: 8, WIS: 10, CHA: 10 },
-        hp: 12,
-        max_hp: 12,
-        ac: 16,
         skills: ['Athletics'],
         backstory: 'A fighter from the north.',
         appearance: 'Tall and sturdy.',
         personality: 'Brave',
         hooks: ['lost brother'],
-        inventory: ['sword'],
+        inventory: [{ id: 'item-1', name: 'sword', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 3, value: 10 }],
+        equipped_items: [],
+        resources: { hp: { value: 12, max: 12, short_rest_recovery: '1d10', long_rest_recovery: 'full' } },
         gold: 10,
         xp: 0,
         created_at: '2026-05-15T10:30:00Z',

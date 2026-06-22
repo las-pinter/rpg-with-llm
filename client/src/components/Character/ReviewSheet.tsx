@@ -187,6 +187,22 @@ export default function ReviewSheet() {
     ([, value]) => typeof value === 'number',
   )
 
+  /** Extract HP from resources or fall back to sensible defaults. */
+  const hpValue: number =
+    typeof character.resources?.hp?.value === 'number'
+      ? character.resources.hp.value
+      : 0
+  const hpMax: number =
+    typeof character.resources?.hp?.max === 'number'
+      ? character.resources.hp.max
+      : 0
+
+  /** Compute basic AC from DEX modifier (no armor assumed pre-game). */
+  const dexScore: number =
+    character.abilities['DEX'] ?? character.abilities['dex'] ?? 10
+  const dexMod = Math.floor((dexScore - 10) / 2)
+  const computedAc = 10 + dexMod
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
@@ -221,15 +237,15 @@ export default function ReviewSheet() {
         <div className={styles.stat}>
           <span className={styles.statLabel}>HP</span>
           <span className={styles.statValue}>
-            {character.hp}
-            {character.max_hp !== character.hp && (
-              <span className={styles.statMax}> / {character.max_hp}</span>
+            {hpValue}
+            {hpMax > 0 && hpMax !== hpValue && (
+              <span className={styles.statMax}> / {hpMax}</span>
             )}
           </span>
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>AC</span>
-          <span className={styles.statValue}>{character.ac}</span>
+          <span className={styles.statValue}>{computedAc}</span>
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>Gold</span>
@@ -293,8 +309,8 @@ export default function ReviewSheet() {
           <div className={styles.sectionTitle}>Inventory</div>
           <ul className={styles.inventoryList}>
             {character.inventory.map((item, idx) => (
-              <li key={`${item}-${idx}`} className={styles.inventoryItem}>
-                {item}
+              <li key={`${item.id}-${idx}`} className={styles.inventoryItem}>
+                {item.name}
               </li>
             ))}
           </ul>

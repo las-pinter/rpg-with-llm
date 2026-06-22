@@ -51,6 +51,7 @@ export default function CharacterDetailsModal({
   onClose,
 }: CharacterDetailsModalProps) {
   const character = useCharacterStore((s) => s.currentCharacter)
+  const derivedSheet = useCharacterStore((s) => s.derivedSheet)
 
   const modalRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -162,10 +163,22 @@ export default function CharacterDetailsModal({
   }
 
   // ---------- Derived data ----------
-  const hpRatio =
-    character.max_hp > 0
-      ? Math.min(character.hp / character.max_hp, 1)
+  const hpValue: number =
+    typeof character.resources?.hp?.value === 'number'
+      ? character.resources.hp.value
       : 0
+  const hpMax: number =
+    typeof character.resources?.hp?.max === 'number'
+      ? character.resources.hp.max
+      : 0
+
+  /** Use derived sheet AC when available, otherwise compute basic AC. */
+  const dexScore: number =
+    character.abilities['DEX'] ?? character.abilities['dex'] ?? 10
+  const dexMod = Math.floor((dexScore - 10) / 2)
+  const displayAc = derivedSheet?.ac ?? (10 + dexMod)
+
+  const hpRatio = hpMax > 0 ? Math.min(hpValue / hpMax, 1) : 0
   const hpPercent = Math.round(Math.max(hpRatio, 0) * 100)
 
   // Build ordered list of ability entries (handle uppercase/lowercase keys)
@@ -220,20 +233,20 @@ export default function CharacterDetailsModal({
                     className={`${styles.hpBarFill} ${hpColorClass(hpRatio)}`}
                     style={{ width: `${hpPercent}%` }}
                     role="progressbar"
-                    aria-valuenow={character.hp}
+                    aria-valuenow={hpValue}
                     aria-valuemin={0}
-                    aria-valuemax={character.max_hp}
-                    aria-label={`${character.hp} of ${character.max_hp} hit points`}
+                    aria-valuemax={hpMax}
+                    aria-label={`${hpValue} of ${hpMax} hit points`}
                   />
                 </div>
                 <span className={styles.statValue}>
-                  {character.hp}/{character.max_hp}
+                  {hpValue}/{hpMax}
                 </span>
               </div>
 
               <div className={styles.statCard}>
                 <span className={styles.statLabel}>AC</span>
-                <span className={styles.statValue}>{character.ac}</span>
+                <span className={styles.statValue}>{displayAc}</span>
               </div>
 
               <div className={styles.statCard}>
@@ -309,8 +322,8 @@ export default function CharacterDetailsModal({
             {character.inventory.length > 0 ? (
               <ul className={styles.itemList}>
                 {character.inventory.map((item, i) => (
-                  <li key={`${item}-${i}`} className={styles.itemEntry}>
-                    {item}
+                  <li key={`${item.id}-${i}`} className={styles.itemEntry}>
+                    {item.name}
                   </li>
                 ))}
               </ul>
