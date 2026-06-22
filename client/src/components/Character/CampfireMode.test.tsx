@@ -15,6 +15,7 @@ import { useCharacterStore } from '../../stores/characterStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { generateCharacter } from '../../api/endpoints'
 import type { CharacterRules, Character } from '../../api/types'
+import { ItemType } from '../../api/types'
 import CampfireMode from './CampfireMode'
 
 // ---------------------------------------------------------------------------
@@ -73,15 +74,18 @@ const sampleCharacter: Character = {
   character_class: 'Fighter',
   level: 1,
   abilities: { STR: 15, DEX: 13, CON: 14, INT: 10, WIS: 12, CHA: 8 },
-  hp: 12,
-  max_hp: 12,
-  ac: 18,
   skills: ['Athletics', 'Intimidation'],
   backstory: 'Born in the shadow of the Iron Peaks…',
   appearance: 'Tall with a scarred face.',
   personality: 'Determined and brooding.',
   hooks: ['Seeks the lost sword of his father.'],
-  inventory: ['Longsword', 'Shield', 'Chainmail'],
+  inventory: [
+    { id: 'item-1', name: 'Longsword', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 3, value: 15 },
+    { id: 'item-2', name: 'Shield', quantity: 1, item_type: ItemType.ARMOR, properties: {}, description: '', weight: 6, value: 10 },
+    { id: 'item-3', name: 'Chainmail', quantity: 1, item_type: ItemType.ARMOR, properties: {}, description: '', weight: 55, value: 75 },
+  ],
+  equipped_items: [],
+  resources: { hp: { value: 12, max: 12, short_rest_recovery: '1d10', long_rest_recovery: 'full' } },
   gold: 15,
   xp: 0,
   created_at: '2026-01-01T00:00:00Z',

@@ -12,6 +12,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { useCharacterStore } from '../../stores/characterStore'
 import CharacterDetailsModal from './CharacterDetailsModal'
 import type { Character } from '../../api/types'
+import { ItemType } from '../../api/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,15 +23,18 @@ const mockCharacter: Character = {
   character_class: 'Fighter',
   level: 3,
   abilities: { STR: 16, DEX: 14, CON: 15, INT: 10, WIS: 12, CHA: 8 },
-  hp: 24,
-  max_hp: 30,
-  ac: 16,
   skills: ['Athletics', 'Perception', 'Intimidation'],
   backstory: 'A grizzled warrior from the northern mountains.',
   appearance: 'Scarred face, missing left ear.',
   personality: 'Gruff but loyal.',
   hooks: ['A rival from the past seeks revenge.'],
-  inventory: ['Longsword', 'Shield', 'Bedroll'],
+  inventory: [
+    { id: 'item-1', name: 'Longsword', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 3, value: 15 },
+    { id: 'item-2', name: 'Shield', quantity: 1, item_type: ItemType.ARMOR, properties: {}, description: '', weight: 6, value: 10 },
+    { id: 'item-3', name: 'Bedroll', quantity: 1, item_type: ItemType.MISC, properties: {}, description: '', weight: 7, value: 1 },
+  ],
+  equipped_items: [],
+  resources: { hp: { value: 24, max: 30, short_rest_recovery: '1d10', long_rest_recovery: 'full' } },
   gold: 50,
   xp: 900,
   created_at: '2026-01-01T00:00:00Z',
@@ -202,7 +206,7 @@ describe('CharacterDetailsModal', () => {
     })
 
     it('shows empty inventory text when no items', () => {
-      setCharacter({ ...mockCharacter, inventory: [] })
+      setCharacter({ ...mockCharacter, inventory: [], equipped_items: [] })
       renderModal()
 
       expect(
@@ -268,8 +272,10 @@ describe('CharacterDetailsModal', () => {
     it('shows green HP bar when >60%', () => {
       setCharacter({
         ...mockCharacter,
-        hp: 25,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 25, max: 30 },
+        },
       })
       renderModal()
 
@@ -282,8 +288,10 @@ describe('CharacterDetailsModal', () => {
     it('shows yellow HP bar when between 30% and 60%', () => {
       setCharacter({
         ...mockCharacter,
-        hp: 14,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 14, max: 30 },
+        },
       })
       renderModal()
 
@@ -295,8 +303,10 @@ describe('CharacterDetailsModal', () => {
     it('shows red HP bar when below 30%', () => {
       setCharacter({
         ...mockCharacter,
-        hp: 5,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 5, max: 30 },
+        },
       })
       renderModal()
 
@@ -308,8 +318,10 @@ describe('CharacterDetailsModal', () => {
     it('shows red HP bar at 0 HP', () => {
       setCharacter({
         ...mockCharacter,
-        hp: 0,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 0, max: 30 },
+        },
       })
       renderModal()
 
@@ -322,8 +334,10 @@ describe('CharacterDetailsModal', () => {
       // ratio === 0.6 -> NOT > 0.6, so yellow
       setCharacter({
         ...mockCharacter,
-        hp: 18,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 18, max: 30 },
+        },
       })
       renderModal()
 
@@ -335,8 +349,10 @@ describe('CharacterDetailsModal', () => {
       // ratio === 0.3 -> NOT > 0.3, so red
       setCharacter({
         ...mockCharacter,
-        hp: 9,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 9, max: 30 },
+        },
       })
       renderModal()
 
@@ -347,8 +363,10 @@ describe('CharacterDetailsModal', () => {
     it('handles negative HP by clamping to 0 and showing red', () => {
       setCharacter({
         ...mockCharacter,
-        hp: -5,
-        max_hp: 30,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: -5, max: 30 },
+        },
       })
       renderModal()
 
@@ -363,8 +381,10 @@ describe('CharacterDetailsModal', () => {
     it('handles max_hp of 0 gracefully (ratio defaults to 0, shows red)', () => {
       setCharacter({
         ...mockCharacter,
-        hp: 10,
-        max_hp: 0,
+        resources: {
+          ...mockCharacter.resources,
+          hp: { ...mockCharacter.resources.hp, value: 10, max: 0 },
+        },
       })
       renderModal()
 

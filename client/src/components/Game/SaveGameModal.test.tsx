@@ -13,6 +13,7 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { useGameStore } from '../../stores/gameStore'
 import { useCharacterStore } from '../../stores/characterStore'
 import * as endpoints from '../../api/endpoints'
+import { ItemType } from '../../api/types'
 import SaveGameModal from './SaveGameModal'
 
 // ---------------------------------------------------------------------------
@@ -141,27 +142,26 @@ describe('SaveGameModal', () => {
     it('includes character name in auto-generated name when available', () => {
       act(() => {
         useCharacterStore.setState({
-          currentCharacter: {
-            id: 'char-1',
-            name: 'Thorn',
-            character_class: 'Rogue',
-            level: 3,
-            abilities: {},
-            hp: 20,
-            max_hp: 20,
-            ac: 14,
-            skills: [],
-            backstory: '',
-            appearance: '',
-            personality: '',
-            hooks: [],
-            inventory: [],
-            gold: 50,
-            xp: 0,
-            created_at: '',
-          },
+            currentCharacter: {
+              id: 'char-1',
+              name: 'Thorn',
+              character_class: 'Rogue',
+              level: 3,
+              abilities: {},
+              skills: [],
+              backstory: '',
+              appearance: '',
+              personality: '',
+              hooks: [],
+              inventory: [],
+              equipped_items: [],
+              resources: { hp: { value: 20, max: 20, short_rest_recovery: '', long_rest_recovery: '' } },
+              gold: 50,
+              xp: 0,
+              created_at: '',
+            },
+          })
         })
-      })
       renderModal()
       const input = screen.getByLabelText('Save Name') as HTMLInputElement
       expect(input.value).toContain('Thorn - Turn 0')
@@ -469,15 +469,14 @@ describe('SaveGameModal', () => {
             character_class: 'Fighter',
             level: 2,
             abilities: { str: 16, dex: 12 },
-            hp: 25,
-            max_hp: 25,
-            ac: 16,
             skills: ['Athletics'],
             backstory: 'A hardy warrior.',
             appearance: 'Scarred face',
             personality: 'Brave',
             hooks: ['Lost brother'],
-            inventory: ['Sword'],
+            inventory: [{ id: 'item-1', name: 'Sword', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 3, value: 10 }],
+            equipped_items: [],
+            resources: { hp: { value: 25, max: 25, short_rest_recovery: '1d10', long_rest_recovery: 'full' } },
             gold: 75,
             xp: 300,
             created_at: '2025-01-01',
@@ -526,15 +525,14 @@ describe('SaveGameModal', () => {
             character_class: 'Mage',
             level: 1,
             abilities: {},
-            hp: 10,
-            max_hp: 10,
-            ac: 10,
             skills: [],
             backstory: '',
             appearance: '',
             personality: '',
             hooks: [],
             inventory: [],
+            equipped_items: [],
+            resources: { hp: { value: 10, max: 10, short_rest_recovery: '', long_rest_recovery: '' } },
             gold: 0,
             xp: 0,
             created_at: '',

@@ -14,6 +14,7 @@ import type {
   StoryResponse,
   ResetResponse,
   SuccessResponse,
+  SheetResponse,
 } from './types'
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,10 @@ export function deleteCharacter(name: string): Promise<SuccessResponse> {
 
 export function loadCharacterById(charId: string): Promise<CharacterResponse> {
   return get<CharacterResponse>(`/api/character/id/${encodeURIComponent(charId)}`)
+}
+
+export function getCharacterSheet(charId: string): Promise<SheetResponse> {
+  return get<SheetResponse>(`/api/character/${encodeURIComponent(charId)}/sheet`)
 }
 
 export function deleteCharacterById(charId: string): Promise<SuccessResponse> {

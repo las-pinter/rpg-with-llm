@@ -34,21 +34,69 @@ export interface AbilityScores {
   [ability: string]: number
 }
 
+/** Item types matching backend ItemTypeEnum. */
+export enum ItemType {
+  WEAPON = "WEAPON",
+  ARMOR = "ARMOR",
+  CONSUMABLE = "CONSUMABLE",
+  TOOL = "TOOL",
+  CONTAINER = "CONTAINER",
+  QUEST = "QUEST",
+  MISC = "MISC",
+}
+
+/** An item in a character's inventory. */
+export interface Item {
+  id: string
+  name: string
+  quantity: number
+  item_type: ItemType
+  properties: Record<string, unknown>
+  description: string
+  weight: number
+  value: number
+}
+
+/** A resource (e.g. HP, mana) with recovery rules. */
+export interface ResourceData {
+  value: number
+  max: number | string
+  short_rest_recovery: string
+  long_rest_recovery: string
+}
+
+/** Computed character statistics — never persisted, always derived from a CharacterRecord. */
+export interface DerivedSheet {
+  ability_modifiers: Record<string, number>
+  proficiency_bonus: number
+  ac: number
+  initiative: number
+  speed: number
+  skill_modifiers: Record<string, number>
+  saving_throw_modifiers: Record<string, number>
+  passive_perception: number
+  attack_bonus: Record<string, number>
+  encumbrance: Record<string, unknown>
+  hit_dice: string
+  resistances: string[]
+  vulnerabilities: string[]
+  formulas: Record<string, string>
+}
+
 export interface Character {
   id?: string
   name: string
   character_class: string
   level: number
   abilities: AbilityScores
-  hp: number
-  max_hp: number
-  ac: number
   skills: string[]
   backstory: string
   appearance: string
   personality: string
   hooks: string[]
-  inventory: string[]
+  inventory: Item[]
+  equipped_items: string[]
+  resources: Record<string, ResourceData>
   gold: number
   xp: number
   created_at: string
@@ -57,6 +105,11 @@ export interface Character {
 export interface CharacterResponse {
   ok: boolean
   character: Character
+}
+
+export interface SheetResponse {
+  ok: boolean
+  sheet: DerivedSheet
 }
 
 /** Item in the saved characters list (metadata only, not full character). */
