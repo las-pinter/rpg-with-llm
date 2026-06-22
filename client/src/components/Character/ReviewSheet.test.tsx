@@ -188,6 +188,90 @@ describe('ReviewSheet — initial render', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Structured inventory display
+// ---------------------------------------------------------------------------
+
+describe('ReviewSheet — structured inventory', () => {
+  it('shows group titles for each item type present', () => {
+    renderPage()
+    expect(screen.getByText('Weapons')).toBeInTheDocument()
+    expect(screen.getByText('Armor')).toBeInTheDocument()
+    expect(screen.getByText('Tools')).toBeInTheDocument()
+  })
+
+  it('does not show group titles for absent item types', () => {
+    renderPage()
+    expect(screen.queryByText('Consumables')).not.toBeInTheDocument()
+    expect(screen.queryByText('Containers')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quest Items')).not.toBeInTheDocument()
+    expect(screen.queryByText('Miscellaneous')).not.toBeInTheDocument()
+  })
+
+  it('shows type icons for each item', () => {
+    renderPage()
+    // Two WEAPON icons (Rapier + Shortbow)
+    expect(screen.getAllByText('⚔️')).toHaveLength(2)
+    // One ARMOR icon
+    expect(screen.getByText('🛡️')).toBeInTheDocument()
+    // One TOOL icon
+    expect(screen.getByText('🔧')).toBeInTheDocument()
+  })
+
+  it('shows item weight', () => {
+    renderPage()
+    // Two items weigh 2 lb (Rapier + Shortbow)
+    expect(screen.getAllByText('2 lb')).toHaveLength(2)
+    // One item weighs 3 lb (Dark Cloak)
+    expect(screen.getByText('3 lb')).toBeInTheDocument()
+    // One item weighs 1 lb (Thieves' Tools)
+    expect(screen.getByText('1 lb')).toBeInTheDocument()
+  })
+
+  it('shows quantity when greater than 1', () => {
+    const charMultiQty: Character = {
+      ...sampleCharacter,
+      inventory: [
+        { ...sampleCharacter.inventory[0], quantity: 3 },
+        ...sampleCharacter.inventory.slice(1),
+      ],
+    }
+    useCharacterStore.getState().setGeneratedCharacter(charMultiQty)
+    renderPage()
+    // Rapier now has quantity 3 — check for ×3
+    expect(screen.getByText('×3')).toBeInTheDocument()
+  })
+
+  it('does not show quantity when quantity is 1', () => {
+    renderPage()
+    // All sample items have quantity 1 — × should not appear
+    expect(screen.queryByText('×')).not.toBeInTheDocument()
+  })
+
+  it('shows equipped badge [E] for items in equipped_items', () => {
+    const charEquipped: Character = {
+      ...sampleCharacter,
+      equipped_items: ['item-1'], // Rapier
+    }
+    useCharacterStore.getState().setGeneratedCharacter(charEquipped)
+    renderPage()
+    expect(screen.getByText('[E]')).toBeInTheDocument()
+  })
+
+  it('does not show [E] badge when no items are equipped', () => {
+    renderPage()
+    expect(screen.queryByText('[E]')).not.toBeInTheDocument()
+  })
+
+  it('renders item names in structured inventory', () => {
+    renderPage()
+    expect(screen.getByText('Rapier')).toBeInTheDocument()
+    expect(screen.getByText('Shortbow')).toBeInTheDocument()
+    expect(screen.getByText(/Thieves' Tools/)).toBeInTheDocument()
+    expect(screen.getByText('Dark Cloak')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------
 
