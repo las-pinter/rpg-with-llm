@@ -13,7 +13,30 @@ import { useCharacterStore } from '../../stores/characterStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { generateCharacter } from '../../api/endpoints'
 import type { GenerateCharacterParams } from '../../api/endpoints'
+import { ItemType } from '../../api/types'
 import styles from './ReviewSheet.module.css'
+
+/** Maps ItemType enum values to display icons. */
+const ITEM_ICONS: Record<ItemType, string> = {
+  [ItemType.WEAPON]: '⚔️',
+  [ItemType.ARMOR]: '🛡️',
+  [ItemType.CONSUMABLE]: '🧪',
+  [ItemType.TOOL]: '🔧',
+  [ItemType.CONTAINER]: '📦',
+  [ItemType.QUEST]: '⭐',
+  [ItemType.MISC]: '📜',
+}
+
+/** Ordered group definitions for inventory sections. */
+const ITEM_GROUPS: { type: ItemType; label: string }[] = [
+  { type: ItemType.WEAPON, label: 'Weapons' },
+  { type: ItemType.ARMOR, label: 'Armor' },
+  { type: ItemType.CONSUMABLE, label: 'Consumables' },
+  { type: ItemType.TOOL, label: 'Tools' },
+  { type: ItemType.CONTAINER, label: 'Containers' },
+  { type: ItemType.QUEST, label: 'Quest Items' },
+  { type: ItemType.MISC, label: 'Miscellaneous' },
+]
 
 /** Maps ability keys to compact labels for the character sheet grid. */
 const ABILITY_LABELS: Record<string, string> = {
@@ -203,6 +226,14 @@ export default function ReviewSheet() {
   const dexMod = Math.floor((dexScore - 10) / 2)
   const computedAc = 10 + dexMod
 
+  /** Inventory grouped by type (only groups with items). */
+  const inventoryByType = ITEM_GROUPS.map((group) => ({
+    ...group,
+    items: character.inventory.filter(
+      (item) => item.item_type === group.type,
+    ),
+  })).filter((group) => group.items.length > 0)
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
@@ -307,13 +338,38 @@ export default function ReviewSheet() {
       {character.inventory.length > 0 && (
         <>
           <div className={styles.sectionTitle}>Inventory</div>
-          <ul className={styles.inventoryList}>
-            {character.inventory.map((item, idx) => (
-              <li key={`${item.id}-${idx}`} className={styles.inventoryItem}>
-                {item.name}
-              </li>
-            ))}
-          </ul>
+          {inventoryByType.map(({ type, label, items }) => (
+            <div key={type} className={styles.inventoryGroup}>
+              <div className={styles.inventoryGroupTitle}>{label}</div>
+              <ul className={styles.inventoryList}>
+                {items.map((item, idx) => (
+                  <li
+                    key={`${item.id}-${idx}`}
+                    className={styles.inventoryItem}
+                  >
+                    <span
+                      className={styles.itemIcon}
+                      aria-hidden="true"
+                    >
+                      {ITEM_ICONS[item.item_type]}
+                    </span>
+                    <span className={styles.itemName}>{item.name}</span>
+                    {item.quantity > 1 && (
+                      <span className={styles.itemQuantity}>
+                        &times;{item.quantity}
+                      </span>
+                    )}
+                    <span className={styles.itemWeight}>
+                      {item.weight} lb
+                    </span>
+                    {character.equipped_items.includes(item.id) && (
+                      <span className={styles.equippedBadge}>[E]</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </>
       )}
 

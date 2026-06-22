@@ -213,6 +213,21 @@
 
 /* ---- Inventory ---- */
 
+.inventoryGroup {
+  margin-bottom: 0.4rem;
+}
+
+.inventoryGroupTitle {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.25rem;
+  padding-left: 0.25rem;
+}
+
 .inventoryList {
   list-style: none;
   padding: 0;
@@ -223,12 +238,52 @@
 }
 
 .inventoryItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-family: var(--font-narrative);
   font-size: 0.85rem;
   color: var(--text-primary);
   padding: 0.25rem 0.5rem;
   border-left: 2px solid var(--border-light);
   margin-left: 0.25rem;
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.itemName {
+  flex: 1;
+}
+
+.itemQuantity {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.itemWeight {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.equippedBadge {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  background: var(--accent-bg);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-border);
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 /* ---- Action Buttons ---- */
