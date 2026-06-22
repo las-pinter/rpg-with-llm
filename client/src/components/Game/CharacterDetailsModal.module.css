@@ -23,9 +23,9 @@
 
 .modal {
   position: relative;
-  width: 600px;
+  width: 640px;
   max-width: 92vw;
-  max-height: 80vh;
+  max-height: 85vh;
   padding: 2rem 1.5rem 1.5rem;
   background: var(--bg-surface);
   border: 1px solid var(--border-light);
@@ -91,7 +91,41 @@
   font-size: 0.85rem;
   color: var(--text-secondary);
   text-align: center;
-  margin: 0 0 1rem;
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+/* ------------------------------------------------------------------ */
+/* XP bar                                                               */
+/* ------------------------------------------------------------------ */
+
+.xpBarContainer {
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.xpBarBg {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.xpBarFill {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  background: #a78bfa;
+  transition: width var(--transition);
+}
+
+.xpLabel {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: center;
   letter-spacing: 0.02em;
 }
 
@@ -101,7 +135,7 @@
 
 .content {
   overflow-y: auto;
-  max-height: 55vh;
+  max-height: 60vh;
   padding-right: 0.25rem;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
@@ -152,7 +186,7 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Attributes row (HP, AC, XP, Gold)                                   */
+/* Attributes row (grid of stat cards)                                  */
 /* ------------------------------------------------------------------ */
 
 .attributesRow {
@@ -220,6 +254,52 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Formula toggle / breakdown                                          */
+/* ------------------------------------------------------------------ */
+
+.formulaWrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.formulaToggle {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  color: var(--accent-gold);
+  background: none;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition);
+}
+
+.formulaToggle:hover {
+  opacity: 1;
+}
+
+.formulaToggle:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.formulaBreakdown {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.4rem;
+  margin-top: 0.25rem;
+  text-align: center;
+  width: 100%;
+  word-break: break-all;
+}
+
+/* ------------------------------------------------------------------ */
 /* Abilities grid                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -231,12 +311,33 @@
 
 .abilityCard {
   background: var(--bg-elevated);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.abilityCard:hover {
+  border-color: var(--accent-border);
+  background: var(--bg-surface);
+}
+
+.abilityCard:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.abilityCardExpanded {
+  border-color: var(--accent-gold);
+  background: var(--bg-surface);
 }
 
 .abilityLabel {
@@ -253,6 +354,214 @@
   font-size: 1.2rem;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.abilityMod {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* Modifier colours */
+.modPositive {
+  color: var(--accent-gold);
+}
+
+.modNegative {
+  color: var(--danger);
+}
+
+/* Expanded ability extra section */
+.abilityExtra {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.saveRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.saveLabel {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.saveMod {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.proficientDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+  display: inline-block;
+  flex-shrink: 0;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.proficientDotActive {
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+
+/* ------------------------------------------------------------------ */
+/* Skills                                                               */
+/* ------------------------------------------------------------------ */
+
+.skillsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.skillTag {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--accent-gold);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+}
+
+/* 2-column skills grid (when derived data available) */
+.skillsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem 0.75rem;
+}
+
+.skillRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+
+.skillRow:hover {
+  background: var(--bg-elevated);
+}
+
+.skillName {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.skillMod {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 2em;
+  text-align: right;
+}
+
+.skillModPositive {
+  color: var(--success);
+}
+
+.skillModZero {
+  color: var(--text-muted);
+}
+
+.skillModNegative {
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------------ */
+/* Combat section                                                       */
+/* ------------------------------------------------------------------ */
+
+.combatBlock {
+  margin-bottom: 0.5rem;
+}
+
+.combatBlock:last-of-type {
+  margin-bottom: 0;
+}
+
+.combatBlockLabel {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.attackRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+.attackRow:hover {
+  background: var(--bg-elevated);
+}
+
+.attackName {
+  font-family: var(--font-narrative);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.attackBonus {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.combatValue {
+  font-family: var(--font-narrative);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.combatTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.combatTag {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--success);
+  background: rgba(72, 187, 120, 0.08);
+  border: 1px solid rgba(72, 187, 120, 0.3);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.combatTagCombat {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
 }
 
 /* ------------------------------------------------------------------ */
@@ -287,27 +596,6 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Skills tags                                                          */
-/* ------------------------------------------------------------------ */
-
-.skillsList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.skillTag {
-  font-family: var(--font-ui);
-  font-size: 0.75rem;
-  color: var(--accent-gold);
-  background: var(--accent-glow);
-  border: 1px solid var(--accent-border);
-  border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  white-space: nowrap;
-}
-
-/* ------------------------------------------------------------------ */
 /* Item / hook lists                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -333,17 +621,125 @@
   border-bottom: none;
 }
 
-/* Apply bullet via pseudo-element */
-.itemEntry::before {
-  content: '•';
-  color: var(--accent-gold);
-  margin-right: 0.4rem;
-}
-
 .hookEntry::before {
   content: '⚑';
   color: var(--accent-amber);
   margin-right: 0.4rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Inventory grouped sections                                          */
+/* ------------------------------------------------------------------ */
+
+.inventoryGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inventoryGroup {
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.5rem;
+}
+
+.inventoryGroupTitle {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin: 0 0 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.inventoryGroupIcon {
+  font-size: 0.85rem;
+}
+
+/* Enhanced item entry */
+.itemEntry {
+  padding: 0.15rem 0;
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.25rem;
+  font-family: var(--font-narrative);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition);
+  text-align: left;
+}
+
+.itemHeader:hover {
+  background: var(--bg-surface);
+}
+
+.itemHeader:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.itemIcon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.itemName {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemQuantity {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.itemWeight {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.equippedBadge {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  padding: 0 0.3rem;
+  flex-shrink: 0;
+}
+
+.itemExpandArrow {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.itemDescription {
+  font-family: var(--font-narrative);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 0.25rem 0.5rem 0.15rem 1.4rem;
+  line-height: 1.4;
 }
 
 /* ------------------------------------------------------------------ */
@@ -394,6 +790,17 @@
 
   .attributesRow {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .skillsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Medium screens */
+@media (min-width: 481px) and (max-width: 768px) {
+  .modal {
+    width: 92vw;
   }
 }
 
