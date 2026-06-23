@@ -11,7 +11,11 @@ from pathlib import Path
 import flask as flask
 from flask import Response, jsonify, request, stream_with_context
 
+from app.agents.consultation import ConsultationAgent
 from app.agents.dm import DungeonMaster
+from app.agents.entity_persistence import EntityStorage
+from app.agents.record_keeper import RecordKeeperAgent
+from app.agents.tools import set_record_keeper
 from app.character.model import Character, CharacterRecord
 from app.llm.base import (
     LLMProvider,  # noqa: F401 — used in type hint for _build_provider_from_dict
@@ -19,9 +23,6 @@ from app.llm.base import (
 from app.llm.config import ProviderConfig, create_provider
 from app.world.model import WorldState
 from app.world.persistence import WorldStorage
-from app.agents.record_keeper import RecordKeeperAgent
-from app.agents.entity_persistence import EntityStorage
-from app.agents.tools import set_record_keeper
 
 logger = logging.getLogger(__name__)
 
@@ -278,3 +279,64 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Consultation (read-only Q&A, no game-state mutation)
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/api/game/consult", methods=["POST"])
+def game_consult():
+    """Consult the DM without affecting game state."""
+    body = request.get_json(silent=True) or {}
+
+    # Extract required input
+    player_input = (body.get("input") or "").strip()
+    if not player_input:
+        return flask.jsonify(
+            {"ok": False, "error": "Missing 'input' in request body"}
+        ), 400
+
+    # Extract optional character and state snapshots
+    character_snapshot = body.get("character") or {}
+    state_snapshot = body.get("state") or {}
+
+    # Build world state snapshot (read-only, never touches DM state)
+    world_state_snapshot = {}
+    if state_snapshot:
+        world_state_snapshot = {
+            "current_location": state_snapshot.get("current_location", "unknown"),
+            "turn_count": state_snapshot.get("turn_count", 0),
+            "active_npcs": state_snapshot.get("active_npcs", []),
+            "established_facts": state_snapshot.get("established_facts", []),
+            "locations": state_snapshot.get("locations", {}),
+        }
+
+    # Extract character name for personalisation
+    character_name = ""
+    if character_snapshot:
+        character_name = character_snapshot.get(
+            "name", character_snapshot.get("character_name", "")
+        )
+
+    # Build provider from request body (stateless — new agent each time)
+    provider_config = _prov_from_json(body, prefix="")
+    llm_provider = (
+        _build_provider_from_dict(provider_config) if provider_config else None
+    )
+
+    # Create new ConsultationAgent (stateless, no cache)
+    agent = ConsultationAgent(
+        llm_provider=llm_provider,
+        character_name=character_name,
+    )
+
+    # Answer the question
+    answer = agent.consult(
+        question=player_input,
+        world_state_snapshot=world_state_snapshot,
+        character_snapshot=character_snapshot,
+    )
+
+    return flask.jsonify({"ok": True, "answer": answer})
