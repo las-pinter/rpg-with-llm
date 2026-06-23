@@ -1,0 +1,266 @@
+/* WhisperPanel — DM consultation slide-in sidebar / mobile bottom sheet.
+   Dark fantasy theme using project CSS custom properties with fallbacks. */
+
+/* ------------------------------------------------------------------ */
+/* Overlay                                                              */
+/* ------------------------------------------------------------------ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  animation: fadeIn 200ms ease;
+}
+
+/* ------------------------------------------------------------------ */
+/* Panel (desktop: slide in from right)                                */
+/* ------------------------------------------------------------------ */
+
+.panel {
+  width: 360px;
+  max-width: 100vw;
+  background: var(--bg-surface, #22223a);
+  border-left: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 300ms ease;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile: bottom sheet                                                */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 768px) {
+  .overlay {
+    align-items: flex-end;
+  }
+
+  .panel {
+    width: 100%;
+    max-height: 60vh;
+    border-left: none;
+    border-top: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+    animation: slideUp 300ms ease;
+    border-radius: 12px 12px 0 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Header                                                               */
+/* ------------------------------------------------------------------ */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+}
+
+.title {
+  font-family: var(--font-narrative, Georgia, serif);
+  font-size: 16px;
+  color: var(--accent-gold, #d4a547);
+  margin: 0;
+}
+
+.closeButton {
+  background: none;
+  border: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+  color: var(--text-primary, #e8dcc8);
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeButton:hover {
+  background: var(--accent-gold, #d4a547);
+  color: #000;
+}
+
+/* ------------------------------------------------------------------ */
+/* Chat log (scrollable message area)                                  */
+/* ------------------------------------------------------------------ */
+
+.chatLog {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emptyState {
+  text-align: center;
+  color: var(--text-muted, #7a6e5a);
+  font-family: var(--font-ui, 'Palatino Linotype', serif);
+  font-size: 14px;
+  margin: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Chat messages                                                       */
+/* ------------------------------------------------------------------ */
+
+.message {
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 85%;
+}
+
+.userMessage {
+  align-self: flex-end;
+  background: var(--accent-gold, #d4a547);
+  color: #000;
+}
+
+.assistantMessage {
+  align-self: flex-start;
+  background: var(--bg-elevated, #2a2a46);
+  border: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+}
+
+.streamingMessage {
+  opacity: 0.7;
+}
+
+.messageLabel {
+  font-family: var(--font-ui, 'Palatino Linotype', serif);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.userMessage .messageLabel {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.assistantMessage .messageLabel {
+  color: var(--accent-gold, #d4a547);
+}
+
+.messageContent {
+  font-family: var(--font-narrative, Georgia, serif);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Input area                                                          */
+/* ------------------------------------------------------------------ */
+
+.inputArea {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+  background: var(--bg-primary, #1a1a2e);
+}
+
+.input {
+  flex: 1;
+  background: var(--bg-deep, #0e0e1a);
+  border: 1px solid var(--accent-border, rgba(212, 165, 71, 0.3));
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--text-primary, #e8dcc8);
+  font-family: var(--font-ui, 'Palatino Linotype', serif);
+  font-size: 14px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--accent-gold, #d4a547);
+  box-shadow: 0 0 8px var(--accent-glow, rgba(212, 165, 71, 0.15));
+}
+
+.input::placeholder {
+  color: var(--text-muted, #7a6e5a);
+}
+
+.input:disabled {
+  opacity: 0.5;
+}
+
+.submitButton {
+  background: var(--accent-gold, #d4a547);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-family: var(--font-ui, 'Palatino Linotype', serif);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.submitButton:hover {
+  background: var(--accent-amber, #b8862d);
+}
+
+.submitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Animations                                                          */
+/* ------------------------------------------------------------------ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion                                                      */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation: none;
+  }
+
+  .panel {
+    animation: none;
+  }
+}
