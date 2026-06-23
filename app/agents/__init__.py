@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.agents.consultation import build_consultation_context
 from app.agents.context_builder import build_context
 from app.agents.dm import DM_SYSTEM_PROMPT, DungeonMaster
 from app.agents.history import Fidelity, SessionHistory
@@ -11,6 +12,7 @@ from app.agents.npc import (
     compress_text,
     parse_npc_response,
 )
+from app.agents.parser import parse_dm_response
 from app.agents.record_keeper import (
     ENTITY_SYSTEM_PROMPT,
     PLOT_SYSTEM_PROMPT,
@@ -19,7 +21,6 @@ from app.agents.record_keeper import (
     RecordKeeperAgent,
     RecordKeeperContext,
 )
-from app.agents.parser import parse_dm_response
 from app.agents.summarizer import (
     META_SUMMARIZER_SYSTEM_PROMPT,
     SUMMARIZER_SYSTEM_PROMPT,
@@ -32,6 +33,7 @@ from app.agents.summarizer import (
 from app.agents.tools import TOOL_REGISTRY, dispatch_tool
 
 __all__ = [
+    "build_consultation_context",
     "build_context",
     "DM_SYSTEM_PROMPT",
     "DungeonMaster",
