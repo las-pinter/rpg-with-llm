@@ -114,6 +114,22 @@
   outline-offset: 2px;
 }
 
+/* ---- Gear step button (calls to action for gear) ---- */
+
+.gearBtn {
+  background: linear-gradient(135deg, var(--accent-amber), var(--accent-gold));
+  color: var(--text-inverse);
+  font-weight: 600;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.gearBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-amber));
+  box-shadow: 0 0 20px var(--accent-glow-strong);
+  color: var(--text-inverse);
+}
+
 /* ---- Generate button (stands out) ---- */
 
 .generateBtn {
@@ -128,6 +144,12 @@
   background: linear-gradient(135deg, var(--accent-gold), var(--accent-amber));
   box-shadow: 0 0 20px var(--accent-glow-strong);
   color: var(--text-inverse);
+}
+
+/* ---- Gear selection section wrapper ---- */
+
+.gearSection {
+  animation: fadeSlideIn 0.35s ease both;
 }
 
 /* ---- Filled indicator ---- */

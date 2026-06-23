@@ -18,6 +18,7 @@ import StoryProgress from './StoryProgress'
 import StoryQuestion from './StoryQuestion'
 import AbilityGrid from './AbilityGrid'
 import ClassSelector from './ClassSelector'
+import GearSelector from './GearSelector'
 import styles from './CampfireMode.module.css'
 
 export default function CampfireMode() {
@@ -49,6 +50,7 @@ export default function CampfireMode() {
   const [charName, setCharName] = useState('')
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [campfirePhase, setCampfirePhase] = useState<'questions' | 'gear'>('questions')
 
   // ------------------------------------------------------------------
   // Derived values
@@ -154,7 +156,25 @@ export default function CampfireMode() {
     try {
       const response = await generateCharacter(params)
       if (response.ok) {
-        setGeneratedCharacter(response.character)
+        // Merge selected starting gear into the generated character
+        const gearItems = Object.values(useCharacterStore.getState().selectedGear)
+        const merged = { ...response.character }
+
+        if (gearItems.length > 0) {
+          // Add gear items that aren't already in the character's inventory
+          const existingIds = new Set(merged.inventory.map((i) => i.id))
+          const newItems = gearItems.filter((item) => !existingIds.has(item.id))
+          merged.inventory = [...merged.inventory, ...newItems]
+
+          // Add equipped item IDs
+          const equippedSet = new Set(merged.equipped_items)
+          const newEquipped = gearItems
+            .map((item) => item.id)
+            .filter((id) => !equippedSet.has(id))
+          merged.equipped_items = [...merged.equipped_items, ...newEquipped]
+        }
+
+        setGeneratedCharacter(merged)
         setCreationMode('review')
       } else {
         setError('Failed to generate character — unexpected response.')
@@ -252,32 +272,76 @@ export default function CampfireMode() {
       <hr className={styles.divider} />
 
       {/* ---- Story Questions ---- */}
-      <div className={styles.questionArea}>
-        <StoryProgress />
+      {campfirePhase === 'questions' && (
+        <div className={styles.questionArea}>
+          <StoryProgress />
 
-        <StoryQuestion
-          key={currentQuestion}
-          question={currentQuestionText}
-          questionIndex={currentQuestion}
-        />
+          <StoryQuestion
+            key={currentQuestion}
+            question={currentQuestionText}
+            questionIndex={currentQuestion}
+          />
 
-        <p className={styles.filledIndicator}>
-          {filledCount} of {totalQuestions} questions answered
-        </p>
+          <p className={styles.filledIndicator}>
+            {filledCount} of {totalQuestions} questions answered
+          </p>
 
-        {/* ---- Navigation ---- */}
-        <nav className={styles.nav} aria-label="Story question navigation">
-          <button
-            type="button"
-            className={styles.navBtn}
-            onClick={handlePrev}
-            disabled={currentQuestion === 0 || generating}
-            aria-label="Previous question"
-          >
-            &larr; Previous
-          </button>
+          {/* ---- Navigation ---- */}
+          <nav className={styles.nav} aria-label="Story question navigation">
+            <button
+              type="button"
+              className={styles.navBtn}
+              onClick={handlePrev}
+              disabled={currentQuestion === 0 || generating}
+              aria-label="Previous question"
+            >
+              &larr; Previous
+            </button>
 
-          {isLastQuestion ? (
+            {isLastQuestion ? (
+              <button
+                type="button"
+                className={`${styles.navBtn} ${styles.gearBtn}`}
+                onClick={() => setCampfirePhase('gear')}
+                disabled={generating}
+                aria-label="Choose starting gear"
+              >
+                Choose Starting Gear &rarr;
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.navBtn}
+                onClick={handleNext}
+                disabled={generating}
+                aria-label="Next question"
+              >
+                Next &rarr;
+              </button>
+            )}
+          </nav>
+        </div>
+      )}
+
+      {/* ---- Gear Selection ---- */}
+      {campfirePhase === 'gear' && (
+        <div className={styles.gearSection}>
+          <GearSelector characterClass={selectedClass} />
+
+          <nav className={styles.nav} aria-label="Gear selection navigation">
+            <button
+              type="button"
+              className={styles.navBtn}
+              onClick={() => {
+                setError(null)
+                setCampfirePhase('questions')
+              }}
+              disabled={generating}
+              aria-label="Back to questions"
+            >
+              &larr; Back to Questions
+            </button>
+
             <button
               type="button"
               className={`${styles.navBtn} ${styles.generateBtn}`}
@@ -294,19 +358,9 @@ export default function CampfireMode() {
                 <>&#x2728; Weave My Story</>
               )}
             </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.navBtn}
-              onClick={handleNext}
-              disabled={generating}
-              aria-label="Next question"
-            >
-              Next &rarr;
-            </button>
-          )}
-        </nav>
-      </div>
+          </nav>
+        </div>
+      )}
     </div>
   )
 }

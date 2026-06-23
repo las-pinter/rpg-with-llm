@@ -1,6 +1,7 @@
 export { default as AbilityGrid } from './AbilityGrid'
 export { default as CampfireMode } from './CampfireMode'
 export { default as ClassSelector } from './ClassSelector'
+export { default as GearSelector } from './GearSelector'
 export { default as ManualMode } from './ManualMode'
 export { default as ReviewSheet } from './ReviewSheet'
 export { default as LoadTab } from './LoadTab'

@@ -62,6 +62,185 @@ ASSISTED_CREATION_QUESTIONS: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Starting gear options — alternatives players can choose during creation.
+# Each class has categories ("weapon", "armor", "pack") with a list of
+# Item alternatives.  The first option in each category matches the
+# default inventory in ``_CLASS_TEMPLATES``.
+# ---------------------------------------------------------------------------
+_STARTING_GEAR_OPTIONS: dict[str, dict[str, list[Item]]] = {
+    "Fighter": {
+        "weapon": [
+            Item(
+                name="Longsword",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d8"},
+                weight=3.0,
+                value=15,
+            ),
+            Item(
+                name="Battleaxe",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d8"},
+                weight=4.0,
+                value=10,
+            ),
+        ],
+        "armor": [
+            Item(
+                name="Chain Mail",
+                item_type=ItemType.ARMOR,
+                properties={"armor_bonus": 16},
+                weight=55.0,
+                value=75,
+            ),
+            Item(
+                name="Leather Armor",
+                item_type=ItemType.ARMOR,
+                properties={"armor_bonus": 11},
+                weight=10.0,
+                value=10,
+            ),
+        ],
+        "pack": [
+            Item(
+                name="Explorer's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=5.0,
+                value=10,
+            ),
+            Item(
+                name="Dungeoneer's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=8.0,
+                value=12,
+            ),
+        ],
+    },
+    "Rogue": {
+        "weapon": [
+            Item(
+                name="Rapier",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d8"},
+                weight=2.0,
+                value=25,
+            ),
+            Item(
+                name="Shortsword",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d6"},
+                weight=2.0,
+                value=10,
+            ),
+        ],
+        "armor": [
+            Item(
+                name="Leather Armor",
+                item_type=ItemType.ARMOR,
+                properties={"armor_bonus": 11},
+                weight=10.0,
+                value=10,
+            ),
+        ],
+        "pack": [
+            Item(
+                name="Burglar's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=6.0,
+                value=16,
+            ),
+            Item(
+                name="Thieves' Pack",
+                item_type=ItemType.CONTAINER,
+                weight=7.0,
+                value=15,
+            ),
+        ],
+    },
+    "Mage": {
+        "weapon": [
+            Item(
+                name="Quarterstaff",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d6"},
+                weight=4.0,
+                value=0,
+            ),
+            Item(
+                name="Dagger",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d4"},
+                weight=1.0,
+                value=2,
+            ),
+        ],
+        "armor": [],
+        "pack": [
+            Item(
+                name="Scholar's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=4.0,
+                value=10,
+            ),
+            Item(
+                name="Explorer's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=5.0,
+                value=10,
+            ),
+        ],
+    },
+    "Cleric": {
+        "weapon": [
+            Item(
+                name="Mace",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d6"},
+                weight=4.0,
+                value=5,
+            ),
+            Item(
+                name="Warhammer",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d8"},
+                weight=5.0,
+                value=15,
+            ),
+        ],
+        "armor": [
+            Item(
+                name="Chain Mail",
+                item_type=ItemType.ARMOR,
+                properties={"armor_bonus": 16},
+                weight=55.0,
+                value=75,
+            ),
+            Item(
+                name="Scale Mail",
+                item_type=ItemType.ARMOR,
+                properties={"armor_bonus": 14},
+                weight=45.0,
+                value=50,
+            ),
+        ],
+        "pack": [
+            Item(
+                name="Priest's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=5.0,
+                value=10,
+            ),
+            Item(
+                name="Explorer's Pack",
+                item_type=ItemType.CONTAINER,
+                weight=5.0,
+                value=10,
+            ),
+        ],
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Legacy class templates — used by ``Character.create_default()`` for
 # backward compatibility.  New code should use ``_CLASS_TEMPLATES``
 # (see below) which uses ``Item`` and ``ResourceData`` objects.
@@ -157,11 +336,11 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
         "gold": 15,
         "inventory": [
             Item(
-                name="Shortsword",
+                name="Rapier",
                 item_type=ItemType.WEAPON,
-                properties={"damage": "1d6"},
+                properties={"damage": "1d8"},
                 weight=2.0,
-                value=10,
+                value=25,
             ),
             Item(
                 name="Leather Armor",
@@ -189,6 +368,13 @@ _CLASS_TEMPLATES: dict[str, dict[str, Any]] = {
         "skills": ["Arcana", "Investigation"],
         "gold": 20,
         "inventory": [
+            Item(
+                name="Quarterstaff",
+                item_type=ItemType.WEAPON,
+                properties={"damage": "1d6"},
+                weight=4.0,
+                value=0,
+            ),
             Item(name="Spellbook", item_type=ItemType.TOOL, weight=3.0, value=50),
             Item(name="Arcane Focus", item_type=ItemType.TOOL, weight=1.0, value=10),
             Item(

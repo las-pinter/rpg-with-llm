@@ -27,6 +27,7 @@ vi.mock('../../api/endpoints', async () => {
   return {
     ...actual,
     generateCharacter: vi.fn(),
+    getStartingGear: vi.fn().mockResolvedValue({ ok: true, gear_options: {} }),
   }
 })
 
@@ -122,6 +123,19 @@ function fillAnswers(count: number) {
   useCharacterStore.getState().setStoryAnswers(answers)
 }
 
+/**
+ * Navigate to the last question, then click "Choose Starting Gear" to
+ * reach the gear phase where the "Weave My Story" button lives.
+ */
+async function navigateToGenerate(user: ReturnType<typeof userEvent.setup>) {
+  for (let i = 0; i < 4; i++) {
+    await user.click(screen.getByRole('button', { name: /Next question/ }))
+  }
+  await user.click(
+    screen.getByRole('button', { name: /Choose starting gear/i }),
+  )
+}
+
 beforeEach(() => {
   setupStore()
   vi.clearAllMocks()
@@ -214,7 +228,7 @@ describe('CampfireMode — question navigation', () => {
     ).toBeDisabled()
   })
 
-  it('shows Generate button instead of Next on the last question', async () => {
+  it('shows Choose Starting Gear button instead of Next on the last question', async () => {
     const user = userEvent.setup()
     render(<CampfireMode />)
 
@@ -228,7 +242,7 @@ describe('CampfireMode — question navigation', () => {
       screen.queryByRole('button', { name: /Next question/ }),
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Choose starting gear/i }),
     ).toBeInTheDocument()
   })
 
@@ -313,13 +327,10 @@ describe('CampfireMode — generate validation', () => {
     fillAnswers(2)
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(
@@ -341,13 +352,10 @@ describe('CampfireMode — generate validation', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(
@@ -372,12 +380,10 @@ describe('CampfireMode — generate validation boundary', () => {
 
     render(<CampfireMode />)
 
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(mockGenerateCharacter).toHaveBeenCalledTimes(1)
@@ -392,24 +398,24 @@ describe('CampfireMode — generate validation boundary', () => {
 // ---------------------------------------------------------------------------
 
 describe('CampfireMode — error clearing', () => {
-  it('clears error when navigating to a new question', async () => {
+  it('clears error when going back to questions from gear step', async () => {
     const user = userEvent.setup()
     fillAnswers(2)
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    // Navigate to last question then to gear step
+    await navigateToGenerate(user)
 
-    // Trigger validation error
+    // Trigger validation error via "Weave My Story"
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
     expect(screen.getByText(/Answer at least 3 questions/)).toBeInTheDocument()
 
-    // Navigate back — error should be cleared by handlePrev
-    await user.click(screen.getByRole('button', { name: /Previous question/ }))
+    // Click "Back to Questions" — error should be cleared
+    await user.click(
+      screen.getByRole('button', { name: /Back to questions/i }),
+    )
     expect(
       screen.queryByText(/Answer at least 3 questions/),
     ).not.toBeInTheDocument()
@@ -422,14 +428,12 @@ describe('CampfireMode — error clearing', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    // Navigate to gear phase
+    await navigateToGenerate(user)
 
     // First generate — fails with network error
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
     expect(await screen.findByText(/First failure/)).toBeInTheDocument()
 
@@ -439,7 +443,7 @@ describe('CampfireMode — error clearing', () => {
       character: sampleCharacter,
     })
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     // Error should be gone (handleGenerate calls setError(null) first)
@@ -463,13 +467,10 @@ describe('CampfireMode — generate API call', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(mockGenerateCharacter).toHaveBeenCalledTimes(1)
@@ -507,13 +508,10 @@ describe('CampfireMode — generate API call', () => {
     const nameInput = screen.getByRole('textbox', { name: /Hero/i })
     await user.type(nameInput, 'Kaelen')
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(mockGenerateCharacter).toHaveBeenCalledTimes(1)
@@ -530,13 +528,10 @@ describe('CampfireMode — generate API call', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     // Wait for async state update
@@ -557,13 +552,10 @@ describe('CampfireMode — generate API call', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     // Wait for the error to appear
@@ -581,13 +573,10 @@ describe('CampfireMode — generate API call', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     const errorEl = await screen.findByText(
@@ -608,13 +597,10 @@ describe('CampfireMode — generate API call', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(mockGenerateCharacter).toHaveBeenCalledTimes(1)
@@ -639,12 +625,10 @@ describe('CampfireMode — generate API edge cases', () => {
 
     render(<CampfireMode />)
 
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(mockGenerateCharacter).toHaveBeenCalledTimes(1)
@@ -670,12 +654,10 @@ describe('CampfireMode — generate API edge cases', () => {
 
     render(<CampfireMode />)
 
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(mockGenerateCharacter).toHaveBeenCalledTimes(1)
@@ -700,13 +682,10 @@ describe('CampfireMode — loading state', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(
@@ -724,19 +703,16 @@ describe('CampfireMode — loading state', () => {
 
     render(<CampfireMode />)
 
-    // Navigate to last question
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     const generateBtn = screen.getByRole('button', {
-      name: /Generate character from story/,
+      name: /Generate character from story/i,
     })
     await user.click(generateBtn)
 
     // All nav buttons should be disabled
     expect(
-      screen.getByRole('button', { name: /Previous question/ }),
+      screen.getByRole('button', { name: /Back to questions/i }),
     ).toBeDisabled()
     expect(generateBtn).toBeDisabled()
   })
@@ -754,12 +730,10 @@ describe('CampfireMode — loading state extended', () => {
 
     render(<CampfireMode />)
 
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(screen.getByRole('status')).toBeInTheDocument()
@@ -775,12 +749,10 @@ describe('CampfireMode — loading state extended', () => {
 
     render(<CampfireMode />)
 
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     const generateBtn = screen.getByRole('button', {
-      name: /Generate character from story/,
+      name: /Generate character from story/i,
     })
     await user.click(generateBtn)
 
@@ -827,7 +799,7 @@ describe('CampfireMode — accessibility', () => {
     ).toBeInTheDocument()
   })
 
-  it('has accessible generate button on last question', async () => {
+  it('has accessible "Choose Starting Gear" button on last question', async () => {
     const user = userEvent.setup()
     render(<CampfireMode />)
 
@@ -836,7 +808,7 @@ describe('CampfireMode — accessibility', () => {
     }
 
     expect(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Choose starting gear/i }),
     ).toBeInTheDocument()
   })
 
@@ -845,12 +817,10 @@ describe('CampfireMode — accessibility', () => {
     fillAnswers(2)
     render(<CampfireMode />)
 
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /Next question/ }))
-    }
+    await navigateToGenerate(user)
 
     await user.click(
-      screen.getByRole('button', { name: /Generate character from story/ }),
+      screen.getByRole('button', { name: /Generate character from story/i }),
     )
 
     expect(screen.getByRole('alert')).toBeInTheDocument()

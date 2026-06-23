@@ -15,6 +15,7 @@ import type {
   ResetResponse,
   SuccessResponse,
   SheetResponse,
+  Item,
 } from './types'
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,19 @@ export function generateCharacter(
   return post<CharacterResponse>('/api/character/generate', params)
 }
 
+export interface StartingGearResponse {
+  ok: boolean
+  gear_options?: Record<string, Item[]>
+  error?: string
+}
+
+/** Fetch starting gear options for a given character class. */
+export async function getStartingGear(characterClass: string): Promise<StartingGearResponse> {
+  return get<StartingGearResponse>(
+    `/api/character/starting-gear?class=${encodeURIComponent(characterClass)}`,
+  )
+}
+
 export interface CreateCharacterParams {
   name: string
   character_class: string
@@ -80,7 +94,8 @@ export interface CreateCharacterParams {
   ideals?: string
   bonds?: string
   flaws?: string
-  inventory?: string[]
+  inventory?: Item[]
+  equipped_items?: string[]
   gold?: number
   hp?: number
 }

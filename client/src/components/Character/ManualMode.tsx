@@ -13,6 +13,7 @@ import { createCharacter } from '../../api/endpoints'
 import type { CreateCharacterParams } from '../../api/endpoints'
 import ClassSelector from './ClassSelector'
 import AbilityGrid from './AbilityGrid'
+import GearSelector from './GearSelector'
 import styles from './ManualMode.module.css'
 
 export default function ManualMode() {
@@ -54,10 +55,14 @@ export default function ManualMode() {
 
     setCreating(true)
 
+    const gearItems = Object.values(useCharacterStore.getState().selectedGear)
+
     const params: CreateCharacterParams = {
       name: trimmedName,
       character_class: selectedClass,
       abilities: { ...abilities },
+      inventory: gearItems,
+      equipped_items: gearItems.map((item) => item.id),
     }
 
     const trimmedAppearance = manualAppearance.trim()
@@ -138,6 +143,11 @@ export default function ManualMode() {
 
       {/* ---- Ability Scores ---- */}
       <AbilityGrid />
+
+      {/* ---- Starting Gear ---- */}
+      <div className={styles.section}>
+        <GearSelector characterClass={selectedClass} />
+      </div>
 
       {/* ---- Appearance ---- */}
       <div className={styles.fieldRow}>
