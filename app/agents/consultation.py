@@ -3,6 +3,12 @@ Consultation Agent — Pure Q&A for players without touching game state.
 
 Completely separate from DungeonMaster. Never touches game state, turn count,
 NPC spawning, or summarization. Time is stopped — pure knowledge only.
+
+Public functions
+----------------
+build_consultation_context
+    Standalone helper that assembles context messages for a consultation LLM
+    call.  Pure function — no side effects, no state.
 """
 
 from __future__ import annotations
@@ -29,6 +35,90 @@ _CONSULTATION_SYSTEM_PROMPT = (
 
 _UNAVAILABLE_MESSAGE = "The DM is unavailable for consultation right now."
 _ERROR_MESSAGE = "The DM is momentarily distracted. Please try again."
+
+
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
+
+
+def build_consultation_context(
+    question: str,
+    world_state_snapshot: dict[str, Any],
+    character_snapshot: dict[str, Any],
+    character_name: str = "",
+    recent_consultations: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """Build the context messages for a consultation LLM call.
+
+    Pure function — no side effects, no state.
+
+    Parameters
+    ----------
+    question:
+        The player's question or consultation request.
+    world_state_snapshot:
+        Read-only snapshot of the current world state.
+    character_snapshot:
+        Read-only snapshot of the player character.
+    character_name:
+        The name of the player character (used for personalisation).
+    recent_consultations:
+        Optional list of recent Q&A entries for continuity.  Each entry
+        should have at least ``question`` and ``answer`` keys.
+
+    Returns
+    -------
+    list[dict[str, str]]
+        Messages in OpenAI chat-completion format.
+    """
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": _CONSULTATION_SYSTEM_PROMPT},
+    ]
+
+    # World state as readable key-value text
+    if world_state_snapshot:
+        world_lines = "\n".join(f"  {k}: {v}" for k, v in world_state_snapshot.items())
+        messages.append(
+            {
+                "role": "system",
+                "content": f"Current World State:\n{world_lines}",
+            }
+        )
+
+    # Character sheet as readable key-value text
+    if character_snapshot or character_name:
+        char_parts = []
+        if character_name:
+            char_parts.append(f"  name: {character_name}")
+        if character_snapshot:
+            char_parts.extend(f"  {k}: {v}" for k, v in character_snapshot.items())
+        char_lines = "\n".join(char_parts)
+        messages.append(
+            {
+                "role": "system",
+                "content": f"Character Information:\n{char_lines}",
+            }
+        )
+
+    # Previous consultation log (last 5 entries for context window sanity)
+    if recent_consultations:
+        consult_lines = ["Previous consultations:"]
+        for i, entry in enumerate(recent_consultations[-5:], start=1):
+            q = entry.get("question", "")
+            a = entry.get("answer", "")
+            consult_lines.append(f"  {i}. Q: {q}\n     A: {a}")
+        messages.append(
+            {
+                "role": "system",
+                "content": "\n".join(consult_lines),
+            }
+        )
+
+    # The player's question
+    messages.append({"role": "user", "content": question})
+
+    return messages
 
 
 # ---------------------------------------------------------------------------
@@ -129,60 +219,18 @@ class ConsultationAgent:
     ) -> list[dict[str, str]]:
         """Assemble the message list for the LLM call.
 
-        Builds a minimal context from scratch: system instruction, world
-        snapshot, character sheet, optional consultation history, and the
-        player's question.
+        Delegates to the standalone :func:`build_consultation_context`
+        function, injecting ``self.character_name`` for personalisation.
 
         Returns
         -------
         list[dict[str, str]]
             Messages in OpenAI chat-completion format.
         """
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": _CONSULTATION_SYSTEM_PROMPT},
-        ]
-
-        # World state as readable key-value text
-        if world_state_snapshot:
-            world_lines = "\n".join(
-                f"  {k}: {v}" for k, v in world_state_snapshot.items()
-            )
-            messages.append(
-                {
-                    "role": "system",
-                    "content": f"Current World State:\n{world_lines}",
-                }
-            )
-
-        # Character sheet as readable key-value text
-        if character_snapshot or self.character_name:
-            char_parts = []
-            if self.character_name:
-                char_parts.append(f"  name: {self.character_name}")
-            if character_snapshot:
-                char_parts.extend(f"  {k}: {v}" for k, v in character_snapshot.items())
-            char_lines = "\n".join(char_parts)
-            messages.append(
-                {
-                    "role": "system",
-                    "content": f"Character Information:\n{char_lines}",
-                }
-            )
-        # Previous consultation log (last 5 entries for context window sanity)
-        if recent_consultations:
-            consult_lines = ["Previous consultations:"]
-            for i, entry in enumerate(recent_consultations[-5:], start=1):
-                q = entry.get("question", "")
-                a = entry.get("answer", "")
-                consult_lines.append(f"  {i}. Q: {q}\n     A: {a}")
-            messages.append(
-                {
-                    "role": "system",
-                    "content": "\n".join(consult_lines),
-                }
-            )
-
-        # The player's question
-        messages.append({"role": "user", "content": question})
-
-        return messages
+        return build_consultation_context(
+            question=question,
+            world_state_snapshot=world_state_snapshot,
+            character_snapshot=character_snapshot,
+            character_name=self.character_name,
+            recent_consultations=recent_consultations,
+        )
