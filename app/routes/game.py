@@ -6,17 +6,22 @@ import json
 import logging
 import time
 from collections.abc import Generator
+from datetime import datetime, timezone
 from pathlib import Path
 
 import flask as flask
 from flask import Response, jsonify, request, stream_with_context
 
-from app.agents.consultation import ConsultationAgent
+from app.agents.consultation import (
+    ConsultationAgent,
+    append_to_consultation_log,
+    read_consultation_log,
+)
 from app.agents.dm import DungeonMaster
 from app.agents.entity_persistence import EntityStorage
 from app.agents.record_keeper import RecordKeeperAgent
 from app.agents.tools import set_record_keeper
-from app.character.model import Character, CharacterRecord
+from app.character.model import CharacterRecord
 from app.llm.base import (
     LLMProvider,  # noqa: F401 — used in type hint for _build_provider_from_dict
 )
@@ -298,6 +303,9 @@ def game_consult():
             {"ok": False, "error": "Missing 'input' in request body"}
         ), 400
 
+    # Extract optional save slug for consultation log persistence
+    save_slug = body.get("save_slug") or ""
+
     # Extract optional character and state snapshots
     character_snapshot = body.get("character") or {}
     state_snapshot = body.get("state") or {}
@@ -332,11 +340,44 @@ def game_consult():
         character_name=character_name,
     )
 
+    # Read recent consultations from persistent log (if save_slug provided)
+    recent_consultations = None
+    if save_slug:
+        try:
+            recent_consultations = read_consultation_log(save_slug, last_n=5)
+        except (ValueError, OSError):
+            recent_consultations = None
+
     # Answer the question
     answer = agent.consult(
         question=player_input,
         world_state_snapshot=world_state_snapshot,
         character_snapshot=character_snapshot,
+        recent_consultations=recent_consultations,
     )
+
+    # Append to persistent consultation log (best-effort, non-blocking)
+    # Don't log known non-success responses
+    _log_skip_messages = {
+        "The DM is unavailable for consultation right now.",
+        "The DM is momentarily distracted. Please try again.",
+        "Please ask a question.",
+    }
+    if save_slug and answer and answer not in _log_skip_messages:
+        timestamp = (
+            datetime.now(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+        entry = {
+            "turn": world_state_snapshot.get("turn_count", 0),
+            "question": player_input,
+            "answer": answer,
+            "timestamp": timestamp,
+        }
+        try:
+            append_to_consultation_log(save_slug, entry)
+        except (ValueError, OSError):
+            pass  # Log failure shouldn't break the consultation
 
     return flask.jsonify({"ok": True, "answer": answer})

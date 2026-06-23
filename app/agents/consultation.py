@@ -13,10 +13,13 @@ build_consultation_context
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from typing import Any
 
 from app.llm.base import LLMProvider
+from app.utils import atomic_write
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -119,6 +122,85 @@ def build_consultation_context(
     messages.append({"role": "user", "content": question})
 
     return messages
+
+
+# ---------------------------------------------------------------------------
+# Consultation log persistence
+# ---------------------------------------------------------------------------
+
+
+def read_consultation_log(slug: str, last_n: int = 5) -> list[dict]:
+    """Read the last N entries from the consultation log for a save slug.
+
+    Args:
+        slug: The save slug (e.g., "gorten-tarragon-20260615_203021_164175-e00b")
+        last_n: Number of recent entries to return (default 5)
+
+    Returns:
+        List of consultation entry dicts, most recent last, empty list if
+        no log exists or log is empty.
+    """
+    # Validate slug
+    if "/" in slug or "\\" in slug or ".." in slug:
+        raise ValueError(f"Invalid save slug: {slug}")
+
+    from app.world.persistence import WorldStorage
+
+    storage = WorldStorage(data_dir=Path("data"))
+    log_path = storage.saves_dir / slug / "consultation_log.json"
+
+    if not log_path.exists():
+        return []
+
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            entries = json.load(f)
+        if not isinstance(entries, list):
+            return []
+        return entries[-last_n:] if len(entries) > last_n else entries
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def append_to_consultation_log(slug: str, entry: dict) -> None:
+    """Append a consultation entry to the consultation log for a save slug.
+
+    Creates the log file if it doesn't exist. Uses atomic writes.
+
+    Args:
+        slug: The save slug (e.g., "gorten-tarragon-20260615_203021_164175-e00b")
+        entry: Dict with keys: turn (int), question (str), answer (str),
+               timestamp (str)
+    """
+    # Validate slug
+    if "/" in slug or "\\" in slug or ".." in slug:
+        raise ValueError(f"Invalid save slug: {slug}")
+
+    from app.world.persistence import WorldStorage
+
+    storage = WorldStorage(data_dir=Path("data"))
+    log_path = storage.saves_dir / slug / "consultation_log.json"
+
+    # Ensure save directory exists
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read existing entries
+    if log_path.exists():
+        try:
+            with open(log_path, encoding="utf-8") as f:
+                entries = json.load(f)
+            if not isinstance(entries, list):
+                entries = []
+        except (json.JSONDecodeError, OSError):
+            entries = []
+    else:
+        entries = []
+
+    # Append new entry
+    entries.append(entry)
+
+    # Write atomically
+    atomic_write(log_path, entries)
 
 
 # ---------------------------------------------------------------------------
