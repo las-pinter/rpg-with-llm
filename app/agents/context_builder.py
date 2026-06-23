@@ -7,6 +7,7 @@ focused on orchestration rather than message construction.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,66 @@ logger = logging.getLogger(__name__)
 # Approx 4 chars per token → 3000 chars ≈ 750 tokens.
 # Can be tuned at the module level without changing function signatures.
 MAX_TIMELINE_CHARS: int = 3000
+
+
+def _inject_whisper_summary(
+    messages: list[dict[str, str]],
+    dm: DungeonMaster,
+) -> None:
+    """Inject a summary of current-turn whispers into the DM's context.
+
+    Reads the persistent consultation log (if it exists) and formats any
+    whispers from the current turn as a system message.
+
+    No-op if no save slug, no consultation log, or no whispers this turn.
+    """
+    # Check if we have a save slug to locate the consultation log
+    save_slug: str | None = getattr(dm, "_save_slug", None)
+    if not save_slug:
+        return
+
+    # Read consultation log entries (all of them, so we can filter by turn)
+    from app.agents.consultation import read_consultation_log
+
+    try:
+        all_entries = read_consultation_log(save_slug, last_n=9999)
+    except (ValueError, OSError, json.JSONDecodeError):
+        return  # No log or read error — silently skip
+
+    if not all_entries:
+        return
+
+    # Get current turn number from world state
+    current_turn = dm.world_state.turn_count if dm.world_state else 0
+
+    # Filter entries for the current turn
+    turn_whispers = [
+        entry for entry in all_entries if entry.get("turn") == current_turn
+    ]
+
+    if not turn_whispers:
+        return  # No whispers this turn
+
+    # Format as bullet-point summary
+    bullets: list[str] = []
+    for entry in turn_whispers:
+        question = entry.get("question", "")
+        answer = entry.get("answer", "")
+        # Per spec: "- {question} You {answer}."
+        question_text = question.rstrip("?.!") + "." if question else ""
+        bullets.append(f"- {question_text} You {answer}.")
+
+    summary_text = (
+        "The player whispered during this turn. Summary of whispers:\n"
+        + "\n".join(bullets)
+    )
+
+    messages.append(
+        {
+            "role": "system",
+            "content": summary_text,
+        }
+    )
 
 
 def build_context(
@@ -232,6 +293,9 @@ def build_context(
                 ),
             }
         )
+
+    # --- Whisper summary (consultations from the current turn) ---
+    _inject_whisper_summary(messages, dm)
 
     # === RECORD-KEEPER CONTEXT INJECTION ===
     if record_keeper is not None and dm.world_state is not None:
