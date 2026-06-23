@@ -60,6 +60,12 @@ interface ExpandedGameState extends GameState {
   autoScroll: boolean
   /** Toggle token display visibility. */
   showTokens: boolean
+  /** Whether the consultation overlay is open. */
+  consultationOpen: boolean
+  /** History of consultation messages. */
+  consultationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+  /** Whether a consultation response is streaming in. */
+  consultationStreaming: boolean
 }
 
 export interface GameActions {
@@ -87,6 +93,13 @@ interface ExpandedGameActions extends GameActions {
     updates: Record<string, { action: 'set' | 'add' | 'append' | 'remove'; value?: unknown }>,
   ) => void
   resetGame: () => void
+
+  // Consultation actions
+  toggleConsultation: () => void
+  setConsultationOpen: (open: boolean) => void
+  addConsultationEntry: (role: 'user' | 'assistant', content: string) => void
+  setConsultationStreaming: (streaming: boolean) => void
+  clearConsultationHistory: () => void
 }
 
 export type GameStore = ExpandedGameState & ExpandedGameActions
@@ -109,6 +122,9 @@ const initialState: ExpandedGameState = {
   },
   autoScroll: true,
   showTokens: true,
+  consultationOpen: false,
+  consultationHistory: [],
+  consultationStreaming: false,
 }
 
 /** Segments that are NEVER allowed in dot-path access — blocks prototype pollution vectors. */
@@ -247,6 +263,15 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   // UI toggles
   toggleAutoScroll: () => set((state) => ({ autoScroll: !state.autoScroll })),
   setShowTokens: (show) => set({ showTokens: show }),
+
+  // Consultation actions
+  toggleConsultation: () => set((state) => ({ consultationOpen: !state.consultationOpen })),
+  setConsultationOpen: (open) => set({ consultationOpen: open }),
+  addConsultationEntry: (role, content) => set((state) => ({
+    consultationHistory: [...state.consultationHistory, { role, content }],
+  })),
+  setConsultationStreaming: (streaming) => set({ consultationStreaming: streaming }),
+  clearConsultationHistory: () => set({ consultationHistory: [] }),
 
   // Apply state changes — mirrors vanilla JS _applyStateChanges
   applyStateUpdate: (updates) => {

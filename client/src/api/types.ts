@@ -232,6 +232,23 @@ export interface GameStreamResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Consult
+// ---------------------------------------------------------------------------
+
+export interface ConsultParams {
+  input: string
+  character?: Record<string, unknown>
+  state?: Record<string, unknown>
+  provider?: Record<string, unknown>
+  save_slug?: string
+}
+
+export interface ConsultResponse {
+  ok: boolean
+  answer: string
+}
+
+// ---------------------------------------------------------------------------
 // Common
 // ---------------------------------------------------------------------------
 
