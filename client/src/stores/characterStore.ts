@@ -9,6 +9,7 @@ import type {
   CharactersListResponse,
   SavesListResponse,
   DerivedSheet,
+  Item,
 } from '../api/types'
 import {
   listCharacters,
@@ -91,6 +92,13 @@ export interface CharacterState {
   manualName: string
   manualAppearance: string
   manualBackstory: string
+
+  // ------------------------------------------------------------------
+  // Starting gear selection
+  // ------------------------------------------------------------------
+
+  /** Map of gear category → selected Item during character creation. */
+  selectedGear: Record<string, Item>
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +182,13 @@ export interface CharacterActions {
   deleteSaveGame: (slug: string) => Promise<void>
   /** Load a character into the manual creation form for review/editing. */
   loadCharacterIntoForm: (character: Character) => void
+
+  // ---- Gear selection ----
+
+  /** Select an item for a gear category. */
+  setSelectedGear: (category: string, item: Item) => void
+  /** Reset all gear selections to empty. */
+  resetGear: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +223,7 @@ const initialState: CharacterState = {
   manualName: '',
   manualAppearance: '',
   manualBackstory: '',
+  selectedGear: {},
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +382,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       manualName: '',
       manualAppearance: '',
       manualBackstory: '',
+      selectedGear: {},
     })
   },
 
@@ -550,4 +567,13 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
     generatedCharacter: null,
     isEditing: false,
   }),
+
+  // ---- Gear selection ----
+
+  setSelectedGear: (category, item) => {
+    const { selectedGear } = get()
+    set({ selectedGear: { ...selectedGear, [category]: item } })
+  },
+
+  resetGear: () => set({ selectedGear: {} }),
 }))

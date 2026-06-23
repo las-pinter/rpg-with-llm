@@ -1,0 +1,198 @@
+/* GearSelector — starting gear selection during character creation.
+   Dark parchment surface with gold accents matching the grimoire theme. */
+
+/* ---- Wrapper ---- */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 0.25rem 0;
+}
+
+/* ---- Loading state ---- */
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-narrative);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 1rem 0.5rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent-gold);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ---- Error / empty ---- */
+
+.error {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--danger);
+  padding: 0.65rem 0.85rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+  margin: 0;
+}
+
+.empty {
+  font-family: var(--font-narrative);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-style: italic;
+  padding: 1rem 0.5rem;
+  margin: 0;
+}
+
+/* ---- Category card ---- */
+
+.category {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  position: relative;
+}
+
+.category::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-gold), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* ---- Category header ---- */
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.categoryIcon {
+  font-size: 1.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.categoryTitle {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  display: block;
+}
+
+.categoryHint {
+  font-family: var(--font-narrative);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-style: italic;
+  display: block;
+  margin-top: 0.1rem;
+}
+
+/* ---- Options list ---- */
+
+.optionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* ---- Individual option button ---- */
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-narrative);
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.option:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-border);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* ---- Selected option ---- */
+
+.optionSelected {
+  background: var(--accent-bg, rgba(212, 165, 71, 0.08));
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.optionSelected:hover {
+  border-color: var(--accent-gold);
+  background: var(--accent-bg, rgba(212, 165, 71, 0.12));
+}
+
+/* ---- Radio indicator ---- */
+
+.radioIndicator {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  color: var(--accent-gold);
+  width: 1rem;
+  text-align: center;
+}
+
+/* ---- Option name & stats ---- */
+
+.optionName {
+  flex: 1;
+  font-weight: 500;
+}
+
+.optionStats {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---- Animation ---- */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

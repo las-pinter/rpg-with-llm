@@ -182,11 +182,35 @@ export default function ReviewSheet() {
   // ------------------------------------------------------------------
 
   const handleStartAdventure = useCallback(() => {
-    if (character) {
-      setCurrentCharacter(character)
+    if (!character) return
+
+    // Merge any selected gear into the character before starting
+    const gearItems = Object.values(useCharacterStore.getState().selectedGear)
+    let finalCharacter = character
+
+    if (gearItems.length > 0) {
+      const existingIds = new Set(character.inventory.map((i) => i.id))
+      const newItems = gearItems.filter((item) => !existingIds.has(item.id))
+
+      if (newItems.length > 0) {
+        const equippedSet = new Set(character.equipped_items)
+        const newEquipped = newItems
+          .map((item) => item.id)
+          .filter((id) => !equippedSet.has(id))
+
+        finalCharacter = {
+          ...character,
+          inventory: [...character.inventory, ...newItems],
+          equipped_items: [...character.equipped_items, ...newEquipped],
+        }
+
+        setGeneratedCharacter(finalCharacter)
+      }
     }
+
+    setCurrentCharacter(finalCharacter)
     navigate('/game')
-  }, [navigate, character, setCurrentCharacter])
+  }, [navigate, character, setCurrentCharacter, setGeneratedCharacter])
 
   // ------------------------------------------------------------------
   // Empty state

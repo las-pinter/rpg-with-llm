@@ -8,10 +8,13 @@ frontend stop hardcoding these values.
 
 from __future__ import annotations
 
+from typing import Any
+
 import flask as flask
 from flask import jsonify
 
 from app.character.model import (
+    _CLASS_TEMPLATES,
     _LEGACY_CLASS_TEMPLATES,
     ASSISTED_CREATION_QUESTIONS,
     MAX_POINTS,
@@ -50,6 +53,15 @@ def get_character_rules() -> flask.Response:
         cls: dict(tmpl) for cls, tmpl in _LEGACY_CLASS_TEMPLATES.items()
     }
 
+    # Build typed templates using _CLASS_TEMPLATES with serialized Items
+    typed_templates: dict[str, dict[str, Any]] = {}
+    for cls, tmpl in _CLASS_TEMPLATES.items():
+        typed_templates[cls] = {
+            **tmpl,
+            "inventory": [item.to_dict() for item in tmpl["inventory"]],
+            "resources": {k: v.to_dict() for k, v in tmpl["resources"].items()},
+        }
+
     return jsonify(
         {
             "ok": True,
@@ -57,6 +69,7 @@ def get_character_rules() -> flask.Response:
                 "valid_classes": sorted(VALID_CLASSES),
                 "standard_abilities": STANDARD_ABILITIES,
                 "class_templates": class_templates,
+                "class_templates_typed": typed_templates,
                 "point_buy": {
                     "costs": point_buy_costs,
                     "max_points": MAX_POINTS,

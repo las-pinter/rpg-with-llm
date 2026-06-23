@@ -15,7 +15,12 @@ from app.character.creation import (
     CharacterStorage,
 )
 from app.character.derived import compute_derived_sheet
-from app.character.model import VALID_CLASSES, CharacterRecord
+from app.character.model import (
+    _CLASS_TEMPLATES,
+    _STARTING_GEAR_OPTIONS,
+    VALID_CLASSES,
+    CharacterRecord,
+)
 from app.llm.config import ProviderConfig, create_provider
 
 logger = logging.getLogger(__name__)
@@ -226,6 +231,8 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
             "wisdom",
             "charisma",
             "skills",
+            "inventory",
+            "equipped_items",
             "personality",
             "ideals",
             "bonds",
@@ -268,9 +275,17 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
             for field in ("appearance", "backstory", "personality"):
                 if field in data and data[field] is not None:
                     char_data[field] = str(data[field])
-            for field in ("skills", "inventory", "hooks"):
+            for field in ("skills", "inventory", "hooks", "equipped_items"):
                 if field in data and isinstance(data[field], list):
                     char_data[field] = data[field]
+
+            # If inventory wasn't provided, fall back to class default items
+            if "inventory" not in char_data:
+                tmpl = _CLASS_TEMPLATES.get(character_class, {})
+                if "inventory" in tmpl:
+                    char_data["inventory"] = [
+                        item.to_dict() for item in tmpl["inventory"]
+                    ]
 
             character = CharacterRecord.from_dict(char_data)
         else:
@@ -290,6 +305,37 @@ def create_character() -> tuple[flask.Response, int] | flask.Response:
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
     return jsonify({"ok": True, "character": character.to_dict()})
+
+
+@bp.route("/character/starting-gear", methods=["GET"])
+def get_starting_gear() -> tuple[flask.Response, int] | flask.Response:
+    """Return starting gear options for a character class.
+
+    Query Parameters
+    ----------------
+    class : str
+        Character class name (e.g. ``"Fighter"``, ``"Rogue"``).
+
+    Returns
+    -------
+    JSON with ``ok`` and ``gear_options`` dict mapping category names
+    to lists of serialized ``Item`` objects.
+
+    Errors
+    ------
+    404
+        If the given *class* is not recognised.
+    """
+    character_class = request.args.get("class", "")
+    if character_class not in _STARTING_GEAR_OPTIONS:
+        return jsonify({"ok": False, "error": f"Unknown class: {character_class}"}), 404
+
+    options = _STARTING_GEAR_OPTIONS[character_class]
+    result: dict[str, list[dict[str, Any]]] = {}
+    for category, items in options.items():
+        result[category] = [item.to_dict() for item in items]
+
+    return jsonify({"ok": True, "gear_options": result}), 200
 
 
 @bp.route("/characters", methods=["GET"])

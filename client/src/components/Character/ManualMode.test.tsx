@@ -24,10 +24,14 @@ vi.mock('../../api/endpoints', async () => {
   return {
     ...actual,
     createCharacter: vi.fn(),
+    getStartingGear: vi.fn().mockResolvedValue({ ok: true, gear_options: {} }),
   }
 })
 
 const mockCreateCharacter = vi.mocked(createCharacter)
+const mockGetStartingGear = vi.mocked(
+  (await vi.importActual('../../api/endpoints')).getStartingGear as typeof import('../../api/endpoints').getStartingGear,
+)
 
 // ---------------------------------------------------------------------------
 // Sample data
