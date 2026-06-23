@@ -41,6 +41,8 @@ export interface GameInputAreaProps {
   onNewGame?: () => void
   /** Called when the user submits an action. If omitted, falls back to store. */
   onSubmit?: (input: string) => void
+  /** Called when the user clicks Whisper (DM consultation). */
+  onWhisper?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ export default function GameInputArea({
   onLoad,
   onNewGame,
   onSubmit,
+  onWhisper,
 }: GameInputAreaProps) {
   const processing = useGameStore((s) => s.processing)
   const isActive = useGameStore((s) => s.isActive)
@@ -167,6 +170,16 @@ export default function GameInputArea({
         >
           <span className={styles.actionBtnIcon} aria-hidden="true">◇</span>
           Load Game
+        </button>
+        <button
+          type="button"
+          className={styles.actionBtn}
+          onClick={onWhisper}
+          disabled={!isActive}
+          aria-label="Whisper — consult the DM"
+        >
+          <span className={styles.actionBtnIcon} aria-hidden="true">?</span>
+          Whisper
         </button>
         <button
           type="button"

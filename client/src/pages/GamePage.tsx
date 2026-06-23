@@ -44,6 +44,7 @@ import {
   LoadGameModal,
   StoryModal,
   CharacterDetailsModal,
+  WhisperPanel,
 } from '../components/Game'
 import styles from './GamePage.module.css'
 
@@ -85,6 +86,7 @@ export default function GamePage() {
   // ---- Actions ----
   const setProcessing = useGameStore((s) => s.setProcessing)
   const setIsActive = useGameStore((s) => s.setIsActive)
+  const toggleConsultation = useGameStore((s) => s.toggleConsultation)
 
   // ---- Game stream hook ----
   const { connect, disconnect, isConnecting, error: streamError } = useGameStream()
@@ -101,6 +103,27 @@ export default function GamePage() {
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [isActive])
+
+  // ---- Keyboard shortcuts: Whisper (?) and Ctrl+Space ----
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // '?' key — only when not focused on an input
+      if (
+        e.key === '?' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        e.preventDefault()
+        toggleConsultation()
+      }
+      // Ctrl+Space or Cmd+Space — from anywhere
+      if (e.key === ' ' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        toggleConsultation()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [toggleConsultation])
 
   // ---- Modal state ----
   const [openModal, setOpenModal] = useState<OpenModal>(null)
@@ -375,6 +398,7 @@ export default function GamePage() {
             onLoad={openLoadModal}
             onNewGame={handleNewGame}
             onSubmit={handleSubmit}
+            onWhisper={toggleConsultation}
           />
         </div>
       </div>
@@ -396,6 +420,7 @@ export default function GamePage() {
         isOpen={openModal === 'characterDetails'}
         onClose={closeModal}
       />
+      <WhisperPanel />
     </div>
   )
 }
