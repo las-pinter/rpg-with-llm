@@ -16,6 +16,8 @@ import type {
   SuccessResponse,
   SheetResponse,
   Item,
+  ConsultParams,
+  ConsultResponse,
 } from './types'
 
 // ---------------------------------------------------------------------------
@@ -216,4 +218,18 @@ export function startGameStream(params: GameStreamParams): string {
     searchParams.set('provider', JSON.stringify(params.provider))
   }
   return `/api/game/stream?${searchParams.toString()}`
+}
+
+// ---------------------------------------------------------------------------
+// Consult
+// ---------------------------------------------------------------------------
+
+/**
+ * Send a consult (whisper) to the game master and get back an answer.
+ */
+export function consult(
+  params: ConsultParams,
+  signal?: AbortSignal,
+): Promise<ConsultResponse> {
+  return post<ConsultResponse>('/api/game/consult', params, signal)
 }
