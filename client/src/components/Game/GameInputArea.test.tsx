@@ -312,6 +312,42 @@ describe('GameInputArea — action buttons', () => {
 })
 
 /* ------------------------------------------------------------------ */
+/*  Whisper button                                                     */
+/* ------------------------------------------------------------------ */
+
+describe('GameInputArea — whisper button', () => {
+  it('renders whisper button when game is active', () => {
+    render(<GameInputArea onWhisper={() => {}} />)
+    expect(screen.getByLabelText('Whisper — consult the DM')).toBeTruthy()
+  })
+
+  it('whisper button is disabled when no active game', () => {
+    setIsActive(false)
+    render(<GameInputArea onWhisper={() => {}} />)
+    expect(screen.getByLabelText('Whisper — consult the DM')).toBeDisabled()
+  })
+
+  it('whisper button is enabled when game is active', () => {
+    render(<GameInputArea onWhisper={() => {}} />)
+    expect(screen.getByLabelText('Whisper — consult the DM')).not.toBeDisabled()
+  })
+
+  it('clicking whisper button fires onWhisper callback', () => {
+    const onWhisper = vi.fn()
+    render(<GameInputArea onWhisper={onWhisper} />)
+    fireEvent.click(screen.getByLabelText('Whisper — consult the DM'))
+    expect(onWhisper).toHaveBeenCalledTimes(1)
+  })
+
+  it('whisper button has ? icon', () => {
+    render(<GameInputArea onWhisper={() => {}} />)
+    const button = screen.getByLabelText('Whisper — consult the DM')
+    expect(button.textContent).toContain('?')
+    expect(button.textContent).toContain('Whisper')
+  })
+})
+
+/* ------------------------------------------------------------------ */
 /*  Disabled states                                                    */
 /* ------------------------------------------------------------------ */
 
