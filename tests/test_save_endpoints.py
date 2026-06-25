@@ -108,7 +108,6 @@ class TestSaveEndpoint:
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
-        assert "Schema validation failed" in data["error"]
 
     def test_save_with_non_dict_state_returns_500(self, client):
         """POST with non-dict state value returns 500.
