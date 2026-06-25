@@ -70,10 +70,10 @@ def health_check() -> tuple[flask.Response, int] | flask.Response:
 
     try:
         result = provider.health()
-    except Exception as exc:
-        logger.warning("Health check failed: %s", exc)
+    except Exception:
+        logger.exception("Health check failed")
         return (
-            jsonify({"ok": False, "error": f"Health check failed: {exc}"}),
+            jsonify({"ok": False, "error": "Health check failed"}),
             500,
         )
 
