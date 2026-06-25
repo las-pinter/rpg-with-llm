@@ -32,9 +32,7 @@ class TestSaveEndpoint:
         """POST with valid state and name returns 200 with slug."""
         with (
             patch("app.routes.saves._save_manager.save"),
-            patch(
-                "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ),
+            patch("app.routes.saves._storage._generate_slug", return_value="test-slug"),
             patch("app.routes.saves._storage._update_index"),
         ):
             resp = client.post(
@@ -55,9 +53,7 @@ class TestSaveEndpoint:
         """POST with state but no name defaults to a timestamped adventure name."""
         with (
             patch("app.routes.saves._save_manager.save"),
-            patch(
-                "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ),
+            patch("app.routes.saves._storage._generate_slug", return_value="test-slug"),
             patch("app.routes.saves._storage._update_index") as mock_upd_index,
         ):
             resp = client.post(
@@ -170,9 +166,7 @@ class TestSaveEndpoint:
         """POST with narrative_entries passes them to save_manager.save()."""
         with (
             patch("app.routes.saves._save_manager.save") as mock_save,
-            patch(
-                "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ),
+            patch("app.routes.saves._storage._generate_slug", return_value="test-slug"),
             patch("app.routes.saves._storage._update_index"),
         ):
             resp = client.post(
@@ -201,9 +195,7 @@ class TestSaveEndpoint:
         """POST with summary passes summary dict to save_manager.save()."""
         with (
             patch("app.routes.saves._save_manager.save") as mock_save,
-            patch(
-                "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ),
+            patch("app.routes.saves._storage._generate_slug", return_value="test-slug"),
             patch("app.routes.saves._storage._update_index"),
         ):
             summary_payload = {
@@ -229,9 +221,7 @@ class TestSaveEndpoint:
         """Legacy clients sending only state with _character embedded still work."""
         with (
             patch("app.routes.saves._save_manager.save") as mock_save,
-            patch(
-                "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ),
+            patch("app.routes.saves._storage._generate_slug", return_value="test-slug"),
             patch("app.routes.saves._storage._update_index"),
         ):
             resp = client.post(
