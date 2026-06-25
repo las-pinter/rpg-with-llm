@@ -160,7 +160,7 @@ def save_game() -> tuple[flask.Response, int] | flask.Response:
         logger.debug("Game '%s' saved successfully with slug '%s'", name, slug)
     except ValueError as exc:
         logger.warning("Failed to save game '%s': %s", name, exc)
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": "Invalid save data"}), 400
     except Exception:
         logger.exception("Failed to save game '%s'", name)
         return jsonify({"ok": False, "error": "Internal server error"}), 500
