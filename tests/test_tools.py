@@ -8,10 +8,10 @@ from app.agents.tools import (
     TOOL_REGISTRY,
     dice_roll,
     dispatch_tool,
+    record_keeper_fetch,
     rules_attack,
     rules_saving_throw,
     rules_skill_check,
-    set_record_keeper,
     table_lookup,
 )
 
@@ -214,46 +214,61 @@ class TestRulesSavingThrow:
 
 
 class TestRecordKeeperTools:
-    """Tests for ``record_keeper_fetch`` tool and ``set_record_keeper``."""
+    """Tests for ``record_keeper_fetch`` tool with per-instance record_keeper."""
 
     def test_record_keeper_fetch_not_configured(self) -> None:
-        """Without record_keeper set, returns 'not configured' error."""
-        set_record_keeper(None)
+        """Without record_keeper passed, returns 'not configured' error."""
         result = dispatch_tool(
             "record_keeper_fetch",
             {
                 "entity_type": "npc",
                 "entity_id": "test",
             },
+            # No record_keeper — defaults to None
+        )
+        assert result == {"ok": False, "error": "Record-Keeper not configured"}
+
+    def test_record_keeper_fetch_not_configured_explicit_none(self) -> None:
+        """Passing record_keeper=None returns 'not configured' error."""
+        result = dispatch_tool(
+            "record_keeper_fetch",
+            {
+                "entity_type": "npc",
+                "entity_id": "test",
+            },
+            record_keeper=None,
         )
         assert result == {"ok": False, "error": "Record-Keeper not configured"}
 
     def test_record_keeper_fetch_missing_entity_type(self) -> None:
         """Missing entity_type returns appropriate error when configured."""
         mock_rk = MagicMock()
-        set_record_keeper(mock_rk)
-        try:
-            result = dispatch_tool("record_keeper_fetch", {})
-            assert result["ok"] is False
-            assert "entity_type" in result.get("error", "")
-        finally:
-            set_record_keeper(None)
+        result = dispatch_tool(
+            "record_keeper_fetch",
+            {},
+            record_keeper=mock_rk,
+        )
+        assert result["ok"] is False
+        assert "entity_type" in result.get("error", "")
 
     def test_record_keeper_fetch_missing_entity_id(self) -> None:
         """Missing entity_id returns appropriate error when configured."""
         mock_rk = MagicMock()
-        set_record_keeper(mock_rk)
-        try:
-            result = dispatch_tool("record_keeper_fetch", {"entity_type": "npc"})
-            assert result["ok"] is False
-            assert "entity_id" in result.get("error", "")
-        finally:
-            set_record_keeper(None)
+        result = dispatch_tool(
+            "record_keeper_fetch",
+            {"entity_type": "npc"},
+            record_keeper=mock_rk,
+        )
+        assert result["ok"] is False
+        assert "entity_id" in result.get("error", "")
 
     def test_record_keeper_fetch_alias_resolves(self) -> None:
         """Alias 'rk_fetch' dispatches to record_keeper_fetch."""
-        set_record_keeper(None)
-        result = dispatch_tool("rk_fetch", {"entity_type": "npc", "entity_id": "x"})
+        result = dispatch_tool(
+            "rk_fetch",
+            {"entity_type": "npc", "entity_id": "x"},
+            # No record_keeper — defaults to None
+        )
         assert result["ok"] is False  # Not configured, but alias resolves
         # Should say "not configured", NOT "Unknown tool"
         assert "Unknown tool" not in result.get("error", "")
@@ -272,50 +287,38 @@ class TestRecordKeeperTools:
             "name": "Test NPC",
             "entity_type": "npc",
         }
-        set_record_keeper(mock_rk)
-        try:
-            result = dispatch_tool(
-                "record_keeper_fetch",
-                {
-                    "entity_type": "npc",
-                    "entity_id": "test_npc",
-                },
-            )
-            assert result["ok"] is True
-            assert result["result"]["entity_id"] == "test_npc"
-            mock_rk.fetch_entity.assert_called_once_with("npc", "test_npc")
-        finally:
-            set_record_keeper(None)
+        result = dispatch_tool(
+            "record_keeper_fetch",
+            {
+                "entity_type": "npc",
+                "entity_id": "test_npc",
+            },
+            record_keeper=mock_rk,
+        )
+        assert result["ok"] is True
+        assert result["result"]["entity_id"] == "test_npc"
+        mock_rk.fetch_entity.assert_called_once_with("npc", "test_npc")
 
     def test_record_keeper_fetch_not_found(self) -> None:
         """Entity not found returns appropriate error."""
         mock_rk = MagicMock()
         mock_rk.fetch_entity.return_value = None
-        set_record_keeper(mock_rk)
-        try:
-            result = dispatch_tool(
-                "record_keeper_fetch",
-                {
-                    "entity_type": "npc",
-                    "entity_id": "unknown",
-                },
-            )
-            assert result["ok"] is False
-            assert "not found" in result.get("error", "")
-        finally:
-            set_record_keeper(None)
-
-    def test_set_record_keeper_clears_reference(self) -> None:
-        """set_record_keeper(None) clears the module-level reference."""
-        mock_rk = MagicMock()
-        set_record_keeper(mock_rk)
-        set_record_keeper(None)
         result = dispatch_tool(
             "record_keeper_fetch",
             {
                 "entity_type": "npc",
-                "entity_id": "x",
+                "entity_id": "unknown",
             },
+            record_keeper=mock_rk,
+        )
+        assert result["ok"] is False
+        assert "not found" in result.get("error", "")
+
+    def test_record_keeper_fetch_direct_call_no_rk(self) -> None:
+        """Calling record_keeper_fetch directly without record_keeper returns error."""
+        result = record_keeper_fetch(
+            {"entity_type": "npc", "entity_id": "x"},
+            record_keeper=None,
         )
         assert result["ok"] is False
         assert "not configured" in result.get("error", "")

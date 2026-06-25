@@ -10,7 +10,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { useGameStore } from '../../stores/gameStore'
 import { useCharacterStore } from '../../stores/characterStore'
-import type { ItemType } from '../../api/types'
 import type { DerivedSheet } from '../../api/types'
 import GameStatusSidebar from './GameStatusSidebar'
 

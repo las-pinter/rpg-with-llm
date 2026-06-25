@@ -13,7 +13,6 @@ import dataclasses
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # NPCRecord
 # ---------------------------------------------------------------------------
@@ -53,7 +52,7 @@ class NPCRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> NPCRecord:
-        """Reconstruct from a dict, filtering to valid fields for forward compatibility."""
+        """Reconstruct from a dict, filtering to valid fields for compat."""
         valid_fields = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in valid_fields})
 
@@ -96,7 +95,7 @@ class PlaceRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlaceRecord:
-        """Reconstruct from a dict, filtering to valid fields for forward compatibility."""
+        """Reconstruct from a dict, filtering to valid fields for compat."""
         valid_fields = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in valid_fields})
 
@@ -141,7 +140,7 @@ class ItemRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ItemRecord:
-        """Reconstruct from a dict, filtering to valid fields for forward compatibility."""
+        """Reconstruct from a dict, filtering to valid fields for compat."""
         valid_fields = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in valid_fields})
 
@@ -176,6 +175,6 @@ class EntityChangeLog:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EntityChangeLog:
-        """Reconstruct from a dict, filtering to valid fields for forward compatibility."""
+        """Reconstruct from a dict, filtering to valid fields for compat."""
         valid_fields = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in valid_fields})

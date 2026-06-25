@@ -34,7 +34,7 @@ from app.llm.base import LLMProvider
 from app.rules.plausibility import classify_action
 from app.save_engine.envelope import SaveEnvelope
 from app.utils.atomic_write import atomic_write
-from app.world.model import WorldState
+from app.world.model import MAX_NARRATIVE_ENTRIES, WorldState
 from app.world.validator import apply_changes, validate_state_changes
 
 logger = logging.getLogger(__name__)
@@ -485,7 +485,7 @@ def _build_entity_record(entity_type: str, fields: dict[str, Any]) -> dict[str, 
                 "mention_count": fields.get("mention_count", 1),
                 "notes": fields.get("notes", []),
                 "tags": fields.get("tags", []),
-                "is_active": True,
+                "is_active": "true",
                 "metadata": fields.get("metadata", {}),
             }
         )
@@ -502,7 +502,7 @@ def _build_entity_record(entity_type: str, fields: dict[str, Any]) -> dict[str, 
                 "last_seen_turn": fields.get("last_seen_turn", 0),
                 "mention_count": fields.get("mention_count", 1),
                 "notes": fields.get("notes", []),
-                "is_active": True,
+                "is_active": "true",
                 "metadata": fields.get("metadata", {}),
             }
         )
@@ -521,7 +521,7 @@ def _build_entity_record(entity_type: str, fields: dict[str, Any]) -> dict[str, 
                 "mention_count": fields.get("mention_count", 1),
                 "notes": fields.get("notes", []),
                 "tags": fields.get("tags", []),
-                "is_active": True,
+                "is_active": "true",
                 "metadata": fields.get("metadata", {}),
             }
         )
@@ -569,7 +569,7 @@ def _persist_entity_deactivate(entity_storage, op):
     existing = entity_storage.get_entity(op.entity_type, op.entity_id)
     if existing is None:
         return  # Nothing to deactivate
-    existing["is_active"] = False
+    existing["is_active"] = "false"
     existing["last_seen_turn"] = op.fields.get(
         "last_seen_turn", existing.get("last_seen_turn", 0)
     )
@@ -634,10 +634,9 @@ class DungeonMaster:
             context window.  When ``None``, no Record-Keeper context is added.
         """
         self.llm_provider = llm_provider
-        self.npc_provider = llm_provider if npc_provider is None else npc_provider
-        self.summarizer_provider = (
-            llm_provider if summarizer_provider is None else summarizer_provider
-        )
+        # Route handler is the single source of truth for provider fallbacks (Fix 7)
+        self.npc_provider = npc_provider
+        self.summarizer_provider = summarizer_provider
         self.world_state = world_state
 
         if isinstance(character, dict):
@@ -654,7 +653,7 @@ class DungeonMaster:
                 DeprecationWarning,
                 stacklevel=2,
             )
-            self.derived_sheet = None
+            self.derived_sheet = None  # type: ignore[assignment]
         self.turn_count: int = 0
         self._retried_parse: bool = False
         self.token_usage: dict[str, int] = {
@@ -669,6 +668,9 @@ class DungeonMaster:
         # Story summarization state
         self._pending_story_entries: list[str] = []
         self._story_summary_interval: int = 3  # Summarize every 3 turns
+
+        # Consecutive summarization failure counter (Fix 4)
+        self._summarization_failures: int = 0
 
         # L3 meta-summarization state
         self.l3_interval: int = 25  # Every 25 turns
@@ -779,16 +781,20 @@ class DungeonMaster:
             try:
                 self._maybe_summarize()
             except Exception:
+                self._track_summarization_failure()
                 logger.exception("Summarization failed, continuing")
             try:
                 self._maybe_summarize_story()
             except Exception:
+                self._track_summarization_failure()
                 logger.exception("Story summarization failed, continuing")
             try:
                 self._maybe_meta_summarize()
             except Exception:
+                self._track_summarization_failure()
                 logger.exception(
-                    "L3 meta-summarization failed in impossible-action branch, continuing"
+                    "L3 meta-summarization failed in "
+                    "impossible-action branch, continuing"
                 )
 
             # Persist narrative entry for impossible-action turns too
@@ -800,6 +806,9 @@ class DungeonMaster:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 self.world_state._narrative_entries.append(entry)
+                # Cap in-memory list to prevent unbounded growth (Fix 2)
+                if len(self.world_state._narrative_entries) > MAX_NARRATIVE_ENTRIES:
+                    self.world_state._narrative_entries.pop(0)
                 if self._storage is not None and self._save_slug is not None:
                     try:
                         self._storage.write_narrative_entries(
@@ -1203,7 +1212,11 @@ class DungeonMaster:
             return []
         tool_results: list[dict[str, Any]] = []
         for req in tool_requests:
-            result = dispatch_tool(req["name"], req.get("params", {}))
+            result = dispatch_tool(
+                req["name"],
+                req.get("params", {}),
+                record_keeper=self.record_keeper,
+            )
             tool_results.append(
                 {
                     "name": req["name"],
@@ -1392,14 +1405,17 @@ class DungeonMaster:
         try:
             self._maybe_summarize()
         except Exception:
+            self._track_summarization_failure()
             logger.exception("Summarization failed, continuing")
         try:
             self._maybe_summarize_story()
         except Exception:
+            self._track_summarization_failure()
             logger.exception("Story summarization failed, continuing")
         try:
             self._maybe_meta_summarize()
         except Exception:
+            self._track_summarization_failure()
             logger.exception("L3 meta-summarization failed, continuing")
 
         # Persist narrative entry for this turn — append to world state
@@ -1412,6 +1428,9 @@ class DungeonMaster:
         }
         if self.world_state is not None:
             self.world_state._narrative_entries.append(entry)
+            # Cap in-memory list to prevent unbounded growth (Fix 2)
+            if len(self.world_state._narrative_entries) > MAX_NARRATIVE_ENTRIES:
+                self.world_state._narrative_entries.pop(0)
             if self._storage is not None and self._save_slug is not None:
                 try:
                     self._storage.write_narrative_entries(
@@ -1661,6 +1680,19 @@ class DungeonMaster:
     # Memory summarization
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Summarization failure tracking (Fix 4)
+    # ------------------------------------------------------------------
+
+    def _track_summarization_failure(self) -> None:
+        """Increment summarization failure counter and warn at threshold."""
+        self._summarization_failures += 1
+        if self._summarization_failures >= 3:
+            logger.warning(
+                "%d consecutive summarization failures — the game may be degraded",
+                self._summarization_failures,
+            )
+
     def _maybe_summarize(self) -> None:
         """Check if summarization should trigger and run it if needed.
 
@@ -1716,7 +1748,8 @@ class DungeonMaster:
                                     ),
                                 }
 
-                            # Update with latest technical summary and write back atomically
+                            # Update with latest technical summary
+                            # and write back atomically
                             payload["technical_summary"] = list(
                                 self.world_state.technical_summary
                             )
@@ -1727,7 +1760,8 @@ class DungeonMaster:
                             atomic_write(summary_path, envelope, indent=2)
                         except Exception:
                             logger.exception(
-                                "Failed to persist summary before autosave for slug '%s'",
+                                "Failed to persist summary before "
+                                "autosave for slug '%s'",
                                 self._save_slug,
                             )
 
@@ -1758,6 +1792,7 @@ class DungeonMaster:
                     recent_count,
                 )
         except Exception:
+            self._track_summarization_failure()
             logger.exception("Summarization failed after turn")
 
     def _maybe_summarize_story(self) -> None:
@@ -1786,6 +1821,7 @@ class DungeonMaster:
                 # Clear pending entries after successful summarization
                 self._pending_story_entries = []
         except Exception:
+            self._track_summarization_failure()
             logger.exception(
                 "Story summarization failed, keeping entries for next cycle"
             )
@@ -1835,4 +1871,5 @@ class DungeonMaster:
                     len(meta_summary),
                 )
         except Exception:
+            self._track_summarization_failure()
             logger.exception("L3 meta-summarization failed")

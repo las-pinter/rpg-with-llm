@@ -95,5 +95,17 @@ jobs:
         working-directory: ./client
         run: npm run build
 
-      - name: Run tests with coverage
+      - name: TypeScript type check
+        working-directory: ./client
+        run: npx tsc --noEmit
+
+      - name: Frontend lint
+        working-directory: ./client
+        run: npx eslint src/
+
+      - name: Run frontend tests
+        working-directory: ./client
+        run: npm test -- --run
+
+      - name: Run Python tests with coverage
         run: python -m pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=60

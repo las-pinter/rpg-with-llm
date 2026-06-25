@@ -29,9 +29,6 @@ vi.mock('../../api/endpoints', async () => {
 })
 
 const mockCreateCharacter = vi.mocked(createCharacter)
-const mockGetStartingGear = vi.mocked(
-  (await vi.importActual('../../api/endpoints')).getStartingGear as typeof import('../../api/endpoints').getStartingGear,
-)
 
 // ---------------------------------------------------------------------------
 // Sample data

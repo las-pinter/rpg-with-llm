@@ -14,6 +14,9 @@ import dataclasses
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+# Maximum number of narrative entries to keep in memory (prevents unbounded growth)
+MAX_NARRATIVE_ENTRIES: int = 200
+
 # ---------------------------------------------------------------------------
 # Location
 # ---------------------------------------------------------------------------
@@ -168,14 +171,8 @@ class WorldState:
         are recursively converted to plain dicts via ``asdict()``.
         """
         result = asdict(self)
-        # Remove duplicate flat fields that are already in _character
-        # to prevent data duplication and divergence in save files
-        if result.get("_character") is not None:
-            # Strip only fields that are genuinely redundant with _character.
-            # inventory and gold are WORLD-LEVEL runtime state, not character
-            # duplicates — stripping them causes data loss on save/reload.
-            for field in ("character_id", "character_name"):
-                result.pop(field, None)
+        # Always include character_id and character_name in serialized output.
+        # (Fix 3 — removed conditional stripping that caused inconsistency.)
         return result
 
     @classmethod
@@ -242,31 +239,31 @@ class WorldState:
         raw_gold = data.get("gold", 0)
         gold = int(raw_gold) if raw_gold is not None else 0
 
-        # established_facts — ensure it's a list of strings
+        # established_facts — coerce all values to strings (Fix 1)
         raw_facts = data.get("established_facts", [])
         if isinstance(raw_facts, list):
-            established_facts = [str(f) for f in raw_facts if isinstance(f, str)]
+            established_facts = [str(f) for f in raw_facts]
         else:
             established_facts = []
 
-        # story_summary — ensure it's a list of strings
+        # story_summary — coerce all values to strings (Fix 1)
         raw_story_summary = data.get("story_summary", [])
         if isinstance(raw_story_summary, list):
-            story_summary = [str(s) for s in raw_story_summary if isinstance(s, str)]
+            story_summary = [str(s) for s in raw_story_summary]
         else:
             story_summary = []
 
-        # technical_summary — ensure it's a list of strings
+        # technical_summary — coerce all values to strings (Fix 1)
         raw_tech = data.get("technical_summary", [])
         if isinstance(raw_tech, list):
-            technical_summary = [str(s) for s in raw_tech if isinstance(s, str)]
+            technical_summary = [str(s) for s in raw_tech]
         else:
             technical_summary = []
 
-        # meta_summary — ensure it's a list of strings
+        # meta_summary — coerce all values to strings (Fix 1)
         raw_meta = data.get("meta_summary", [])
         if isinstance(raw_meta, list):
-            meta_summary = [str(s) for s in raw_meta if isinstance(s, str)]
+            meta_summary = [str(s) for s in raw_meta]
         else:
             meta_summary = []
 

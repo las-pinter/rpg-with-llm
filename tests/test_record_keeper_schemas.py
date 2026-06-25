@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import json
+
 import pytest
 
 from app.agents.record_keeper_schemas import (
@@ -18,7 +19,6 @@ from app.agents.record_keeper_schemas import (
     NPCRecord,
     PlaceRecord,
 )
-
 
 # ===================================================================
 # Helpers
@@ -374,7 +374,7 @@ class TestPlaceRecord:
         assert record.description == ""
 
     def test_default_list_fields_are_empty(self):
-        """tags, notable_features, connected_places, notes must default to empty list."""
+        """tags, notable_features, connected_places, notes default to empty list."""
         record = PlaceRecord(entity_id="place_01", name="Test")
         assert record.tags == []
         assert record.notable_features == []
@@ -1115,7 +1115,7 @@ class TestEntityChangeLog:
         assert b.changed_fields == []
 
     def test_changelog_mutable_defaults_isolated_after_from_dict(self):
-        """EntityChangeLog instances created via from_dict must have independent lists."""
+        """EntityChangeLog from_dict instances must have independent lists."""
         base = {
             "turn": 1,
             "entity_type": "npc",
@@ -1240,7 +1240,8 @@ class TestCrossCutting:
                 f"{type(instance).__name__}.to_dict() must return a dict"
             )
             assert type(result) is dict, (
-                f"{type(instance).__name__}.to_dict() must return plain dict, not {type(result)}"
+                f"{type(instance).__name__}.to_dict() must return "
+                f"plain dict, not {type(result)}"
             )
 
     def test_from_dict_returns_correct_type(self):

@@ -175,6 +175,7 @@ export default function ReviewSheet() {
     connProviderType,
     connApiKey,
     setGeneratedCharacter,
+    setIsEditing,
   ])
 
   // ------------------------------------------------------------------

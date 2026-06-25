@@ -397,7 +397,7 @@ class TestSummarizeMeta:
 
     def test_includes_previous_meta_when_provided(self) -> None:
         """When previous_meta is provided, it should be included in the prompt."""
-        from app.agents.summarizer import META_SUMMARIZER_SYSTEM_PROMPT, summarize_meta
+        from app.agents.summarizer import summarize_meta
 
         calls: list[list[dict]] = []
 
@@ -415,7 +415,7 @@ class TestSummarizeMeta:
 
     def test_does_not_include_previous_when_none(self) -> None:
         """When previous_meta is None, no previous summary preamble."""
-        from app.agents.summarizer import META_SUMMARIZER_SYSTEM_PROMPT, summarize_meta
+        from app.agents.summarizer import summarize_meta
 
         calls: list[list[dict]] = []
 

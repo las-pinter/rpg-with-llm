@@ -1,10 +1,12 @@
 import json
-import pytest
 from pathlib import Path
-from app.save_engine.manager import SaveGameManager
-from app.save_engine.bucket import Bucket
-from app.world.model import WorldState
+
+import pytest
+
 from app.character.model import CharacterRecord
+from app.save_engine.bucket import Bucket
+from app.save_engine.manager import SaveGameManager
+from app.world.model import WorldState
 
 
 @pytest.fixture
@@ -83,7 +85,8 @@ def test_schema_validation_failure(temp_data_dir):
     with open(save_folder / "world_state.json", "w") as f:
         json.dump(invalid_data, f)
 
-    # Load should skip this bucket because it fails validation (or just doesn't populate it)
+    # Load skips this bucket because it fails validation
+    # (or just doesn't populate it)
     loaded = manager.load(slug)
     assert "world_state" not in loaded
 
@@ -277,7 +280,7 @@ def test_migration_chain(temp_data_dir):
 
 def test_migration_missing_path(temp_data_dir):
     """Run migration with no registered path, expect MigrationError."""
-    from app.save_engine.migration import run_migration, MigrationError
+    from app.save_engine.migration import MigrationError, run_migration
 
     with pytest.raises(MigrationError, match="No migration path"):
         run_migration("no_path_schema", {"a": 1}, "1.0.0", "2.0.0")
@@ -287,8 +290,9 @@ def test_load_triggers_migration(temp_data_dir):
     """Create a save with old version, register migration, load, verify."""
     import json
     from pathlib import Path
-    from app.save_engine.manager import SaveGameManager
+
     from app.save_engine.bucket import Bucket
+    from app.save_engine.manager import SaveGameManager
     from app.save_engine.migration import register_migration
 
     manager = SaveGameManager(temp_data_dir)

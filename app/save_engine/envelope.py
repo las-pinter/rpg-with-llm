@@ -1,7 +1,6 @@
-from dataclasses import dataclass, field, asdict, fields
-from typing import Any, get_origin
-import json
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
+from typing import Any, get_origin
 
 
 @dataclass

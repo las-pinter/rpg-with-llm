@@ -13,8 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.agents.dm import DungeonMaster
-from app.character.model import Character, CharacterRecord
-from app.character.model import Character
+from app.character.model import CharacterRecord
 
 # ---------------------------------------------------------------------------
 # Helpers

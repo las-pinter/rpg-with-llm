@@ -189,38 +189,6 @@ export function resetGame(): Promise<ResetResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// Game / Stream
-// ---------------------------------------------------------------------------
-
-export interface GameStreamParams {
-  input: string
-  character_id: string
-  provider?: {
-    base_url: string
-    model: string
-    api_key?: string
-    provider_type?: string
-  }
-}
-
-/**
- * Start an SSE game stream.
- *
- * Note: This endpoint uses Server-Sent Events. The response is a stream,
- * not a standard JSON payload. Use EventSource or fetch with
- * `response.body.getReader()` to consume the stream.
- */
-export function startGameStream(params: GameStreamParams): string {
-  const searchParams = new URLSearchParams()
-  searchParams.set('input', params.input)
-  searchParams.set('character_id', params.character_id)
-  if (params.provider) {
-    searchParams.set('provider', JSON.stringify(params.provider))
-  }
-  return `/api/game/stream?${searchParams.toString()}`
-}
-
-// ---------------------------------------------------------------------------
 // Consult
 // ---------------------------------------------------------------------------
 

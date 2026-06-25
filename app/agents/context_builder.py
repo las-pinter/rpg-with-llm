@@ -239,10 +239,17 @@ def build_context(
             passive_perception_str = str(sheet.passive_perception)
 
             save_mods = sheet.saving_throw_modifiers
-            save_str = f"{save_mods.get('STR', '?')}/{save_mods.get('DEX', '?')}/{save_mods.get('CON', '?')}/{save_mods.get('INT', '?')}/{save_mods.get('WIS', '?')}/{save_mods.get('CHA', '?')}"
+            save_str = (
+                f"{save_mods.get('STR', '?')}/{save_mods.get('DEX', '?')}"
+                f"/{save_mods.get('CON', '?')}/{save_mods.get('INT', '?')}"
+                f"/{save_mods.get('WIS', '?')}/{save_mods.get('CHA', '?')}"
+            )
 
             atk = sheet.attack_bonus
-            attack_str = f"{atk.get('melee', '?')}/{atk.get('ranged', '?')}/{atk.get('spell', '?')}"
+            attack_str = (
+                f"{atk.get('melee', '?')}/{atk.get('ranged', '?')}"
+                f"/{atk.get('spell', '?')}"
+            )
 
             ac_formula_str = (
                 sheet.formulas.get("ac", "unknown") if sheet.formulas else "unknown"
@@ -325,7 +332,9 @@ def build_context(
                     messages.append(
                         {
                             "role": "system",
-                            "content": f"RECORD-KEEPER: Timeline Context\n\n{timeline_text}",
+                            "content": (
+                                f"RECORD-KEEPER: Timeline Context\n\n{timeline_text}"
+                            ),
                         }
                     )
 
@@ -379,7 +388,10 @@ def build_context(
                     else summary_text[:100]
                 )
                 timeline_parts.append(
-                    f"[Session Summary: Turns {turn_start}-{turn_end} (condensed)]\n{first_line}..."
+
+                        f"[Session Summary: Turns {turn_start}-{turn_end} (condensed)]"
+                        f"\n{first_line}..."
+
                 )
 
     # 3. Recent turns from history buffer (oldest first)

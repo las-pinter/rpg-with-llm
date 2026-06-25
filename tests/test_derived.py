@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.character.derived import (
+    _safe_eval_expr,
     compute_derived_sheet,
     prepare_base_data,
     prepare_derived_data,
@@ -1281,3 +1282,147 @@ class TestComputeDerivedSheet:
         from app.character.model import DerivedSheet
 
         assert isinstance(sheet, DerivedSheet)
+
+
+class TestSafeEvalExpr:
+    """Tests for _safe_eval_expr — the AST-based safe expression evaluator."""
+
+    # ------------------------------------------------------------------
+    # Happy path — simple arithmetic
+    # ------------------------------------------------------------------
+
+    def test_simple_addition(self):
+        """12+2 evaluates to 14."""
+        result = _safe_eval_expr("12+2", {})
+        assert result == 14
+
+    def test_simple_subtraction(self):
+        """15-3 evaluates to 12."""
+        result = _safe_eval_expr("15-3", {})
+        assert result == 12
+
+    def test_simple_multiplication(self):
+        """4*3 evaluates to 12."""
+        result = _safe_eval_expr("4*3", {})
+        assert result == 12
+
+    def test_negative_number(self):
+        """-5 evaluates to -5."""
+        result = _safe_eval_expr("-5", {})
+        assert result == -5
+
+    def test_combined_operations(self):
+        """10+2*3 evaluates following Python precedence (10+6=16)."""
+        result = _safe_eval_expr("10+2*3", {})
+        assert result == 16
+
+    def test_subtraction_with_negative(self):
+        """12+-3 evaluates to 9."""
+        result = _safe_eval_expr("12+-3", {})
+        assert result == 9
+
+    # ------------------------------------------------------------------
+    # Ability name resolution
+    # ------------------------------------------------------------------
+
+    def test_ability_name_resolves(self):
+        """STR resolves to the ability modifier value."""
+        result = _safe_eval_expr("12+STR", {"STR": 2})
+        assert result == 14
+
+    def test_negative_ability_modifier(self):
+        """Negative ability modifiers are handled correctly."""
+        result = _safe_eval_expr("10+CHA", {"CHA": -2})
+        assert result == 8
+
+    def test_multiple_abilities_in_expression(self):
+        """Multiple ability names in one expression."""
+        result = _safe_eval_expr("STR+DEX", {"STR": 2, "DEX": 1})
+        assert result == 3
+
+    def test_unknown_ability_defaults_to_zero(self):
+        """An ability not in the dict defaults to 0."""
+        result = _safe_eval_expr("10+STR", {})
+        assert result == 10
+
+    # ------------------------------------------------------------------
+    # Security — rejection of unsafe nodes
+    # ------------------------------------------------------------------
+
+    def test_rejects_function_call(self):
+        """Function calls (e.g. __import__) are rejected."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Disallowed AST node type"):
+            _safe_eval_expr("__import__('os')", {})
+
+    def test_rejects_attribute_access(self):
+        """Attribute access (e.g. os.system) is rejected."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Disallowed AST node type"):
+            _safe_eval_expr("os.system", {})
+
+    def test_rejects_subscript(self):
+        """Subscript access (e.g. x[0]) is rejected."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Disallowed AST node type"):
+            _safe_eval_expr("x[0]", {})
+
+    def test_rejects_division(self):
+        """Division operator is rejected (not in allowlist)."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsafe binary operator"):
+            _safe_eval_expr("10/2", {})
+
+    def test_rejects_power(self):
+        """Power operator is rejected (not in allowlist)."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsafe binary operator"):
+            _safe_eval_expr("2**3", {})
+
+    def test_rejects_disallowed_name(self):
+        """Non-ability name references are rejected."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsafe name reference"):
+            _safe_eval_expr("import_me", {})
+
+    def test_rejects_string_constant(self):
+        """String constants are rejected."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsafe constant type"):
+            _safe_eval_expr("'hello'", {})
+
+    def test_rejects_invalid_syntax(self):
+        """Invalid Python syntax raises ValueError."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Invalid expression"):
+            _safe_eval_expr("+++", {})
+
+    # ------------------------------------------------------------------
+    # Integration with _resolve_resource_max
+    # ------------------------------------------------------------------
+
+    def test_resource_max_string_formula_uses_safe_eval(self):
+        """ResourceData with '12+CON' formula resolves correctly via safe eval."""
+        record = _make_record(
+            abilities={
+                "STR": 10,
+                "DEX": 10,
+                "CON": 14,
+                "INT": 10,
+                "WIS": 10,
+                "CHA": 10,
+            },
+            resources={"hp": ResourceData(value=10, max="12+CON")},
+        )
+        sheet = compute_derived_sheet(record)
+        # CON 14 -> +2 modifier -> 12 + 2 = 14
+        assert "hp_max" in sheet.formulas
+        assert "14" in sheet.formulas["hp_max"]

@@ -199,11 +199,6 @@ function applyAction(
       }
       break
     case 'remove':
-      // Traverse using hasOwn to avoid prototype chain
-      for (let i = 0; i < segments.length - 1; i += 1) {
-        if (!Object.hasOwn(current, segments[i]!)) return
-        current = current[segments[i]!] as Record<string, unknown>
-      }
       delete current[key]
       break
   }

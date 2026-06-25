@@ -192,7 +192,7 @@ export default function SaveGameModal({ isOpen, onClose, onSaved }: SaveGameModa
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.'
       setErrorMessage(msg)
     }
-  }, [saveName, worldState, onClose, onSaved])
+  }, [saveName, worldState])
 
   // ---------- Form submit ----------
   const handleSubmit = useCallback(

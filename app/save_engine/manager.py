@@ -67,7 +67,8 @@ class SaveGameManager:
             schema_errors = validate_payload(serialized_data, bucket.schema)
             if schema_errors:
                 raise ValueError(
-                    f"Validation failed for bucket '{schema_name}': {'; '.join(schema_errors)}"
+                    f"Validation failed for bucket '{schema_name}': "
+                    f"{'; '.join(schema_errors)}"
                 )
 
             envelope = SaveEnvelope(
@@ -249,9 +250,10 @@ class SaveGameManager:
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "id": {"type": "string"},
-                                    "content": {"type": "string"},
-                                    "type": {"type": "string"},
+                                    "turn": {"type": "integer"},
+                                    "player_input": {"type": "string"},
+                                    "narrative": {"type": "string"},
+                                    "timestamp": {"type": "string"},
                                 },
                             },
                         }

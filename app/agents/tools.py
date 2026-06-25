@@ -25,19 +25,6 @@ from app.rules.combat import attack_roll
 
 logger = logging.getLogger(__name__)
 
-# Module-level Record-Keeper reference (set by DM when configured)
-_record_keeper: Any = None  # RecordKeeperAgent | None
-
-
-def set_record_keeper(rk: Any) -> None:
-    """Set the module-level Record-Keeper singleton for tool dispatch.
-
-    Called when a DungeonMaster with a RecordKeeper is created.
-    Pass None to clear.
-    """
-    global _record_keeper
-    _record_keeper = rk
-
 
 # ---------------------------------------------------------------------------
 # Tool implementations
@@ -243,13 +230,19 @@ def rules_saving_throw(params: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": f"Saving throw failed: {e}"}
 
 
-def record_keeper_fetch(params: dict[str, Any]) -> dict[str, Any]:
+def record_keeper_fetch(
+    params: dict[str, Any],
+    record_keeper: Any = None,
+) -> dict[str, Any]:
     """Fetch an entity record by type and ID.
 
     Parameters
     ----------
     params : dict
         Must contain ``entity_type`` (str) and ``entity_id`` (str).
+    record_keeper : Any, optional
+        The RecordKeeperAgent instance to use.  When ``None``, returns
+        a "not configured" error.
 
     Returns
     -------
@@ -257,7 +250,7 @@ def record_keeper_fetch(params: dict[str, Any]) -> dict[str, Any]:
         ``{"ok": True, "result": <entity dict>}`` on success, or
         ``{"ok": False, "error": "..."}`` on failure.
     """
-    if _record_keeper is None:
+    if record_keeper is None:
         return {"ok": False, "error": "Record-Keeper not configured"}
 
     entity_type = params.get("entity_type", "")
@@ -269,7 +262,7 @@ def record_keeper_fetch(params: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": "Missing required param: 'entity_id'"}
 
     try:
-        result = _record_keeper.fetch_entity(entity_type, entity_id)
+        result = record_keeper.fetch_entity(entity_type, entity_id)
         if result is None:
             return {
                 "ok": False,
@@ -285,7 +278,7 @@ def record_keeper_fetch(params: dict[str, Any]) -> dict[str, Any]:
 # Registry
 # ---------------------------------------------------------------------------
 
-TOOL_REGISTRY: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+TOOL_REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "dice": dice_roll,
     "table": table_lookup,
     "skill_check": rules_skill_check,
@@ -305,7 +298,11 @@ TOOL_REGISTRY["rk_fetch"] = record_keeper_fetch
 # ---------------------------------------------------------------------------
 
 
-def dispatch_tool(name: str, params: dict[str, Any]) -> dict[str, Any]:
+def dispatch_tool(
+    name: str,
+    params: dict[str, Any],
+    record_keeper: Any = None,
+) -> dict[str, Any]:
     """Execute a tool by name with the given parameters.
 
     Looks up *name* in ``TOOL_REGISTRY``, calls the corresponding
@@ -318,6 +315,10 @@ def dispatch_tool(name: str, params: dict[str, Any]) -> dict[str, Any]:
         The tool name (must be a key in ``TOOL_REGISTRY``).
     params : dict
         Parameters to pass to the tool function.
+    record_keeper : Any, optional
+        The RecordKeeperAgent instance for ``record_keeper_fetch``.
+        When ``None`` and the tool is ``record_keeper_fetch``, returns
+        a "not configured" error.
 
     Returns
     -------
@@ -340,7 +341,11 @@ def dispatch_tool(name: str, params: dict[str, Any]) -> dict[str, Any]:
 
     try:
         tool_fn = TOOL_REGISTRY[name]
-        result = tool_fn(params)
+        # Pass record_keeper to record_keeper_fetch; other tools ignore it
+        if name in ("record_keeper_fetch", "rk_fetch"):
+            result = tool_fn(params, record_keeper=record_keeper)
+        else:
+            result = tool_fn(params)
         logger.debug(
             "dispatch_tool: '%s' returned ok=%s",
             name,

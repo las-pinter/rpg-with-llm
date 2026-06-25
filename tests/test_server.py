@@ -394,12 +394,12 @@ class TestModelsEndpoint:
         }
 
     def test_list_models_missing_fields(self, client):
-        """POST missing base_url and model returns 400."""
+        """POST missing base_url (and model) returns 400."""
         resp = client.post("/api/models", json={})
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
-        assert data["error"] == "base_url and model are required"
+        assert data["error"] == "base_url is required"
 
     def test_list_models_invalid_json(self, client):
         """POST with non-JSON body returns 400."""
@@ -566,17 +566,16 @@ class TestModelsEndpoint:
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
-        assert "base_url and model are required" in data["error"]
+        assert "base_url is required" in data["error"]
 
     def test_list_models_null_model(self, client):
-        """POST with null model returns 400."""
+        """POST with null model is OK — model is optional for listing."""
         resp = client.post(
             "/api/models",
             json={"base_url": "http://localhost:11434", "model": None},
         )
-        assert resp.status_code == 400
-        data = resp.get_json()
-        assert data["ok"] is False
+        # Model is optional; should not return 400 validation error
+        assert resp.status_code != 400
 
     def test_list_models_whitespace_base_url(self, client):
         """POST with whitespace-only base_url returns 400."""
@@ -587,18 +586,16 @@ class TestModelsEndpoint:
         assert resp.status_code == 400
         data = resp.get_json()
         assert data["ok"] is False
-        assert "base_url and model are required" in data["error"]
+        assert "base_url is required" in data["error"]
 
     def test_list_models_whitespace_model(self, client):
-        """POST with whitespace-only model returns 400."""
+        """POST with whitespace-only model is OK — model is optional."""
         resp = client.post(
             "/api/models",
             json={"base_url": "http://localhost:11434", "model": "   "},
         )
-        assert resp.status_code == 400
-        data = resp.get_json()
-        assert data["ok"] is False
-        assert "base_url and model are required" in data["error"]
+        # Model is optional; whitespace model should not cause 400
+        assert resp.status_code != 400
 
     # ------------------------------------------------------------------
     # Edge cases — provider_type handling
@@ -1759,7 +1756,7 @@ class TestStoryEndpoint:
         ]
 
     def test_get_story_endpoint_fallback_to_old_save(self, client):
-        """GET /api/story/<slug> falls back to WorldState.story_summary for saves without story_summary.json."""
+        """GET /api/story/<slug> falls back to story_summary without json file."""
         state = {
             "version": "1.0",
             "story_summary": [

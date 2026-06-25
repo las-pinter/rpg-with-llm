@@ -191,12 +191,18 @@ class TestWorldState:
         ws = WorldState.from_dict({"established_facts": "not a list"})
         assert ws.established_facts == []
 
-    def test_established_facts_from_dict_filters_non_strings(self) -> None:
-        """Non-string entries must be filtered out."""
+    def test_established_facts_from_dict_coerces_to_strings(self) -> None:
+        """Non-string entries are coerced to strings (Fix 1)."""
         ws = WorldState.from_dict(
             {"established_facts": ["valid fact", 42, 3.14, None, "also valid"]}
         )
-        assert ws.established_facts == ["valid fact", "also valid"]
+        assert ws.established_facts == [
+            "valid fact",
+            "42",
+            "3.14",
+            "None",
+            "also valid",
+        ]
 
     def test_story_log_backward_compat(self) -> None:
         """Old save data with story_log key loads without crashing."""
