@@ -8,7 +8,11 @@ No setup fuss. Just you, a browser, and an adventure.
 
 > ⚠️ **Experimental Prototype:** This is a proof of concept exploring what
 > LLM-driven games can look like. It's meant for curious tinkerers and
-> solo adventurers — not a replacement for tabletop RPGs or human GMs.
+> solo adventurers. LLMs never can and never should be a replacement for tabletop RPGs or human GMs.
+>
+> The code was vibe-coded.
+>
+> **My current verdict:**  I am quite disappointed with the results. LLMs cannot make comprehensive and consistent story for a game. Though it is fun for the first hour if you just explore and can ignore the unfunctioning parts.
 
 ---
 
@@ -18,11 +22,13 @@ The fastest way to get playing is with the one-click startup scripts.
 You just need **Python 3.10+**, **Node.js (v18 or later)**, and an **LLM provider** (see below).
 
 **Linux/macOS:**
+
 ```bash
 ./start.sh
 ```
 
 **Windows:**
+
 ```cmd
 start.bat
 ```
@@ -58,7 +64,7 @@ cd ..
 python run.py
 ```
 
-Then open **http://localhost:5000** in your browser and the adventure begins!
+Then open **<http://localhost:5000>** in your browser and the adventure begins!
 
 ---
 
@@ -125,17 +131,20 @@ talking before you dive in. Saves a lot of head-scratching!
 ## 🎮 How to Play
 
 ### 1. Connect
-Open your browser to **http://localhost:5000**. The first screen asks you
+
+Open your browser to **<http://localhost:5000>**. The first screen asks you
 to connect to your LLM provider. Fill in the details from the setup guide
 above, hit **Test Connection**, then **Start Adventure**.
 
 ### 2. Create Your Hero
+
 Choose your class — **Fighter**, **Rogue**, **Mage**, or **Cleric** —
 and roll up your stats. You can use the manual form or try the
 **DM-Assisted Creation** for a guided Q&A session that builds your
 character through conversation. Your hero gets saved automatically.
 
-### 3. Adventure!
+### 3. Adventure
+
 The game view shows you the world through the DM's narration. At the
 bottom there's an input box. Type what you want your character to do:
 
@@ -151,10 +160,12 @@ NPCs recall past conversations, locations stay changed, and your actions
 have consequences.
 
 ### 4. Save & Load
+
 The game auto-saves as you go. You can also hit **Save** or **Load**
 in the UI anytime to manage your adventures.
 
-### 5. Explore!
+### 5. Explore
+
 The world is persistent. Visit a town, clear a dungeon, accept a quest,
 get cursed by a witch — every decision matters. The DM adapts the story
 to whatever you throw at it.
@@ -170,7 +181,7 @@ to whatever you throw at it.
 | Port 5000 already in use | Another program is using it | Kill the other program, or set `PORT=5000` in `start.sh` (Linux/macOS) |
 | "No module named X" | Dependencies not installed | Run `pip install -r requirements.txt` in your virtual environment |
 | Server won't start | Python too old | Run `python3 --version` — needs **3.10+** |
-| Browser doesn't open | Missing `xdg-open` on Linux | Manually go to **http://localhost:5000** |
+| Browser doesn't open | Missing `xdg-open` on Linux | Manually go to **<http://localhost:5000>** |
 | Weird/boring narration | Small or weak model | Try a bigger one (e.g., `llama3.2:11b` instead of `llama3.2:3b`) |
 | Game feels sluggish | Local model too heavy for your hardware | Switch to a cloud provider (Groq or OpenRouter) |
 | "Python not found" on Windows | Python not in PATH | Re-run the Python installer and check **"Add Python to PATH"** |
