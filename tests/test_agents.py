@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -602,7 +601,7 @@ class TestSessionHistoryFidelity:
 
     def test_get_turns_with_fidelity_orders_chronologically(self) -> None:
         """Turns should be returned oldest-first, matching insertion order."""
-        from app.agents.history import Fidelity, SessionHistory
+        from app.agents.history import SessionHistory
 
         history = SessionHistory(max_turns=5)
         for i in range(3):
@@ -664,7 +663,7 @@ class TestDungeonMasterBuildContextSummary:
     """Tests for ``_build_context`` with compressed summary integration."""
 
     def test_context_includes_summary_when_present(self) -> None:
-        """Session Summary should appear in timeline when technical_summary has entries."""
+        """Session Summary appears in timeline when technical_summary has entries."""
         from app.world.model import WorldState
 
         ws = WorldState()
@@ -1014,7 +1013,7 @@ class TestDungeonMasterMaybeMetaSummarize:
         with patch(
             "app.agents.dm.summarize_meta",
             return_value="New L3 meta-summary",
-        ) as mock_meta:
+        ):
             dm._maybe_meta_summarize()
 
         assert dm.history.get_l3_summaries() == ["New L3 meta-summary"]
@@ -1736,6 +1735,6 @@ class TestForgettingMechanism:
 
         history = SessionHistory()
         summaries = [f"Summary {i}" for i in range(25)]
-        first = history.forget(summaries)
+        history.forget(summaries)
         second = history.forget(summaries)
         assert len(second) == 0  # No new forgettings

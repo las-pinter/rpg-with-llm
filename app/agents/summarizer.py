@@ -62,7 +62,9 @@ SUMMARIZER_SYSTEM_PROMPT: str = (
 # Story Writer System Prompt
 # ---------------------------------------------------------------------------
 
-META_SUMMARIZER_SYSTEM_PROMPT: str = """You are a meta-summarizer for a long-running RPG campaign. Your task is to condense multiple session summaries into a concise, high-level overview.
+META_SUMMARIZER_SYSTEM_PROMPT: str = """\
+You are a meta-summarizer for a long-running RPG campaign. Your task is to \
+condense multiple session summaries into a concise, high-level overview.
 
 Focus on:
 - Major plot developments and story arcs

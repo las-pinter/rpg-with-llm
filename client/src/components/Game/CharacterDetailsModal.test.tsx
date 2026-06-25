@@ -591,8 +591,6 @@ describe('CharacterDetailsModal', () => {
       const strCard = screen.getByText('STR').closest('button')!
       fireEvent.click(strCard)
 
-      // Find the proficiency dot (should be the active/filled one)
-      const dots = strCard.querySelectorAll('[class*="proficientDot"]')
       // At least one dot should have the active class
       const activeDots = strCard.querySelectorAll('[class*="proficientDotActive"]')
       expect(activeDots.length).toBeGreaterThanOrEqual(0)

@@ -14,7 +14,7 @@ import { listCharacters, loadCharacterById } from '../api/endpoints'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useCharacterStore } from '../stores/characterStore'
 import { useGameStore } from '../stores/gameStore'
-import type { CharacterListItem } from '../api/types'
+import type { CharacterListItem, CharacterRules, CharactersListResponse, CharacterResponse } from '../api/types'
 import { ItemType } from '../api/types'
 
 describe('connectionStore', () => {
@@ -553,7 +553,7 @@ describe('characterStore', () => {
   // ------------------------------------------------------------------
 
   describe('point-buy with real costs', () => {
-    const mockRules = {
+    const mockRules: CharacterRules = {
       valid_classes: ['Fighter', 'Rogue', 'Mage', 'Cleric'],
       standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
       class_templates: {},
@@ -577,7 +577,7 @@ describe('characterStore', () => {
 
     beforeEach(() => {
       useCharacterStore.getState().reset()
-      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().setRules(mockRules)
       useCharacterStore.getState().setAbilities({ STR: 8 })
       useCharacterStore.getState().setRemainingPoints(27)
     })
@@ -662,7 +662,7 @@ describe('characterStore', () => {
 
   describe('initDefaults', () => {
     it('sets base scores to 8, picks first class, and calculates remaining points', () => {
-      const mockRules = {
+      const mockRules: CharacterRules = {
         valid_classes: ['Cleric', 'Fighter', 'Mage', 'Rogue'],
         standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
         class_templates: {
@@ -688,7 +688,7 @@ describe('characterStore', () => {
         assisted_creation_questions: ['Q1?', 'Q2?', 'Q3?'],
       }
 
-      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().setRules(mockRules)
       useCharacterStore.getState().initDefaults()
 
       const state = useCharacterStore.getState()
@@ -715,7 +715,7 @@ describe('characterStore', () => {
     })
 
     it('picks first valid class even without class_templates entry', () => {
-      const mockRules = {
+      const mockRules: CharacterRules = {
         valid_classes: ['Fighter'],
         standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
         class_templates: {
@@ -732,7 +732,7 @@ describe('characterStore', () => {
         assisted_creation_questions: ['Q1?'],
       }
 
-      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().setRules(mockRules)
       useCharacterStore.getState().initDefaults()
 
       const state = useCharacterStore.getState()
@@ -766,7 +766,7 @@ describe('characterStore', () => {
   // ------------------------------------------------------------------
 
   describe('applyClassDefaults', () => {
-    const mockRules = {
+    const mockRules: CharacterRules = {
       valid_classes: ['Fighter', 'Rogue', 'Mage', 'Cleric'],
       standard_abilities: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
       class_templates: {
@@ -794,7 +794,7 @@ describe('characterStore', () => {
 
     beforeEach(() => {
       useCharacterStore.getState().reset()
-      useCharacterStore.getState().setRules(mockRules as any)
+      useCharacterStore.getState().setRules(mockRules)
     })
 
     it('applies selected class template and recalculates remaining points', () => {
@@ -816,7 +816,7 @@ describe('characterStore', () => {
     })
 
     it('does nothing when rules are null', () => {
-      useCharacterStore.getState().setRules(null as any)
+      useCharacterStore.getState().setRules(null as unknown as CharacterRules)
       useCharacterStore.getState().setSelectedClass('Rogue')
       useCharacterStore.getState().applyClassDefaults()
 
@@ -1061,7 +1061,7 @@ describe('characterStore', () => {
       vi.mocked(listCharacters).mockResolvedValue({
         ok: true,
         characters: mockList,
-      } as any)
+      } as CharactersListResponse)
 
       await useCharacterStore.getState().fetchCharacters()
 
@@ -1072,7 +1072,7 @@ describe('characterStore', () => {
       vi.mocked(listCharacters).mockResolvedValue({
         ok: false,
         characters: [],
-      } as any)
+      } as CharactersListResponse)
 
       await useCharacterStore.getState().fetchCharacters()
 
@@ -1118,7 +1118,7 @@ describe('characterStore', () => {
       vi.mocked(loadCharacterById).mockResolvedValue({
         ok: true,
         character: mockCharacter,
-      } as any)
+      } as CharacterResponse)
 
       await useCharacterStore.getState().loadCharacterById('test-id')
 
@@ -1130,7 +1130,7 @@ describe('characterStore', () => {
     it('sets error when API returns ok:false', async () => {
       vi.mocked(loadCharacterById).mockResolvedValue({
         ok: false,
-      } as any)
+      } as CharacterResponse)
 
       await useCharacterStore.getState().loadCharacterById('bad-id')
 

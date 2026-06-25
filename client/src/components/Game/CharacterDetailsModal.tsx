@@ -12,7 +12,6 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
 import { useCharacterStore } from '../../stores/characterStore'
 import { ItemType } from '../../api/types'
-import type { DerivedSheet } from '../../api/types'
 import styles from './CharacterDetailsModal.module.css'
 
 // ---------------------------------------------------------------------------
@@ -159,22 +158,6 @@ function FormulaBreakdown({
           {formula}
         </div>
       )}
-    </div>
-  )
-}
-
-/** A single stat card in the attributes row. */
-function StatCard({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className={styles.statCard}>
-      <span className={styles.statLabel}>{label}</span>
-      {children}
     </div>
   )
 }

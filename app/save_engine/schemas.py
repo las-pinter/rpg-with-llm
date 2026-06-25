@@ -1,8 +1,18 @@
-import json
-from typing import Any, Dict, List
-from jsonschema import validate, ValidationError, SchemaError
+"""DEPRECATED: Static JSON Schema definitions for RPG entities.
 
-# JSON Schema definitions for various RPG entities
+These schemas are no longer used by the save engine, which now uses
+inline schemas attached to each Bucket.  They are kept only for
+backward-compatible testing of ``validate_entity_schema()``.
+
+.. deprecated:: 2.0.0
+    Use bucket-level schemas instead.
+"""
+
+from typing import Any
+
+from jsonschema import SchemaError, ValidationError, validate
+
+# JSON Schema definitions for various RPG entities (deprecated — see module doc)
 NPC_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "npc",
@@ -231,7 +241,7 @@ SCHEMA_REGISTRY = {
 }
 
 
-def validate_payload(payload: dict, schema: dict) -> List[str]:
+def validate_payload(payload: dict, schema: dict) -> list[str]:
     """Validate a payload against a JSON Schema.
 
     Uses jsonschema to validate the payload against the provided schema.
@@ -253,7 +263,7 @@ def validate_payload(payload: dict, schema: dict) -> List[str]:
         return [f"Schema error: {e}"]
 
 
-def validate_entity_schema(data: Dict[str, Any], entity_type: str) -> List[str]:
+def validate_entity_schema(data: dict[str, Any], entity_type: str) -> list[str]:
     """Validates data against the registered schema for a given entity type.
 
     Uses jsonschema to validate the data against the schema registered

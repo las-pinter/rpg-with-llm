@@ -16,12 +16,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.agents.dm import DungeonMaster
 from app.agents.entity_persistence import EntityStorage
 from app.agents.record_keeper import RecordKeeperAgent
-from app.agents.tools import set_record_keeper
 from app.character.model import Character
 from app.world.model import WorldState
 
@@ -173,7 +170,7 @@ class TestRecordKeeperE2E:
         * Changelog file is written to disk.
         * Pre-DM Record-Keeper context is injected into DM LLM calls.
         * World-state turn count is updated correctly.
-        * ``set_record_keeper`` global is cleaned up after the test.
+        * RecordKeeper is passed per-DM instance (no global state).
         """
         # ------------------------------------------------------------------
         # Arrange
@@ -188,10 +185,6 @@ class TestRecordKeeperE2E:
             entity_storage=entity_storage,
             character_name="TestHero",
         )
-
-        # Wire up the module-level reference so the ``record_keeper_fetch``
-        # tool (if triggered) can find the RecordKeeper.
-        set_record_keeper(record_keeper)
 
         dm = DungeonMaster(
             llm_provider=mock_provider,
@@ -322,11 +315,6 @@ class TestRecordKeeperE2E:
             "No entity-analysis LLM call detected. "
             "Expected at least one call with 'meticulous record keeper' prompt."
         )
-
-        # ------------------------------------------------------------------
-        # Clean up module-level reference
-        # ------------------------------------------------------------------
-        set_record_keeper(None)
 
     # ==================================================================
     # Regression test

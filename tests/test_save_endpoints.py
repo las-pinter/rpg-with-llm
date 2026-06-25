@@ -31,11 +31,11 @@ class TestSaveEndpoint:
     def test_save_success(self, client):
         """POST with valid state and name returns 200 with slug."""
         with (
-            patch("app.routes.saves._save_manager.save") as mock_save,
+            patch("app.routes.saves._save_manager.save"),
             patch(
                 "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ) as mock_gen_slug,
-            patch("app.routes.saves._storage._update_index") as mock_upd_index,
+            ),
+            patch("app.routes.saves._storage._update_index"),
         ):
             resp = client.post(
                 "/api/save",
@@ -54,10 +54,10 @@ class TestSaveEndpoint:
     def test_save_autosave_default_name(self, client):
         """POST with state but no name defaults to a timestamped adventure name."""
         with (
-            patch("app.routes.saves._save_manager.save") as mock_save,
+            patch("app.routes.saves._save_manager.save"),
             patch(
                 "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ) as mock_gen_slug,
+            ),
             patch("app.routes.saves._storage._update_index") as mock_upd_index,
         ):
             resp = client.post(
@@ -172,8 +172,8 @@ class TestSaveEndpoint:
             patch("app.routes.saves._save_manager.save") as mock_save,
             patch(
                 "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ) as mock_gen_slug,
-            patch("app.routes.saves._storage._update_index") as mock_upd_index,
+            ),
+            patch("app.routes.saves._storage._update_index"),
         ):
             resp = client.post(
                 "/api/save",
@@ -203,8 +203,8 @@ class TestSaveEndpoint:
             patch("app.routes.saves._save_manager.save") as mock_save,
             patch(
                 "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ) as mock_gen_slug,
-            patch("app.routes.saves._storage._update_index") as mock_upd_index,
+            ),
+            patch("app.routes.saves._storage._update_index"),
         ):
             summary_payload = {
                 "technical_summary": ["tech_entry"],
@@ -231,8 +231,8 @@ class TestSaveEndpoint:
             patch("app.routes.saves._save_manager.save") as mock_save,
             patch(
                 "app.routes.saves._storage._generate_slug", return_value="test-slug"
-            ) as mock_gen_slug,
-            patch("app.routes.saves._storage._update_index") as mock_upd_index,
+            ),
+            patch("app.routes.saves._storage._update_index"),
         ):
             resp = client.post(
                 "/api/save",

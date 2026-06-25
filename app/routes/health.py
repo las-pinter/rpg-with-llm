@@ -68,7 +68,14 @@ def health_check() -> tuple[flask.Response, int] | flask.Response:
     )
     provider = create_provider(config)
 
-    result = provider.health()
+    try:
+        result = provider.health()
+    except Exception as exc:
+        logger.warning("Health check failed: %s", exc)
+        return (
+            jsonify({"ok": False, "error": f"Health check failed: {exc}"}),
+            500,
+        )
 
     return jsonify(
         {
@@ -84,8 +91,8 @@ def health_check() -> tuple[flask.Response, int] | flask.Response:
 def list_models() -> tuple[flask.Response, int] | flask.Response:
     """Fetch available models from an LLM provider.
 
-    Accepts JSON body with ``base_url``, ``model``, and optional
-    ``api_key`` and ``provider_type``.  Creates the appropriate
+    Accepts JSON body with ``base_url`` (required), ``model`` (optional),
+    ``api_key``, and ``provider_type``.  Creates the appropriate
     provider, checks the cache, and calls its ``list_models()``
     method.
 
@@ -98,8 +105,7 @@ def list_models() -> tuple[flask.Response, int] | flask.Response:
     Errors
     ------
     400
-        If the request body is invalid, or ``base_url`` or
-        ``model`` are missing or empty.
+        If the request body is invalid, or ``base_url`` is missing or empty.
     """
     if not request.is_json:
         return (
@@ -115,14 +121,14 @@ def list_models() -> tuple[flask.Response, int] | flask.Response:
         )
 
     base_url = str(data.get("base_url") or "").strip()
-    model = str(data.get("model") or "").strip()
+    model = str(data.get("model") or "").strip() or "placeholder"
 
-    if not base_url or not model:
+    if not base_url:
         return (
             jsonify(
                 {
                     "ok": False,
-                    "error": "base_url and model are required",
+                    "error": "base_url is required",
                     "models": [],
                 }
             ),

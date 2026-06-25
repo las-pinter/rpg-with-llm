@@ -7,9 +7,10 @@ schema names, and SchemaError handling.
 """
 
 import pytest
+
 from app.save_engine.schemas import (
-    validate_entity_schema,
     SCHEMA_REGISTRY,
+    validate_entity_schema,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -125,8 +126,8 @@ class TestValidateEntitySchema:
         data = VALID_ENTITIES[entity_type]
         errors = validate_entity_schema(data, entity_type)
         assert errors == [], (
-            f"Expected no errors for valid {entity_type!r}, got {len(errors)} error(s): "
-            f"{errors}"
+            f"Expected no errors for valid {entity_type!r}, "
+            f"got {len(errors)} error(s): {errors}"
         )
 
     # ── 2. Missing required fields ───────────────────────────────────────────
@@ -211,7 +212,8 @@ class TestValidateEntitySchema:
         valid[field] = bad_value
         errors = validate_entity_schema(valid, entity_type)
         assert len(errors) > 0, (
-            f"Expected errors for {entity_type!r} with {field!r}={bad_value!r}, got none"
+            f"Expected errors for {entity_type!r} with "
+            f"{field!r}={bad_value!r}, got none"
         )
 
     # ── 4. Additional properties (where forbidden) ───────────────────────────
@@ -376,7 +378,8 @@ class TestValidateEntitySchema:
             "other",
         }
         assert set(SCHEMA_REGISTRY.keys()) == expected, (
-            f"Registry keys mismatch. Expected {expected}, got {set(SCHEMA_REGISTRY.keys())}"
+            f"Registry keys mismatch. Expected {expected}, "
+            f"got {set(SCHEMA_REGISTRY.keys())}"
         )
 
 

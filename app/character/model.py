@@ -528,7 +528,9 @@ class CharacterRecord:
     character_class: str = "Fighter"
     level: int = 1
     xp: int = 0
-    abilities: dict[str, int] = field(default_factory=dict)
+    abilities: dict[str, int] = field(
+        default_factory=lambda: {abil: 10 for abil in STANDARD_ABILITIES}
+    )
     skills: list[str] = field(default_factory=list)
     gold: int = 0
 

@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useGameStore } from '../../stores/gameStore'
 import { useCharacterStore } from '../../stores/characterStore'
-import type { Item, ItemType, DerivedSheet } from '../../api/types'
+import type { Item } from '../../api/types'
 import CharacterDetailsModal from './CharacterDetailsModal'
 import styles from './GameStatusSidebar.module.css'
 
@@ -42,13 +42,13 @@ const KEY_SKILLS = [
 
 /** Mapping from ItemType to display icon/emoji. */
 const ITEM_TYPE_ICON: Record<string, string> = {
-  WEAPON: '\u2694\uFE0F',
-  ARMOR: '\uD83D\uDEE1\uFE0F',
-  CONSUMABLE: '\uD83E\uDDEA',
-  TOOL: '\uD83D\uDD27',
-  CONTAINER: '\uD83D\uDCE6',
-  QUEST: '\u2B50',
-  MISC: '\uD83D\uDCDC',
+  weapon: '\u2694\uFE0F',
+  armor: '\uD83D\uDEE1\uFE0F',
+  consumable: '\uD83E\uDDEA',
+  tool: '\uD83D\uDD27',
+  container: '\uD83D\uDCE6',
+  quest: '\u2B50',
+  misc: '\uD83D\uDCDC',
 }
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'

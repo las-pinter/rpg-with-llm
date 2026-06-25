@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import tempfile
@@ -617,7 +616,7 @@ class TestWorldStorage:
         self, storage: WorldStorage, sample_world: WorldState
     ) -> None:
         """Saving with character data embeds _character key in the JSON file.
-        Duplicate flat fields are removed when _character is present."""
+        Flat fields (character_id, character_name) are always included (Fix 3)."""
         char_data = {"name": "Test Hero", "class": "Mage", "level": 5}
         sample_world._character = char_data
         sample_world.character_name = "Test Hero"
@@ -631,10 +630,11 @@ class TestWorldStorage:
         assert payload["_character"]["name"] == "Test Hero"
         assert payload["_character"]["class"] == "Mage"
         assert payload["_character"]["level"] == 5
-        # Duplicate flat fields removed by to_dict() when _character is present
-        # (inventory and gold are world-level runtime state, NOT redundant)
-        assert "character_name" not in payload
-        assert "character_id" not in payload
+        # Flat fields are always included (Fix 3 — removed conditional stripping)
+        assert "character_name" in payload
+        assert payload["character_name"] == "Test Hero"
+        assert "character_id" in payload
+        assert payload["character_id"] == "hero_42"
         assert "inventory" in payload
         assert "gold" in payload
 
@@ -652,13 +652,12 @@ class TestWorldStorage:
         assert loaded._character["name"] == "Load Hero"
         assert loaded._character["class"] == "Warrior"
         assert loaded._character["level"] == 3
-        # character_name loaded from saved file — removed by to_dict()
-        # when _character is present, defaults to "" in from_dict
-        assert loaded.character_name == ""
+        # character_name survives save/load (Fix 3 — always included)
+        assert loaded.character_name == "Load Hero"
 
     def test_world_state_character_round_trip(self) -> None:
         """WorldState.from_dict(to_dict()) preserves _character and
-        removes duplicate flat fields."""
+        always includes character_id/character_name (Fix 3)."""
         char_data = {"name": "Round Trip Hero", "class": "Rogue", "inventory": []}
         ws = WorldState(
             character_id="hero_42",
@@ -671,10 +670,9 @@ class TestWorldStorage:
 
         d = ws.to_dict()
         assert d["_character"] == char_data
-        # character_name and character_id are redundant with _character
-        # and removed; inventory and gold are world-level state, preserved
-        assert "character_name" not in d
-        assert "character_id" not in d
+        # character_name and character_id are always included (Fix 3)
+        assert d["character_name"] == "Round Trip Hero"
+        assert d["character_id"] == "hero_42"
         assert "inventory" in d
         assert d["inventory"] == ["sword"]
         assert "gold" in d
@@ -683,8 +681,8 @@ class TestWorldStorage:
 
         ws2 = WorldState.from_dict(d)
         assert ws2._character == char_data
-        # character_name defaulted to "" since it was removed
-        assert ws2.character_name == ""
+        # character_name survives round-trip now (Fix 3)
+        assert ws2.character_name == "Round Trip Hero"
         assert ws2.inventory == ["sword"]
         assert ws2.gold == 100
         assert ws2.turn_count == 10
@@ -838,7 +836,8 @@ class TestWorldStorage:
             for r in caplog.records
         )
         assert has_warning, (
-            f"No verification warning found. Records: {[r.message for r in caplog.records]}"
+            "No verification warning found. Records: "
+            f"{[r.message for r in caplog.records]}"
         )
 
     # ------------------------------------------------------------------
@@ -848,7 +847,7 @@ class TestWorldStorage:
     def test_write_narrative_entries_creates_file_with_envelope(
         self, storage: WorldStorage
     ) -> None:
-        """Write entries must create narrative_entries.json with correct envelope format."""
+        """Write entries creates narrative_entries.json with correct envelope format."""
         ws = WorldState()
         slug = storage.save(ws)
 
@@ -882,7 +881,7 @@ class TestWorldStorage:
         assert data["payload"]["entries"] == entries
 
     def test_write_narrative_entries_empty_list(self, storage: WorldStorage) -> None:
-        """Writing an empty entries list must produce a valid envelope with empty entries."""
+        """Empty entries list produces a valid envelope with empty entries."""
         ws = WorldState()
         slug = storage.save(ws)
 
@@ -977,7 +976,7 @@ class TestWorldStorage:
         assert loaded._character == {"name": "Hero", "class": "Mage"}
 
     def test_load_with_missing_narrative_entries(self, storage: WorldStorage) -> None:
-        """If narrative_entries.json is missing, load must succeed with empty _narrative_entries."""
+        """Missing narrative_entries.json: load succeeds with empty entries."""
         ws = WorldState(_narrative_entries=[{"turn": 1, "text": "hello"}])
         slug = storage.save(ws)
 
@@ -1003,7 +1002,7 @@ class TestWorldStorage:
         assert loaded._narrative_entries == [{"turn": 1, "text": "hello"}]
 
     def test_load_with_missing_summary_file(self, storage: WorldStorage) -> None:
-        """If summary.json is missing, load must succeed with summaries from state payload."""
+        """Missing summary.json: load succeeds with summaries from state payload."""
         ws = WorldState(
             story_summary=["Story beat"],
             technical_summary=["Tech note"],
@@ -1022,7 +1021,7 @@ class TestWorldStorage:
         assert loaded.meta_summary == ["Meta overview"]
 
     def test_load_with_corrupt_summary_file(self, storage: WorldStorage) -> None:
-        """If summary.json is corrupt, load must succeed with summaries from state payload."""
+        """Corrupt summary.json: load succeeds with summaries from state payload."""
         ws = WorldState(
             story_summary=["Story beat"],
             technical_summary=["Tech note"],
@@ -1078,7 +1077,7 @@ class TestWorldStorage:
     # ------------------------------------------------------------------
 
     def test_load_with_missing_state_file(self, storage: WorldStorage) -> None:
-        """Load a save folder that exists but has no state.json must raise FileNotFoundError."""
+        """Save folder without state.json must raise FileNotFoundError."""
         slug = "no_state_file"
         save_folder = storage.saves_dir / slug
         save_folder.mkdir()

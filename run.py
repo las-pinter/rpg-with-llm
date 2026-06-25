@@ -13,12 +13,7 @@ import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from flask import Flask
-
-from app.routes import register_routes
-
-app = Flask(__name__, static_folder=None)
-register_routes(app)
+from app.server import app
 
 
 def _configure_logging() -> None:

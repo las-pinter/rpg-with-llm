@@ -20,6 +20,7 @@ Current functions
 
 from __future__ import annotations
 
+import ast
 import math
 
 from app.character.model import STANDARD_ABILITIES, CharacterRecord, DerivedSheet
@@ -184,7 +185,7 @@ def _resolve_resource_max(
 
     If max is already an int, return it unchanged with a simple formula string.
     If max is a string like "12+CON", replace ability abbreviations with their
-    modifier values and evaluate the expression.
+    modifier values and evaluate the expression using a safe AST-based evaluator.
 
     Returns:
         Tuple of (resolved_max_value, formula_string)
@@ -207,9 +208,9 @@ def _resolve_resource_max(
     resolved_expr = re.sub(r"(STR|DEX|CON|INT|WIS|CHA)", _replace_ability, formula)
 
     try:
-        result = eval(resolved_expr, {"__builtins__": {}}, {})
+        result = _safe_eval_expr(resolved_expr, ability_modifiers)
         result = int(result)
-    except Exception:
+    except (ValueError, TypeError):
         result = 10  # fallback
 
     # Build formula string for display
@@ -227,6 +228,133 @@ def _resolve_resource_max(
     formula_str = f"{formula_str} = {result}"
 
     return result, formula_str
+
+
+# ---------------------------------------------------------------------------
+# Safe AST expression evaluator (replaces eval() for security)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_ABILITIES = frozenset({"STR", "DEX", "CON", "INT", "WIS", "CHA"})
+
+_ALLOWED_BIN_OPS = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+}
+
+_ALLOWED_UNARY_OPS = {
+    ast.USub: lambda a: -a,
+}
+
+
+def _safe_eval_expr(expr_str: str, abilities: dict[str, int]) -> int | float:
+    """Safely evaluate a simple arithmetic expression using AST walking.
+
+    Only allows:
+    - Integer/float constants
+    - Binary operations: +, -, *
+    - Unary minus
+    - Named ability references (STR, DEX, CON, INT, WIS, CHA)
+
+    Any other AST node type raises ``ValueError``.
+
+    Parameters
+    ----------
+    expr_str : str
+        The expression to evaluate (e.g. ``"12+2"``, ``"10+-3"``).
+    abilities : dict[str, int]
+        Mapping of ability abbreviations to modifier values.
+
+    Returns
+    -------
+    int | float
+        The numeric result of the expression.
+
+    Raises
+    ------
+    ValueError
+        If the expression contains disallowed AST nodes.
+    """
+    try:
+        tree = ast.parse(expr_str, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"Invalid expression: {expr_str!r}") from exc
+
+    result = _eval_node(tree.body, abilities)
+    return result
+
+
+def _eval_node(node: ast.AST, abilities: dict[str, int]) -> int | float:
+    """Recursively evaluate an AST node against the allowlist.
+
+    Parameters
+    ----------
+    node : ast.AST
+        The AST node to evaluate.
+    abilities : dict[str, int]
+        Ability abbreviation → modifier mapping.
+
+    Returns
+    -------
+    int | float
+        The evaluated numeric result.
+
+    Raises
+    ------
+    ValueError
+        If the node type is not in the allowlist.
+    """
+    # --- Constants (int, float) ---
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError(
+            f"Unsafe constant type: {type(node.value).__name__!r} "
+            f"in expression (value={node.value!r})"
+        )
+
+    # --- Legacy Num node (Python 3.7 compat) ---
+    if isinstance(node, ast.Num):  # type: ignore[attr-defined]
+        return node.n  # type: ignore[attr-defined,return-value]
+
+    # --- Name references (ability abbreviations only) ---
+    if isinstance(node, ast.Name):
+        if node.id in _ALLOWED_ABILITIES:
+            return abilities.get(node.id, 0)
+        raise ValueError(
+            f"Unsafe name reference: {node.id!r}. "
+            f"Only ability abbreviations are allowed: "
+            f"{', '.join(sorted(_ALLOWED_ABILITIES))}"
+        )
+
+    # --- Binary operations (+, -, *) ---
+    if isinstance(node, ast.BinOp):
+        op_type = type(node.op)
+        if op_type not in _ALLOWED_BIN_OPS:
+            raise ValueError(
+                f"Unsafe binary operator: {op_type.__name__}. "
+                f"Only Add, Sub, Mult are allowed."
+            )
+        left = _eval_node(node.left, abilities)
+        right = _eval_node(node.right, abilities)
+        return _ALLOWED_BIN_OPS[op_type](left, right)
+
+    # --- Unary operations (negation) ---
+    if isinstance(node, ast.UnaryOp):
+        unary_op_type = type(node.op)
+        if unary_op_type not in _ALLOWED_UNARY_OPS:
+            raise ValueError(
+                f"Unsafe unary operator: {unary_op_type.__name__}. "
+                f"Only USub (negation) is allowed."
+            )
+        operand = _eval_node(node.operand, abilities)
+        return _ALLOWED_UNARY_OPS[unary_op_type](operand)  # type: ignore[index]
+
+    # --- Anything else is rejected ---
+    raise ValueError(
+        f"Disallowed AST node type: {type(node).__name__}. "
+        f"Only constants, ability names, and +, -, * operators are permitted."
+    )
 
 
 def compute_derived_sheet(record: CharacterRecord) -> DerivedSheet:

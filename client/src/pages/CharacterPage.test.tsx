@@ -23,6 +23,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { useCharacterStore } from '../stores/characterStore'
+import { ItemType } from '../api/types'
 import type { CharacterRules } from '../api/types'
 import CharacterPage from './CharacterPage'
 
@@ -226,7 +227,7 @@ describe('CharacterPage — Create tab', () => {
       appearance: 'Tall and sturdy.',
       personality: 'Brave',
       hooks: [],
-      inventory: [{ id: 'item-1', name: 'Sword', quantity: 1, item_type: 'WEAPON' as any, properties: {}, description: '', weight: 3, value: 10 }],
+      inventory: [{ id: 'item-1', name: 'Sword', quantity: 1, item_type: ItemType.WEAPON, properties: {}, description: '', weight: 3, value: 10 }],
       equipped_items: [],
       resources: { hp: { value: 12, max: 12, short_rest_recovery: '1d10', long_rest_recovery: 'full' } },
       gold: 10,

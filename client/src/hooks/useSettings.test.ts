@@ -17,6 +17,7 @@ vi.mock('../api/endpoints', () => ({
 import { getSettings, saveSettings } from '../api/endpoints'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useSettings } from './useSettings'
+import type { Settings } from '../api/types'
 
 /** Reset the connection store to defaults before each test. */
 function resetStore() {
@@ -295,7 +296,7 @@ describe('useSettings — edge cases', () => {
   it('handles settings response with missing fields without crashing', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       ok: true,
-      settings: {} as any,
+      settings: {} as Settings,
     })
 
     renderHook(() => useSettings())

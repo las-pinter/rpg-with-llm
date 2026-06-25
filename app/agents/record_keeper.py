@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.agents.entity_persistence import EntityStorage
-from app.agents.npc import compress_text
 from app.agents.record_keeper_schemas import EntityChangeLog
 from app.llm.base import LLMProvider
 from app.world.model import WorldState

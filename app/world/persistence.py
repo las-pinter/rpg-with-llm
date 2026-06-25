@@ -9,6 +9,7 @@ for fast listing without re-reading every file.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import secrets
 import shutil
@@ -16,10 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import logging
-
-from app.utils import atomic_write
 from app.save_engine.envelope import SaveEnvelope
+from app.utils import atomic_write
 from app.world.model import WorldState
 
 logger = logging.getLogger(__name__)
@@ -218,14 +217,16 @@ class WorldStorage:
 
         if not isinstance(state_data, dict):
             raise ValueError(
-                f"Save file 'state.json' in '{slug}' is corrupt -- expected a JSON object but got {type(state_data).__name__}"
+                f"Save file 'state.json' in '{slug}' is corrupt -- "
+                f"expected a JSON object but got {type(state_data).__name__}"
             )
 
         # Extract payload from envelope
-        # The SaveEnvelope structure: {"save_version": ..., "schema_name": ..., "payload": ...}
+        # SaveEnvelope: {"save_version": ..., "schema_name": ..., "payload": ...}
         if "payload" not in state_data:
             raise ValueError(
-                f"Save file 'state.json' in '{slug}' is corrupt -- missing payload field"
+                f"Save file 'state.json' in '{slug}' is corrupt "
+                "-- missing payload field"
             )
 
         world_state = WorldState.from_dict(state_data["payload"])
@@ -238,10 +239,8 @@ class WorldStorage:
                     char_data = json.load(f)
                 if "payload" in char_data:
                     world_state._character = char_data["payload"]
-            except Exception as e:
-                # We can choose to ignore or raise here. The requirement doesn't specify.
-                # Let's log it if possible, but for now just continue.
-                pass
+            except Exception:
+                logger.exception("Failed to load character data from %s", char_path)
 
         # Load narrative_entries.json (optional)
         narrative_path = save_folder / "narrative_entries.json"
@@ -257,7 +256,9 @@ class WorldStorage:
                         "entries"
                     ]
             except Exception:
-                pass
+                logger.exception(
+                    "Failed to load narrative entries from %s", narrative_path
+                )
 
         # Load summary.json (optional)
         summary_path = save_folder / "summary.json"
@@ -271,7 +272,7 @@ class WorldStorage:
                     world_state.story_summary = payload.get("story_summary", [])
                     world_state.meta_summary = payload.get("meta_summary", [])
             except Exception:
-                pass
+                logger.exception("Failed to load summary from %s", summary_path)
 
         # Load story_summary.json (new location, overrides bundled value)
         story_summary_path = save_folder / "story_summary.json"
@@ -285,7 +286,9 @@ class WorldStorage:
                         str(e) for e in entries if isinstance(e, str)
                     ]
             except Exception:
-                pass
+                logger.exception(
+                    "Failed to load story summary from %s", story_summary_path
+                )
 
         return world_state
 
@@ -439,7 +442,7 @@ class WorldStorage:
             shutil.rmtree(str(oldest), ignore_errors=True)
 
     def _verify_autosave(self, backup_path: Path) -> None:
-        """Verify that a backup folder contains readable JSON files with valid envelope structure.
+        """Verify a backup folder has readable JSON files with valid envelope structure.
 
         Checks at least the main entity files (state.json, summary.json).
         Logs warnings but doesn't raise — failures here are non-fatal.

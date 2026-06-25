@@ -20,7 +20,6 @@ from app.agents.consultation import (
 from app.agents.dm import DungeonMaster
 from app.agents.entity_persistence import EntityStorage
 from app.agents.record_keeper import RecordKeeperAgent
-from app.agents.tools import set_record_keeper
 from app.character.model import CharacterRecord
 from app.llm.base import (
     LLMProvider,  # noqa: F401 — used in type hint for _build_provider_from_dict
@@ -177,7 +176,7 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
     summarizer_provider = (
         _build_provider_from_dict(summarizer_provider_cfg)
         if summarizer_provider_cfg
-        else None
+        else dm_provider
     )
 
     # Record-Keeper provider (optional — falls back to DM provider, then None)
@@ -206,7 +205,7 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
     # state inventory and gold from the character's starting equipment.
     if character is not None and not body.get("state"):
         if not world_state.inventory and character.inventory:
-            world_state.inventory = list(character.inventory)
+            world_state.inventory = [item.name for item in character.inventory]
         if not world_state.gold and character.gold:
             world_state.gold = character.gold
 
@@ -217,6 +216,21 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
 
     # Create or retrieve persistent DungeonMaster for this character.
     character_id = character.id if character else None
+
+    # Create Record-Keeper agent (entity memory & narrative analysis)
+    # Done early so it's available for both cache retrieval and new DM creation.
+    record_keeper = None
+    if character_id:
+        rk_provider = record_keeper_provider or dm_provider
+        data_dir = Path("data") / "saves" / (save_slug or character_id or "default")
+        entity_storage = EntityStorage(data_dir=data_dir)
+        record_keeper = RecordKeeperAgent(
+            llm_provider=rk_provider,
+            entity_storage=entity_storage,
+            character_name=character.name if character else "",
+        )
+
+    # Retrieve or create the DungeonMaster
     if character_id and character_id in _dm_cache:
         dm = _dm_cache[character_id]
         # Keep world_state fresh from the request while preserving history
@@ -225,21 +239,9 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
         # the correct slug and storage backend (Bug 2 fix)
         dm._save_slug = save_slug
         dm._storage = _storage
+        # Update the record_keeper so it reflects the current request
+        dm.record_keeper = record_keeper
     else:
-        # Create Record-Keeper agent (entity memory & narrative analysis)
-        record_keeper = None
-        if character_id:
-            rk_provider = record_keeper_provider or dm_provider
-            data_dir = Path("data") / "saves" / (save_slug or character_id or "default")
-            entity_storage = EntityStorage(data_dir=data_dir)
-            record_keeper = RecordKeeperAgent(
-                llm_provider=rk_provider,
-                entity_storage=entity_storage,
-                character_name=character.name if character else "",
-            )
-            # Set the module-level reference so the on-demand fetch tool works
-            set_record_keeper(record_keeper)
-
         dm = DungeonMaster(
             llm_provider=dm_provider,
             world_state=world_state,
@@ -255,8 +257,9 @@ def game_stream() -> tuple[flask.Response, int] | flask.Response:
 
     # Restore DM compressed summary from saved technical_summary
     # so the DM's memory survives save/load cycles
-    if world_state.technical_summary:
-        dm.history.compressed_summary = world_state.technical_summary[-1]
+    dm.history.compressed_summary = (
+        world_state.technical_summary[-1] if world_state.technical_summary else ""
+    )
 
     # Restore L3 meta-summaries for continuity across save/load cycles
     if world_state.meta_summary:
@@ -330,6 +333,9 @@ def game_consult():
 
     # Build provider from request body (stateless — new agent each time)
     provider_config = _prov_from_json(body, prefix="")
+    # Set a shorter timeout for consultation requests (Fix 6)
+    if provider_config and provider_config.get("timeout") is None:
+        provider_config["timeout"] = 30
     llm_provider = (
         _build_provider_from_dict(provider_config) if provider_config else None
     )

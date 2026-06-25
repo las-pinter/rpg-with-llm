@@ -45,6 +45,7 @@ export function useGameStream(): UseGameStreamReturn {
 
   const disconnect = useCallback(() => {
     cancelledRef.current = true
+    fetchedRef.current = false
     bufferRef.current = ''
     setIsConnecting(false)
 
@@ -74,8 +75,12 @@ export function useGameStream(): UseGameStreamReturn {
       if (fetchedRef.current) return
       fetchedRef.current = true
 
-      // Clean up any existing connection first
+      // Clean up any existing connection first.
+      // disconnect() resets fetchedRef.current to false, so re-set it
+      // here to keep the Strict Mode guard working for synchronous
+      // double-calls.
       disconnect()
+      fetchedRef.current = true
 
       cancelledRef.current = false
       setIsConnecting(true)

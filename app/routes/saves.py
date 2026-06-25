@@ -35,7 +35,7 @@ _save_manager.register_defaults()
 
 @bp.route("/save", methods=["POST"])
 def save_game() -> tuple[flask.Response, int] | flask.Response:
-    """Persist the current game state (and optional character, narrative, summary) to disk.
+    """Persist the current game state (and optional character, narrative, summary).
 
     Accepts JSON body with a ``state`` dict (the serialised
     :class:`~app.world.model.WorldState`), an optional ``character``

@@ -21,6 +21,7 @@ import {
   deleteSave,
 } from '../api/endpoints'
 import { useGameStore, type NarrativeEntry } from './gameStore'
+import { extractNarrativeEntries } from '../utils/narrativeRestore'
 
 // ---------------------------------------------------------------------------
 // State
@@ -297,7 +298,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
   increaseAbility: (abil) => {
     const state = get()
     if (!state.canIncrease(abil)) return
-    const oldScore = state.abilities[abil]
+    const oldScore = state.abilities[abil] ?? 10
     const getCost = state.getCost
     const oldCost = getCost(oldScore)
     const newScore = oldScore + 1
@@ -312,7 +313,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
   decreaseAbility: (abil) => {
     const state = get()
     if (!state.canDecrease(abil)) return
-    const oldScore = state.abilities[abil]
+    const oldScore = state.abilities[abil] ?? 10
     const getCost = state.getCost
     const oldCost = getCost(oldScore)
     const newScore = oldScore - 1
@@ -356,7 +357,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
 
     const firstClass = rules.valid_classes[0]
     let abilities = { ...defaultAbilities }
-    let selectedClass = firstClass ?? ''
+    const selectedClass = firstClass ?? ''
     let remainingPoints = rules.point_buy.max_points
 
     // Override with first class template if available
@@ -488,44 +489,14 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       useGameStore.getState().resetGame()
       useGameStore.getState().setWorldState(response.state)
 
-      // Populate narrative entries from save data
-      // Priority: rich _narrative_entries > story_summary > story_log + user_input_history
+      // Populate narrative entries from save data using shared utility
+      const rawEntries = extractNarrativeEntries(response.state)
       const gameState = useGameStore.getState()
-      const richEntries = response.state._narrative_entries as
-        | Array<{ type: string; content: string }>
-        | undefined
-
-      if (richEntries && Array.isArray(richEntries) && richEntries.length > 0) {
-        // Primary: rich narrative entries (full conversation)
-        for (const e of richEntries) {
-          gameState.addNarrativeEntry({
-            type: (e.type || 'narrative') as NarrativeEntry['type'],
-            content: e.content,
-          })
-        }
-      } else {
-        // Fallback paths for legacy saves
-        const storySummary = response.state.story_summary as string[] | undefined
-        if (storySummary && Array.isArray(storySummary) && storySummary.length > 0) {
-          for (const entry of storySummary) {
-            gameState.addNarrativeEntry({ type: 'narrative', content: entry })
-          }
-        } else {
-          // Last resort — merge story_log and user_input_history
-          const storyLog = response.state.story_log as string[] | undefined
-          if (storyLog && Array.isArray(storyLog)) {
-            for (const entry of storyLog) {
-              gameState.addNarrativeEntry({ type: 'narrative', content: entry })
-            }
-          }
-
-          const userInputHistory = response.state.user_input_history as string[] | undefined
-          if (userInputHistory && Array.isArray(userInputHistory)) {
-            for (const input of userInputHistory) {
-              gameState.addNarrativeEntry({ type: 'player', content: input })
-            }
-          }
-        }
+      for (const e of rawEntries) {
+        gameState.addNarrativeEntry({
+          type: e.type as NarrativeEntry['type'],
+          content: e.content,
+        })
       }
 
       // Set character if save embeds one

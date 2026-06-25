@@ -36,13 +36,13 @@ export interface AbilityScores {
 
 /** Item types matching backend ItemTypeEnum. */
 export enum ItemType {
-  WEAPON = "WEAPON",
-  ARMOR = "ARMOR",
-  CONSUMABLE = "CONSUMABLE",
-  TOOL = "TOOL",
-  CONTAINER = "CONTAINER",
-  QUEST = "QUEST",
-  MISC = "MISC",
+  WEAPON = "weapon",
+  ARMOR = "armor",
+  CONSUMABLE = "consumable",
+  TOOL = "tool",
+  CONTAINER = "container",
+  QUEST = "quest",
+  MISC = "misc",
 }
 
 /** An item in a character's inventory. */
@@ -99,7 +99,7 @@ export interface Character {
   resources: Record<string, ResourceData>
   gold: number
   xp: number
-  created_at: string
+  created_at?: string
 }
 
 export interface CharacterResponse {
@@ -211,7 +211,7 @@ export interface LoadResponse {
 
 export interface StoryResponse {
   ok: boolean
-  story: Array<{type: string; content: string}>
+  story: string[]
 }
 
 export interface ResetResponse {
@@ -222,14 +222,6 @@ export interface ResetResponse {
 // ---------------------------------------------------------------------------
 // Game / Stream
 // ---------------------------------------------------------------------------
-
-export interface GameStreamResponse {
-  ok: boolean
-  turn?: string
-  narrative?: string
-  state?: Record<string, unknown>
-  error?: string
-}
 
 // ---------------------------------------------------------------------------
 // Consult

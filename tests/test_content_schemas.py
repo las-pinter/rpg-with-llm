@@ -4,11 +4,10 @@ Tests validate_character_record(), validate_item(), and validate_creature()
 against their JSON Schema definitions.
 """
 
-import pytest
 from app.schemas import (
     validate_character_record,
-    validate_item,
     validate_creature,
+    validate_item,
 )
 
 

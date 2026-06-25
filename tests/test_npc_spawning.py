@@ -45,11 +45,12 @@ def _make_npc_request(
 class TestDungeonMasterNpcInit:
     """Tests for NPC-related parameters in DungeonMaster.__init__."""
 
-    def test_npc_provider_defaults_to_llm_provider(self) -> None:
-        """When npc_provider is not given, it should fall back to
-        llm_provider."""
+    def test_npc_provider_defaults_to_none(self) -> None:
+        """When npc_provider is not given, it should be None.
+        The route handler is now the single source of truth for
+        provider fallbacks (Fix 7)."""
         dm = DungeonMaster(llm_provider="shared", world_state=None, character=None)
-        assert dm.npc_provider == "shared"
+        assert dm.npc_provider is None
 
     def test_npc_provider_can_be_set_explicitly(self) -> None:
         """npc_provider should be settable independently from llm_provider."""

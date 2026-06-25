@@ -17,6 +17,7 @@ vi.mock('../api/endpoints', () => ({
 import { getCharacterRules } from '../api/endpoints'
 import { useCharacterStore } from '../stores/characterStore'
 import { useCharacterRules } from './useCharacterRules'
+import type { CharacterRulesResponse } from '../api/types'
 
 /** Reset the character store to defaults before each test. */
 function resetStore() {
@@ -48,7 +49,7 @@ const mockRules = {
 
 
 
-const mockApiResponse = {
+const mockApiResponse: CharacterRulesResponse = {
   ok: true,
   rules: mockRules,
 }
@@ -68,7 +69,7 @@ afterEach(() => {
 
 describe('useCharacterRules — initial fetch', () => {
   it('fetches rules on mount and populates store', async () => {
-    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse as any)
+    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse)
 
     renderHook(() => useCharacterRules())
 
@@ -92,7 +93,7 @@ describe('useCharacterRules — initial fetch', () => {
         // Put Cleric first so initDefaults picks the Cleric template
         valid_classes: ['Cleric', 'Fighter', 'Mage', 'Rogue'],
       },
-    } as any)
+    } as CharacterRulesResponse)
 
     renderHook(() => useCharacterRules())
 
@@ -114,7 +115,7 @@ describe('useCharacterRules — initial fetch', () => {
 
   it('clears any previous error before fetching', async () => {
     useCharacterStore.getState().setRulesError('stale error')
-    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse as any)
+    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse)
 
     renderHook(() => useCharacterRules())
 
@@ -130,7 +131,7 @@ describe('useCharacterRules — initial fetch', () => {
 
 describe('useCharacterRules — fetch guards', () => {
   it('fetches rules exactly once during mount lifecycle', async () => {
-    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse as any)
+    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse)
 
     renderHook(() => useCharacterRules())
 
@@ -142,7 +143,7 @@ describe('useCharacterRules — fetch guards', () => {
   })
 
   it('does not fetch if store is already loading (re-entrant guard)', async () => {
-    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse as any)
+    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse)
 
     act(() => {
       useCharacterStore.getState().setRulesLoading(true)
@@ -163,7 +164,7 @@ describe('useCharacterRules — fetch guards', () => {
 
 describe('useCharacterRules — loading states', () => {
   it('sets rulesLoading to true during fetch', async () => {
-    const neverResolve: Promise<any> = new Promise(() => {
+    const neverResolve: Promise<never> = new Promise(() => {
       /* never resolves */
     })
     vi.mocked(getCharacterRules).mockReturnValue(neverResolve)
@@ -176,7 +177,7 @@ describe('useCharacterRules — loading states', () => {
   })
 
   it('sets rulesLoading to false after fetch completes', async () => {
-    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse as any)
+    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse)
 
     renderHook(() => useCharacterRules())
 
@@ -186,7 +187,7 @@ describe('useCharacterRules — loading states', () => {
   })
 
   it('returns loading and error from the hook', async () => {
-    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse as any)
+    vi.mocked(getCharacterRules).mockResolvedValue(mockApiResponse)
 
     const { result } = renderHook(() => useCharacterRules())
 
@@ -207,7 +208,7 @@ describe('useCharacterRules — error handling', () => {
     vi.mocked(getCharacterRules).mockResolvedValue({
       ok: false,
       rules: mockRules,
-    } as any)
+    } as CharacterRulesResponse)
 
     renderHook(() => useCharacterRules())
 
@@ -255,7 +256,7 @@ describe('useCharacterRules — error handling', () => {
     vi.mocked(getCharacterRules).mockResolvedValue({
       ok: true,
       rules: differentRules,
-    } as any)
+    } as CharacterRulesResponse)
 
     const { unmount } = renderHook(() => useCharacterRules())
     unmount()
@@ -291,7 +292,7 @@ describe('useCharacterRules — edge cases', () => {
         },
         assisted_creation_questions: [],
       },
-    } as any)
+    } as CharacterRulesResponse)
 
     renderHook(() => useCharacterRules())
 
