@@ -388,10 +388,8 @@ def build_context(
                     else summary_text[:100]
                 )
                 timeline_parts.append(
-
-                        f"[Session Summary: Turns {turn_start}-{turn_end} (condensed)]"
-                        f"\n{first_line}..."
-
+                    f"[Session Summary: Turns {turn_start}-{turn_end} (condensed)]"
+                    f"\n{first_line}..."
                 )
 
     # 3. Recent turns from history buffer (oldest first)
