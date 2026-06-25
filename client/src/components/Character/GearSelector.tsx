@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react'
 import { useCharacterStore } from '../../stores/characterStore'
 import { getStartingGear } from '../../api/endpoints'
 import type { StartingGearResponse } from '../../api/endpoints'
-import type { Item } from '../../api/types'
+import { ItemType, type Item } from '../../api/types'
 import styles from './GearSelector.module.css'
 
 // ---------------------------------------------------------------------------
@@ -45,12 +45,12 @@ function itemStats(item: Item): string {
   const parts: string[] = []
 
   // Weapon damage
-  if (item.item_type === 'WEAPON' && props.damage) {
+  if (item.item_type === ItemType.WEAPON && props.damage) {
     parts.push(String(props.damage))
   }
 
   // Armor class
-  if (item.item_type === 'ARMOR' && props.ac) {
+  if (item.item_type === ItemType.ARMOR && props.ac) {
     parts.push(`AC ${props.ac}`)
   }
 
